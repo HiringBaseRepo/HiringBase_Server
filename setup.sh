@@ -5,9 +5,9 @@ set -e
 
 echo "🚀 Setting up Smart Resume Screening System..."
 
-# # Create virtual environment
-# python3 -m venv venv
-# source venv/bin/activate
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
 
 # Install dependencies
 pip install --upgrade pip
