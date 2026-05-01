@@ -76,7 +76,7 @@ app/
 |-------|--------|---------|
 | **Layer 1** | Rule Engine | Knockout, validation, scoring formula, ranking |
 | **Layer 2** | NLP / Embeddings | Skill matching, synonym detection, parser helper |
-| **Layer 3** | LLM (Qwen3 / Llama3) | Explanation text, summary, reasoning only |
+| **Layer 3** | LLM (Qwen3 / Llama3) | Explanation text, summary, reasoning, and structured JSON normalization |
 
 > **Principle**: LLM never computes final score. Score is always rule-based + deterministic.
 
