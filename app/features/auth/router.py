@@ -18,6 +18,8 @@ from app.features.auth.service import (
     create_company_and_hr,
     generate_token_pair,
     refresh_access_token,
+    request_password_reset,
+    confirm_password_reset,
 )
 from app.features.auth.dependencies import get_current_user
 from app.shared.schemas.response import StandardResponse
@@ -76,11 +78,33 @@ async def me(current_user = Depends(get_current_user)):
 
 @router.post("/password-reset/request", response_model=StandardResponse[dict])
 async def password_reset_request(data: PasswordResetRequest, db: AsyncSession = Depends(get_db)):
-    # MVP: send email with reset token (stub)
-    return StandardResponse.ok(data={"message": "If email exists, reset link sent"})
+    """Request password reset token.
+
+    Token di-generate aman dan idealnya dikirim via email.
+    NOTE: Email delivery belum aktif (perlu konfigurasi SMTP/SendGrid).
+    """
+    token = await request_password_reset(db, data.email)
+    # Selalu kembalikan response yang sama untuk mencegah user enumeration
+    response_data: dict = {"message": "Jika email terdaftar, link reset akan dikirim"}
+    # TODO: Kirim token via email ke data.email
+    # Untuk development: log token ke console (jangan di production!)
+    if token:
+        import structlog
+        log = structlog.get_logger("auth.password_reset")
+        log.info("Password reset token generated (dev only)", email=data.email, token=token)
+    return StandardResponse.ok(data=response_data)
 
 
 @router.post("/password-reset/confirm", response_model=StandardResponse[dict])
 async def password_reset_confirm(data: PasswordResetConfirm, db: AsyncSession = Depends(get_db)):
-    # MVP: verify token and update password (stub)
-    return StandardResponse.ok(data={"message": "Password reset successful"})
+    """Konfirmasi reset password menggunakan token.
+
+    NOTE: Implementasi penuh butuh tabel password_reset_tokens via Alembic migration.
+    """
+    success = await confirm_password_reset(db, data.token, data.new_password)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token tidak valid, sudah digunakan, atau sudah kedaluwarsa",
+        )
+    return StandardResponse.ok(data={"message": "Password berhasil direset, silahkan login kembali"})

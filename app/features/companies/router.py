@@ -92,14 +92,126 @@ async def activate_company(company_id: int, db: AsyncSession = Depends(get_db), 
 
 @router.get("/{company_id}/statistics", response_model=StandardResponse[dict])
 async def company_statistics(company_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_super_admin)):
-    from app.features.models import Job, Application
-    job_count = await db.execute(select(func.count()).where(Job.company_id == company_id, Job.deleted_at.is_(None)))
-    app_count = await db.execute(select(func.count()).where(
-        Application.job_id.in_(select(Job.id).where(Job.company_id == company_id)),
-        Application.deleted_at.is_(None)
-    ))
+    """Statistik lengkap satu perusahaan untuk Super Admin."""
+    from app.features.models import Job, Application, User as UserModel
+    from app.shared.enums.application_status import ApplicationStatus
+    from app.shared.enums.job_status import JobStatus
+    from app.shared.enums.user_roles import UserRole
+
+    # Cek company exists
+    comp_result = await db.execute(select(Company).where(Company.id == company_id))
+    company = comp_result.scalar_one_or_none()
+    if not company:
+        return StandardResponse.error(message="Company not found", status_code=404)
+
+    # Total jobs per status
+    job_count = await db.execute(
+        select(func.count()).where(Job.company_id == company_id, Job.deleted_at.is_(None))
+    )
+    published_jobs = await db.execute(
+        select(func.count()).where(
+            Job.company_id == company_id,
+            Job.status == JobStatus.PUBLISHED,
+            Job.deleted_at.is_(None),
+        )
+    )
+
+    # Total applications
+    app_count = await db.execute(
+        select(func.count()).where(
+            Application.job_id.in_(select(Job.id).where(Job.company_id == company_id)),
+            Application.deleted_at.is_(None),
+        )
+    )
+
+    # Hired count
+    hired_count = await db.execute(
+        select(func.count()).where(
+            Application.job_id.in_(select(Job.id).where(Job.company_id == company_id)),
+            Application.status == ApplicationStatus.HIRED,
+            Application.deleted_at.is_(None),
+        )
+    )
+
+    # Rejected count
+    rejected_count = await db.execute(
+        select(func.count()).where(
+            Application.job_id.in_(select(Job.id).where(Job.company_id == company_id)),
+            Application.status == ApplicationStatus.REJECTED,
+            Application.deleted_at.is_(None),
+        )
+    )
+
+    # HR users count
+    hr_count = await db.execute(
+        select(func.count()).where(
+            UserModel.company_id == company_id,
+            UserModel.role == UserRole.HR,
+            UserModel.deleted_at.is_(None),
+        )
+    )
+
     return StandardResponse.ok(data={
         "company_id": company_id,
-        "total_jobs": job_count.scalar_one(),
-        "total_applications": app_count.scalar_one(),
+        "company_name": company.name,
+        "is_active": company.is_active,
+        "is_suspended": company.is_suspended,
+        "stats": {
+            "total_jobs": job_count.scalar_one(),
+            "published_jobs": published_jobs.scalar_one(),
+            "total_applications": app_count.scalar_one(),
+            "total_hired": hired_count.scalar_one(),
+            "total_rejected": rejected_count.scalar_one(),
+            "hr_users": hr_count.scalar_one(),
+        },
+    })
+
+
+@router.get("/overview", response_model=StandardResponse[dict])
+async def multi_company_overview(db: AsyncSession = Depends(get_db), _=Depends(require_super_admin)):
+    """Overview semua perusahaan untuk Super Admin dashboard."""
+    from app.features.models import Job, Application
+
+    result = await db.execute(select(Company).where(Company.deleted_at.is_(None)).order_by(Company.created_at.desc()))
+    companies = result.scalars().all()
+
+    total_companies = len(companies)
+    active_companies = sum(1 for c in companies if c.is_active and not c.is_suspended)
+    suspended_companies = sum(1 for c in companies if c.is_suspended)
+
+    # Aggregate stats
+    total_jobs_all = await db.execute(select(func.count(Job.id)).where(Job.deleted_at.is_(None)))
+    total_apps_all = await db.execute(select(func.count(Application.id)).where(Application.deleted_at.is_(None)))
+
+    companies_summary = []
+    for c in companies:
+        job_ct = await db.execute(
+            select(func.count()).where(Job.company_id == c.id, Job.deleted_at.is_(None))
+        )
+        app_ct = await db.execute(
+            select(func.count()).where(
+                Application.job_id.in_(select(Job.id).where(Job.company_id == c.id)),
+                Application.deleted_at.is_(None),
+            )
+        )
+        companies_summary.append({
+            "id": c.id,
+            "name": c.name,
+            "slug": c.slug,
+            "is_active": c.is_active,
+            "is_suspended": c.is_suspended,
+            "total_jobs": job_ct.scalar_one(),
+            "total_applications": app_ct.scalar_one(),
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        })
+
+    return StandardResponse.ok(data={
+        "summary": {
+            "total_companies": total_companies,
+            "active_companies": active_companies,
+            "suspended_companies": suspended_companies,
+            "total_jobs_platform": total_jobs_all.scalar_one(),
+            "total_applications_platform": total_apps_all.scalar_one(),
+        },
+        "companies": companies_summary,
     })
