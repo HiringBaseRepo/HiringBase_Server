@@ -12,7 +12,7 @@ def test_password_hashing():
 
 
 def test_jwt_encode_decode():
-    data = {"sub": 1, "email": "test@example.com", "role": "applicant"}
+    data = {"sub": "1", "email": "test@example.com", "role": "applicant"}
     token = create_access_token(data)
     payload = decode_token(token)
     assert payload is not None

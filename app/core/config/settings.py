@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: Optional[str] = None
 
     # AI MODELS
-    EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
+    EMBEDDING_MODEL: str = "paraphrase-multilingual-MiniLM-L12-v2"
     SPACY_MODEL: str = "en_core_web_md"
 
     # SCORING DEFAULTS
