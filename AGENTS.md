@@ -209,7 +209,8 @@ If OCR fails:
 
 1. **Password Reset DB**: Butuh tabel `password_reset_tokens` via Alembic migration untuk implementasi penuh (`confirm_password_reset` mengembalikan False sampai tabel dibuat)
 2. **Email Delivery**: SMTP/SendGrid belum dikonfigurasi — token di-log ke console saat development (`structlog` level INFO)
-3. **models.py monolitik**: Semua 16 model dalam satu file — ideal dipecah per domain di masa depan
-4. **Revoke Sessions**: Masih no-op — butuh Redis atau token blacklist table
-5. **Image-based PDF**: Untuk PDF scan (bukan text), perlu convert page ke image sebelum EasyOCR (belum diimplementasi)
-6. **LLM Qwen3**: Target Qwen3 via HuggingFace Gradio Space belum diimplementasi — saat ini menggunakan HF Inference API + OpenRouter fallback
+3. **Import Errors Fix**: `PaginatedResponse` telah dipindahkan ke `app.shared.schemas.response` untuk memperbaiki `ImportError` yang terjadi di hampir semua router fitur.
+4. **models.py monolitik**: Semua 16 model dalam satu file — ideal dipecah per domain di masa depan
+5. **Revoke Sessions**: Masih no-op — butuh Redis atau token blacklist table
+6. **Image-based PDF**: Untuk PDF scan (bukan text), perlu convert page ke image sebelum EasyOCR (belum diimplementasi)
+7. **LLM Qwen3**: Target Qwen3 via HuggingFace Gradio Space belum diimplementasi — saat ini menggunakan HF Inference API + OpenRouter fallback

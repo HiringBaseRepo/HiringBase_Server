@@ -5,6 +5,16 @@ from pydantic import BaseModel
 T = TypeVar("T")
 
 
+class PaginatedResponse(BaseModel, Generic[T]):
+    data: List[T]
+    total: int
+    page: int
+    per_page: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
+
+
 class StandardResponse(BaseModel, Generic[T]):
     success: bool = True
     message: str = "Success"
