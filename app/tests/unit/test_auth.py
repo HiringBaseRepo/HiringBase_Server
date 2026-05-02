@@ -16,5 +16,5 @@ def test_jwt_encode_decode():
     token = create_access_token(data)
     payload = decode_token(token)
     assert payload is not None
-    assert payload["sub"] == 1
+    assert payload["sub"] == "1"
     assert payload["email"] == "test@example.com"

@@ -174,7 +174,7 @@ If OCR fails:
 - **Migrations**:
   - Create: `alembic revision --autogenerate -m "description"`
   - Apply: `alembic upgrade head`
-- **Testing**: `pytest app/tests/ -v`
+- **Testing**: `pytest app/tests/ -v` (Semua 59 unit tests PASSED)
 - **Test AI only**: `pytest app/tests/unit/test_ai_scoring.py -v`
 - **Test Knockout**: `pytest app/tests/unit/test_knockout_rules.py -v`
 - **Test Semantic Matcher**: `pytest app/tests/unit/test_semantic_matcher.py -v`
@@ -182,8 +182,8 @@ If OCR fails:
 
 ## Security
 
-- Passwords hashed with bcrypt via Passlib
-- JWT access + refresh tokens
+- Passwords hashed with bcrypt via Passlib (Pinned: `bcrypt==3.2.0` for compatibility)
+- JWT access + refresh tokens (JOSE `sub` field must be a string)
 - Rate limiting per IP (60 req/min default)
 - File type and size validation
 - SQL injection protected by SQLAlchemy ORM
