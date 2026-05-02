@@ -118,6 +118,25 @@ def _extract_languages(text: str) -> List[str]:
 
 
 def _extract_url(text: str, domain_hint: str) -> Optional[str]:
-    pattern = re.compile(r"https?://[^\s]+" + domain_hint + r"[^\s]*", re.IGNORECASE)
+    """Extract URL yang mengandung domain_hint dari teks."""
+    # Pattern: cari URL yang mengandung hint di domain atau path
+    pattern = re.compile(
+        r"https?://(?:[^\s]*" + re.escape(domain_hint) + r"[^\s]*)",
+        re.IGNORECASE,
+    )
     match = pattern.search(text)
-    return match.group(0) if match else None
+    if match:
+        # Bersihkan trailing punctuation
+        url = match.group(0).rstrip(".,;:)")
+        return url
+
+    # Fallback: cari hint tanpa http prefix (e.g. "github.com/johndoe")
+    plain_pattern = re.compile(
+        r"(?:^|\s)(" + re.escape(domain_hint) + r"\.(?:com|io|dev|net)[^\s]*)",
+        re.IGNORECASE | re.MULTILINE,
+    )
+    plain_match = plain_pattern.search(text)
+    if plain_match:
+        return "https://" + plain_match.group(1).strip()
+
+    return None
