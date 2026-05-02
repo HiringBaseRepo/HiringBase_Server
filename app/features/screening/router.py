@@ -117,12 +117,17 @@ async def _process_screening(application_id: int, company_id: int):
 
         application.status = ApplicationStatus.DOC_CHECK
 
-        # 2. Knockout rules
+        # 2. Knockout rules — load answers untuk evaluasi experience/boolean/range
         rules_result = await db.execute(select(JobKnockoutRule).where(JobKnockoutRule.job_id == job.id, JobKnockoutRule.is_active == True))
         rules = rules_result.scalars().all()
 
+        answers_result = await db.execute(
+            select(ApplicationAnswer).where(ApplicationAnswer.application_id == application_id)
+        )
+        answers = answers_result.scalars().all()
+
         for rule in rules:
-            passed = _evaluate_knockout_rule(rule, application, docs)
+            passed = _evaluate_knockout_rule(rule, application, docs, answers=answers)
             if not passed:
                 application.status = ApplicationStatus.KNOCKOUT
                 log = ApplicationStatusLog(
