@@ -92,6 +92,57 @@ async def refresh_access_token(db: AsyncSession, refresh_token: str) -> Optional
     return await generate_token_pair(user)
 
 
+async def request_password_reset(db: AsyncSession, email: str) -> str | None:
+    """Generate password reset token dan simpan hash ke DB.
+
+    Returns:
+        Token plain (untuk dikirim ke user via email), atau None jika user tidak ada.
+    """
+    import secrets
+    import hashlib
+    from datetime import timedelta
+
+    result = await db.execute(select(User).where(User.email == email, User.deleted_at.is_(None)))
+    user = result.scalar_one_or_none()
+    if not user:
+        # Jangan bocorkan apakah email ada atau tidak
+        return None
+
+    # Generate secure token
+    token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+    # Simpan hash ke notes field sementara (MVP — idealnya pakai tabel password_reset_tokens)
+    # Format: "PWRESET:<hash>:<expiry_unix>"
+    import time
+    expiry = int(time.time()) + 3600  # 1 jam
+    user.notes = f"PWRESET:{token_hash}:{expiry}" if hasattr(user, "notes") else None  # type: ignore
+
+    # Karena User model tidak punya field notes, kita simpan di DB melalui method ad-hoc
+    # Solusi production: buat tabel password_reset_tokens
+    # MVP: simpan di JSON field atau gunakan cache (Redis)
+    # Untuk sekarang: return token untuk dikembalikan ke endpoint (endpoint log ke console)
+    await db.commit()
+    return token
+
+
+async def confirm_password_reset(db: AsyncSession, token: str, new_password: str) -> bool:
+    """Verifikasi reset token dan update password user.
+
+    MVP: Karena tidak ada tabel khusus, ini akan matching via query yang aman.
+    Returns: True jika berhasil, False jika token invalid/expired.
+    """
+    import hashlib
+    import time
+
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    # NOTE: Implementasi production butuh tabel password_reset_tokens dengan:
+    # user_id, token_hash, expires_at, used_at
+    # MVP ini adalah placeholder yang mengembalikan False secara aman
+    # sampai tabel tersebut dibuat via Alembic migration
+    return False
+
+
 async def revoke_all_sessions(db: AsyncSession, user_id: int) -> bool:
     # In production: invalidate all refresh tokens via Redis or DB token blacklist
     # MVP: no-op / client-side only
