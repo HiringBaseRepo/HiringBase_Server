@@ -174,8 +174,13 @@ async def _process_screening(application_id: int, company_id: int):
         # 7. Portfolio scoring
         portfolio_score = _score_portfolio(parsed_data)
 
-        # 8. Soft skill (stub NLP)
-        soft_skill_score = 60.0  # MVP default
+        # 8. Soft skill via NLP keyword scorer
+        try:
+            from app.ai.nlp.soft_skill_scorer import score_soft_skills
+            soft_skill_result = score_soft_skills(text if cv_doc else "")
+            soft_skill_score = soft_skill_result.get("composite_score", 60.0)
+        except Exception:
+            soft_skill_score = 60.0  # fallback jika NLP gagal
 
         # 9. Admin score
         admin_score = 100.0 if not missing else 0.0
