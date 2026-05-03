@@ -1,22 +1,24 @@
 """Auth business logic."""
 from typing import Optional, Tuple
-from datetime import datetime, timezone
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security.hashing import verify_password, get_password_hash
 from app.core.security.jwt import create_access_token, create_refresh_token, decode_token
 from app.core.utils.ticket import generate_apply_code
 from app.features.models import User, Company
+from app.features.auth.repositories.repository import (
+    get_user_by_email,
+    get_user_by_id,
+    save_company,
+    save_user,
+)
 from app.features.auth.schemas.schema import RegisterRequest, TokenPair
 from app.shared.enums.user_roles import UserRole
-from app.shared.constants.errors import ERR_INVALID_CREDENTIALS, ERR_USER_NOT_FOUND
 
 
 async def authenticate_user(db: AsyncSession, email: str, password: str) -> Optional[User]:
-    result = await db.execute(select(User).where(User.email == email, User.deleted_at.is_(None)))
-    user = result.scalar_one_or_none()
+    user = await get_user_by_email(db, email)
     if not user or not user.password_hash:
         return None
     if not verify_password(password, user.password_hash):
@@ -34,9 +36,8 @@ async def create_user(db: AsyncSession, data: RegisterRequest, role: UserRole = 
         phone=data.phone,
         role=role,
     )
-    db.add(user)
-    await db.flush()
-    await db.refresh(user)
+    user = await save_user(db, user)
+    await db.commit()
     return user
 
 
@@ -45,9 +46,7 @@ async def create_company_and_hr(db: AsyncSession, data: RegisterRequest) -> Tupl
         name=data.company_name or data.full_name + " Company",
         slug=generate_apply_code().replace("FRM-", "").lower(),
     )
-    db.add(company)
-    await db.flush()
-    await db.refresh(company)
+    company = await save_company(db, company)
 
     hr = User(
         email=data.email,
@@ -57,9 +56,8 @@ async def create_company_and_hr(db: AsyncSession, data: RegisterRequest) -> Tupl
         role=UserRole.HR,
         company_id=company.id,
     )
-    db.add(hr)
-    await db.flush()
-    await db.refresh(hr)
+    hr = await save_user(db, hr)
+    await db.commit()
     return hr, company
 
 
@@ -85,8 +83,7 @@ async def refresh_access_token(db: AsyncSession, refresh_token: str) -> Optional
     if not payload or payload.get("type") != "refresh":
         return None
     user_id = int(payload.get("sub"))
-    result = await db.execute(select(User).where(User.id == user_id, User.deleted_at.is_(None)))
-    user = result.scalar_one_or_none()
+    user = await get_user_by_id(db, user_id)
     if not user or not user.is_active:
         return None
     return await generate_token_pair(user)
@@ -100,10 +97,7 @@ async def request_password_reset(db: AsyncSession, email: str) -> str | None:
     """
     import secrets
     import hashlib
-    from datetime import timedelta
-
-    result = await db.execute(select(User).where(User.email == email, User.deleted_at.is_(None)))
-    user = result.scalar_one_or_none()
+    user = await get_user_by_email(db, email)
     if not user:
         # Jangan bocorkan apakah email ada atau tidak
         return None

@@ -4,10 +4,10 @@ from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
 from app.core.database.base import get_db
 from app.core.security.jwt import decode_token
+from app.features.auth.repositories.repository import get_user_by_id
 from app.features.models import User
 from app.shared.enums.user_roles import UserRole
 
@@ -26,8 +26,7 @@ async def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
 
     user_id = int(payload.get("sub"))
-    result = await db.execute(select(User).where(User.id == user_id, User.deleted_at.is_(None)))
-    user = result.scalar_one_or_none()
+    user = await get_user_by_id(db, user_id)
 
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
