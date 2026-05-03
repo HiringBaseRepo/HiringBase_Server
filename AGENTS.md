@@ -206,12 +206,39 @@ When splitting models later:
 ### Refactor Priority
 
 Refactor existing feature internals gradually in this order:
-1. `users` — smallest feature, use it as the clean router/service/repository/schema template.
-2. `auth` — service exists, but DB queries should move from service to repository.
-3. `jobs` — move vacancy setup, publish, close, list, and detail workflows into service/repository/schema layers.
-4. `applications` — split public apply flow into service orchestration and repository persistence helpers.
-5. `screening` — move screening pipeline orchestration out of router into services; keep AI helpers in `app/ai` and screening-specific helpers in `screening/services/`.
-6. Remaining small features: `companies`, `documents`, `interviews`, `notifications`, `ranking`, `scoring`, `tickets`, and `audit_logs`.
+1. `applications` — largest public workflow; split public job listing/detail, apply flow, duplicate checks, applicant creation, answer saving, document metadata, ticket creation, status logs, and application listing/status updates.
+2. `screening` — largest AI workflow; move knockout CRUD, screening pipeline, score persistence, status logs, and manual override into services/repositories while keeping reusable AI helpers in `app/ai`.
+3. `companies` — split company CRUD, soft delete/suspend, company statistics, and super-admin summary/dashboard queries.
+4. `documents` — move upload validation, R2 upload, document metadata persistence, and application ownership checks.
+5. `job_forms` and `scoring` — move form-field CRUD/reorder and scoring-template CRUD/weight validation.
+6. Smaller read/update features: `ranking`, `tickets`, `notifications`, `interviews`, and `audit_logs`.
+
+### Layer Compliance Audit
+
+Current status of `app/features` after the first migration pass:
+
+| Feature | Status | Notes |
+|---|---|---|
+| `users` | Mostly compliant | Router delegates to service; DB access lives in `users/repositories/repository.py`; request/response contracts live in `users/schemas/schema.py`. |
+| `auth` | Mostly compliant | User/company lookup and persistence live in `auth/repositories/repository.py`; service keeps hashing, token generation, password reset orchestration, and commits. Router still raises route-level `HTTPException`, which is acceptable for HTTP auth failures. |
+| `jobs` | Partially compliant | Router delegates to service and has active repository/schema layers. Service still raises `HTTPException`; future cleanup should replace this with domain/custom exceptions if `app.core.exceptions` is expanded. |
+| `applications` | Not compliant | `applications/routers/router.py` still contains SQL queries, applicant creation, duplicate checks, JSON parsing, R2 upload, ticket creation, status-log creation, commits, and response mapping. |
+| `screening` | Not compliant | `screening/routers/router.py` and `screening/routers/manual_override.py` still contain DB access, knockout CRUD, pipeline orchestration, score creation, status logs, manual override logic, and commits. |
+| `companies` | Not compliant | `companies/routers/router.py` still contains company CRUD, soft delete/suspend, dashboard/statistics queries, counts, commits, and response mapping. |
+| `documents` | Not compliant | `documents/routers/router.py` still contains application ownership query, file validation, R2 upload, document model creation, commit, and response mapping. |
+| `job_forms` | Not compliant | `job_forms/routers/router.py` still contains form-field CRUD, reorder updates, direct DB operations, and response mapping. |
+| `scoring` | Not compliant | `scoring/routers/router.py` still contains weight validation, template replacement/update, direct DB operations, and response mapping. |
+| `ranking` | Not compliant | `ranking/routers/router.py` still contains ranking query, pagination count, applicant lookup loop, and response mapping. |
+| `tickets` | Not compliant | `tickets/routers/router.py` still contains ticket/application/job/applicant lookups and response mapping. |
+| `notifications` | Not compliant | `notifications/routers/router.py` still contains list/read/mark-all-read queries, update statements, commits, and response mapping. |
+| `interviews` | Not compliant | `interviews/routers/router.py` still contains application ownership check, interview creation/detail lookup, commit, and response mapping. |
+| `audit_logs` | Not compliant | `audit_logs/routers/router.py` still contains filtering, pagination count, query execution, and response mapping. |
+
+Layer folders already exist for every feature, but most `services/`, `repositories/`, and `schemas/` packages outside `users`, `auth`, and `jobs` are empty placeholders. Do not treat the presence of these folders as proof that a feature is already migrated.
+
+When continuing the refactor, preserve public endpoint paths and response wrappers unless the user explicitly asks to change API contracts. If an endpoint must change from scalar query/body parameters to a Pydantic body schema, call that out because frontend clients may need payload adjustments.
+
+Before editing a feature, quickly scan its router for these patterns: `select(`, `db.execute`, `db.add`, `db.delete`, `db.commit`, `db.refresh`, `StandardResponse.error`, `HTTPException`, `put_object`, `json.loads`, `generate_ticket_code`, and `generate_apply_code`. These usually indicate logic that belongs in services or repositories.
 
 ## File Storage
 
@@ -295,7 +322,8 @@ If OCR fails:
 1. **Password Reset DB**: Butuh tabel `password_reset_tokens` via Alembic migration untuk implementasi penuh (`confirm_password_reset` mengembalikan False sampai tabel dibuat)
 2. **Email Delivery**: SMTP/SendGrid belum dikonfigurasi — token di-log ke console saat development (`structlog` level INFO)
 3. **Import Errors Fix**: `PaginatedResponse` telah dipindahkan ke `app.shared.schemas.response` untuk memperbaiki `ImportError` yang terjadi di hampir semua router fitur.
-4. **models.py monolitik**: Semua 16 model masih dalam `app/features/models.py` sebagai compatibility layer. Struktur `models/` per feature sudah disiapkan; pecah model per domain secara bertahap dan update import dengan hati-hati.
-5. **Revoke Sessions**: Masih no-op — butuh Redis atau token blacklist table
-6. **Image-based PDF**: Untuk PDF scan (bukan text), perlu convert page ke image sebelum EasyOCR (belum diimplementasi)
-7. **LLM Qwen3**: Target Qwen3 via HuggingFace Gradio Space belum diimplementasi — saat ini menggunakan HF Inference API + OpenRouter fallback
+4. **Feature layer migration**: `users`, `auth`, dan `jobs` sudah memakai layer aktif. Feature lain masih banyak logic DB/business di router dan harus dipindah bertahap sesuai `Feature Layer Rules`.
+5. **models.py monolitik**: Semua 16 model masih dalam `app/features/models.py` sebagai compatibility layer. Struktur `models/` per feature sudah disiapkan; pecah model per domain secara bertahap dan update import dengan hati-hati.
+6. **Revoke Sessions**: Masih no-op — butuh Redis atau token blacklist table
+7. **Image-based PDF**: Untuk PDF scan (bukan text), perlu convert page ke image sebelum EasyOCR (belum diimplementasi)
+8. **LLM Qwen3**: Target Qwen3 via HuggingFace Gradio Space belum diimplementasi — saat ini menggunakan HF Inference API + OpenRouter fallback
