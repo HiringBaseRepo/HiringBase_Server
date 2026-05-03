@@ -47,10 +47,16 @@ This is the **backend** of an AI-powered recruitment assistant that helps HR tea
 │   └── security/       # JWT & password hashing
 ├── features/           # Feature-based modules (Domain Driven)
 │   └── <feature_name>/ # e.g., auth, jobs, applications
-│       ├── router.py   # FastAPI endpoints
-│       ├── service.py  # Business logic & DB operations
-│       ├── models.py   # SQLAlchemy models (semua di features/models.py)
-│       └── schemas.py  # Pydantic validation schemas
+│       ├── routers/        # FastAPI endpoints only
+│       │   └── router.py
+│       ├── services/       # Business logic / orchestration
+│       │   └── service.py
+│       ├── repositories/   # SQLAlchemy query/data access layer
+│       ├── schemas/        # Pydantic validation schemas
+│       └── models/         # Per-feature model exports / future split target
+│
+│   # Current shared compatibility model file:
+│   └── models.py       # SQLAlchemy models are still centralized here for now
 ├── shared/             # Shared utilities & global schemas
 │   ├── enums/          # Application enums (UserRole, ApplicationStatus, dll)
 │   ├── constants/      # scoring.py, storage.py, errors.py
@@ -119,6 +125,8 @@ APPLIED → DOC_CHECK → [DOC_FAILED]
 - **Pagination**: Use `PaginationParams` with `page` and `per_page`.
 - **Auth**: Bearer Token in `Authorization` header.
 - **Dependency**: Use `Annotated` for FastAPI dependencies (e.g., `db: Annotated[AsyncSession, Depends(get_db)]`).
+- **Router imports**: Routers live in `app.features.<feature>.routers.router`.
+- **Auth dependencies**: Import auth dependencies from `app.features.auth.dependencies.auth`.
 
 ## Coding Standards
 
@@ -127,6 +135,11 @@ APPLIED → DOC_CHECK → [DOC_FAILED]
 - **Typing**: Use Python type hints for all function signatures.
 - **Errors**: Raise custom exceptions from `app.core.exceptions` instead of returning error dictionaries.
 - **Import lazy**: Library berat (pdfplumber, easyocr) diimport di dalam fungsi untuk menghindari crash jika belum terinstall.
+- **Feature layout**: Do not add new route/service/schema files directly under a feature root. Use `routers/`, `services/`, `repositories/`, `schemas/`, and `models/`.
+- **Router responsibility**: `routers/router.py` should only handle HTTP concerns: request parameters, FastAPI dependencies, response model, and `StandardResponse` wrapping.
+- **Service responsibility**: `services/service.py` should hold business rules, orchestration, validation that is not purely schema-level, status transitions, hashing, code generation, and calls to repositories.
+- **Repository responsibility**: `repositories/` should hold SQLAlchemy queries, joins, counts, pagination statements, and persistence helpers. Avoid writing new `db.execute(...)` logic directly in routers.
+- **Schema responsibility**: Pydantic request/response models belong in `schemas/`. Avoid growing endpoint signatures with many raw scalar parameters when a schema is appropriate.
 
 ## File Storage
 
@@ -210,7 +223,7 @@ If OCR fails:
 1. **Password Reset DB**: Butuh tabel `password_reset_tokens` via Alembic migration untuk implementasi penuh (`confirm_password_reset` mengembalikan False sampai tabel dibuat)
 2. **Email Delivery**: SMTP/SendGrid belum dikonfigurasi — token di-log ke console saat development (`structlog` level INFO)
 3. **Import Errors Fix**: `PaginatedResponse` telah dipindahkan ke `app.shared.schemas.response` untuk memperbaiki `ImportError` yang terjadi di hampir semua router fitur.
-4. **models.py monolitik**: Semua 16 model dalam satu file — ideal dipecah per domain di masa depan
+4. **models.py monolitik**: Semua 16 model masih dalam `app/features/models.py` sebagai compatibility layer. Struktur `models/` per feature sudah disiapkan; pecah model per domain secara bertahap dan update import dengan hati-hati.
 5. **Revoke Sessions**: Masih no-op — butuh Redis atau token blacklist table
 6. **Image-based PDF**: Untuk PDF scan (bukan text), perlu convert page ke image sebelum EasyOCR (belum diimplementasi)
 7. **LLM Qwen3**: Target Qwen3 via HuggingFace Gradio Space belum diimplementasi — saat ini menggunakan HF Inference API + OpenRouter fallback
