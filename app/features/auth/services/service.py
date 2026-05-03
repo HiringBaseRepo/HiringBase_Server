@@ -9,7 +9,7 @@ from app.core.security.hashing import verify_password, get_password_hash
 from app.core.security.jwt import create_access_token, create_refresh_token, decode_token
 from app.core.utils.ticket import generate_apply_code
 from app.features.models import User, Company
-from app.features.auth.schemas import RegisterRequest, TokenPair
+from app.features.auth.schemas.schema import RegisterRequest, TokenPair
 from app.shared.enums.user_roles import UserRole
 from app.shared.constants.errors import ERR_INVALID_CREDENTIALS, ERR_USER_NOT_FOUND
 

@@ -1,7 +1,7 @@
 """Unit tests untuk knockout rule evaluation."""
 import pytest
 from unittest.mock import MagicMock
-from app.features.screening.helpers import (
+from app.features.screening.services.helpers import (
     evaluate_knockout_rule as _evaluate_knockout_rule,
     find_answer_value as _find_answer_value,
     compare_numeric as _compare_numeric,

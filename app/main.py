@@ -18,21 +18,21 @@ from app.core.middleware.rate_limit import RateLimitMiddleware
 from app.shared.schemas.response import StandardResponse
 
 # Routers
-from app.features.auth.router import router as auth_router
-from app.features.companies.router import router as companies_router
-from app.features.users.router import router as users_router
-from app.features.jobs.router import router as jobs_router
-from app.features.job_forms.router import router as job_forms_router
-from app.features.scoring.router import router as scoring_router
-from app.features.applications.router import router as applications_router
-from app.features.documents.router import router as documents_router
-from app.features.screening.router import router as screening_router
-from app.features.ranking.router import router as ranking_router
-from app.features.tickets.router import router as tickets_router
-from app.features.notifications.router import router as notifications_router
-from app.features.interviews.router import router as interviews_router
-from app.features.audit_logs.router import router as audit_logs_router
-from app.features.screening.manual_override import router as manual_override_router
+from app.features.auth.routers.router import router as auth_router
+from app.features.companies.routers.router import router as companies_router
+from app.features.users.routers.router import router as users_router
+from app.features.jobs.routers.router import router as jobs_router
+from app.features.job_forms.routers.router import router as job_forms_router
+from app.features.scoring.routers.router import router as scoring_router
+from app.features.applications.routers.router import router as applications_router
+from app.features.documents.routers.router import router as documents_router
+from app.features.screening.routers.router import router as screening_router
+from app.features.ranking.routers.router import router as ranking_router
+from app.features.tickets.routers.router import router as tickets_router
+from app.features.notifications.routers.router import router as notifications_router
+from app.features.interviews.routers.router import router as interviews_router
+from app.features.audit_logs.routers.router import router as audit_logs_router
+from app.features.screening.routers.manual_override import router as manual_override_router
 
 
 @asynccontextmanager

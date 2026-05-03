@@ -6,7 +6,7 @@ from sqlalchemy import select
 from datetime import datetime
 
 from app.core.database.base import get_db
-from app.features.auth.dependencies import require_hr, get_current_user
+from app.features.auth.dependencies.auth import require_hr, get_current_user
 from app.features.models import (
     Job, Application, JobKnockoutRule, ApplicationDocument, CandidateScore,
     ApplicationStatusLog, JobScoringTemplate, JobRequirement, JobFormField,

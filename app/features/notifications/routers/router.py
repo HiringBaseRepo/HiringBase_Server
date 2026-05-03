@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, func
 
 from app.core.database.base import get_db
-from app.features.auth.dependencies import get_current_user
+from app.features.auth.dependencies.auth import get_current_user
 from app.features.models import Notification
 from app.shared.schemas.response import StandardResponse, PaginatedResponse
 from app.core.utils.pagination import PaginationParams

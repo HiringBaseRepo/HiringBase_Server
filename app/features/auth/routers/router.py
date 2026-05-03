@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.base import get_db
-from app.features.auth.schemas import (
+from app.features.auth.schemas.schema import (
     RegisterRequest,
     LoginRequest,
     RefreshRequest,
@@ -12,7 +12,7 @@ from app.features.auth.schemas import (
     PasswordResetRequest,
     PasswordResetConfirm,
 )
-from app.features.auth.service import (
+from app.features.auth.services.service import (
     authenticate_user,
     create_user,
     create_company_and_hr,
@@ -21,7 +21,7 @@ from app.features.auth.service import (
     request_password_reset,
     confirm_password_reset,
 )
-from app.features.auth.dependencies import get_current_user
+from app.features.auth.dependencies.auth import get_current_user
 from app.shared.schemas.response import StandardResponse
 from app.shared.enums.user_roles import UserRole
 

@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from app.core.database.base import get_db
-from app.features.auth.dependencies import require_hr
+from app.features.auth.dependencies.auth import require_hr
 from app.features.models import Application, CandidateScore, Job, User
 from app.shared.schemas.response import StandardResponse, PaginatedResponse
 from app.core.utils.pagination import PaginationParams

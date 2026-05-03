@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 
 from app.core.database.base import get_db
-from app.features.auth.dependencies import require_hr
+from app.features.auth.dependencies.auth import require_hr
 from app.features.models import JobFormField, Job
 from app.shared.schemas.response import StandardResponse
 from app.shared.enums.field_type import FormFieldType
