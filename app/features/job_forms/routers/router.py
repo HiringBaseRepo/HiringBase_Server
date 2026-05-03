@@ -1,19 +1,31 @@
 """HR Custom Form Builder API."""
-from typing import Optional, List
+from typing import Optional
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
 
 from app.core.database.base import get_db
 from app.features.auth.dependencies.auth import require_hr
-from app.features.models import JobFormField, Job
+from app.features.job_forms.schemas.schema import (
+    CreateFormFieldRequest,
+    FormFieldCreatedResponse,
+    FormFieldDeletedResponse,
+    FormFieldUpdatedResponse,
+    ReorderFieldsRequest,
+    ReorderFieldsResponse,
+)
+from app.features.job_forms.services.service import (
+    create_form_field as create_form_field_service,
+    delete_form_field as delete_form_field_service,
+    reorder_fields as reorder_fields_service,
+    update_form_field as update_form_field_service,
+)
 from app.shared.schemas.response import StandardResponse
 from app.shared.enums.field_type import FormFieldType
 
 router = APIRouter(prefix="/job-forms", tags=["Job Form Builder"])
 
 
-@router.post("/{job_id}/fields", response_model=StandardResponse[dict])
+@router.post("/{job_id}/fields", response_model=StandardResponse[FormFieldCreatedResponse])
 async def create_form_field(
     job_id: int,
     field_key: str,
@@ -28,8 +40,7 @@ async def create_form_field(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_hr),
 ):
-    field = JobFormField(
-        job_id=job_id,
+    data = CreateFormFieldRequest(
         field_key=field_key,
         field_type=field_type,
         label=label,
@@ -40,13 +51,11 @@ async def create_form_field(
         order_index=order_index,
         validation_rules=validation_rules,
     )
-    db.add(field)
-    await db.commit()
-    await db.refresh(field)
-    return StandardResponse.ok(data={"field_id": field.id, "field_key": field.field_key})
+    result = await create_form_field_service(db, job_id=job_id, data=data)
+    return StandardResponse.ok(data=result)
 
 
-@router.patch("/{job_id}/fields/{field_id}", response_model=StandardResponse[dict])
+@router.patch("/{job_id}/fields/{field_id}", response_model=StandardResponse[FormFieldUpdatedResponse])
 async def update_form_field(
     job_id: int,
     field_id: int,
@@ -54,45 +63,27 @@ async def update_form_field(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_hr),
 ):
-    result = await db.execute(select(JobFormField).where(JobFormField.id == field_id, JobFormField.job_id == job_id))
-    field = result.scalar_one_or_none()
-    if not field:
-        return StandardResponse.error(message="Field not found", status_code=404)
-    for key, value in updates.items():
-        if hasattr(field, key):
-            setattr(field, key, value)
-    await db.commit()
-    return StandardResponse.ok(data={"field_id": field.id, "updated": True})
+    result = await update_form_field_service(db, job_id=job_id, field_id=field_id, updates=updates)
+    return StandardResponse.ok(data=result)
 
 
-@router.delete("/{job_id}/fields/{field_id}", response_model=StandardResponse[dict])
+@router.delete("/{job_id}/fields/{field_id}", response_model=StandardResponse[FormFieldDeletedResponse])
 async def delete_form_field(
     job_id: int,
     field_id: int,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_hr),
 ):
-    result = await db.execute(select(JobFormField).where(JobFormField.id == field_id, JobFormField.job_id == job_id))
-    field = result.scalar_one_or_none()
-    if not field:
-        return StandardResponse.error(message="Field not found", status_code=404)
-    await db.delete(field)
-    await db.commit()
-    return StandardResponse.ok(data={"deleted": True})
+    result = await delete_form_field_service(db, job_id=job_id, field_id=field_id)
+    return StandardResponse.ok(data=result)
 
 
-@router.post("/{job_id}/fields/reorder", response_model=StandardResponse[dict])
+@router.post("/{job_id}/fields/reorder", response_model=StandardResponse[ReorderFieldsResponse])
 async def reorder_fields(
     job_id: int,
-    order: List[dict],  # [{"field_id": 1, "order_index": 0}, ...]
+    data: ReorderFieldsRequest,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_hr),
 ):
-    for item in order:
-        await db.execute(
-            update(JobFormField)
-            .where(JobFormField.id == item["field_id"], JobFormField.job_id == job_id)
-            .values(order_index=item["order_index"])
-        )
-    await db.commit()
-    return StandardResponse.ok(data={"reordered": True})
+    result = await reorder_fields_service(db, job_id=job_id, data=data)
+    return StandardResponse.ok(data=result)

@@ -17,6 +17,7 @@ from app.features.scoring.services.service import (
 )
 from app.shared.schemas.response import StandardResponse
 from app.core.config import settings
+from typing import Optional
 
 router = APIRouter(prefix="/scoring", tags=["Scoring Templates"])
 
