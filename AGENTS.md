@@ -136,10 +136,82 @@ APPLIED → DOC_CHECK → [DOC_FAILED]
 - **Errors**: Raise custom exceptions from `app.core.exceptions` instead of returning error dictionaries.
 - **Import lazy**: Library berat (pdfplumber, easyocr) diimport di dalam fungsi untuk menghindari crash jika belum terinstall.
 - **Feature layout**: Do not add new route/service/schema files directly under a feature root. Use `routers/`, `services/`, `repositories/`, `schemas/`, and `models/`.
-- **Router responsibility**: `routers/router.py` should only handle HTTP concerns: request parameters, FastAPI dependencies, response model, and `StandardResponse` wrapping.
-- **Service responsibility**: `services/service.py` should hold business rules, orchestration, validation that is not purely schema-level, status transitions, hashing, code generation, and calls to repositories.
-- **Repository responsibility**: `repositories/` should hold SQLAlchemy queries, joins, counts, pagination statements, and persistence helpers. Avoid writing new `db.execute(...)` logic directly in routers.
-- **Schema responsibility**: Pydantic request/response models belong in `schemas/`. Avoid growing endpoint signatures with many raw scalar parameters when a schema is appropriate.
+
+## Feature Layer Rules
+
+Every feature must keep HTTP, business logic, database access, schemas, and model exports separated. When adding or refactoring a feature, follow this direction:
+
+```text
+routers/ -> services/ -> repositories/ -> models.py or models/
+          -> schemas/
+```
+
+### Routers
+
+`routers/router.py` is only for FastAPI HTTP concerns:
+- Define `APIRouter`, path operations, tags, response models, and route metadata.
+- Receive request data through Pydantic schemas, `Form`, `File`, `Query`, or `Path`.
+- Declare dependencies such as `Depends(get_db)`, `require_hr`, `require_super_admin`, and `get_current_user`.
+- Call one service function per endpoint whenever possible.
+- Wrap successful responses with `StandardResponse`.
+
+Routers must not contain:
+- SQLAlchemy statements such as `select(...)`, joins, counts, or filters.
+- Direct DB operations such as `db.execute(...)`, `db.add(...)`, `db.delete(...)`, `db.commit(...)`, or `db.refresh(...)`.
+- Business decisions such as duplicate application rules, status transition rules, scoring decisions, password hashing, ticket/apply-code generation, or storage workflows.
+- Large response mapping loops. Prefer schema serializers or service-level DTO helpers.
+
+### Services
+
+`services/service.py` is for business logic and orchestration:
+- Enforce domain rules, permissions beyond simple route dependencies, ownership checks, and validation that is not purely Pydantic validation.
+- Coordinate multiple repositories in one workflow, e.g. public application submission, screening, ranking, job publishing, and password reset.
+- Own status transitions, ticket/apply-code generation, password hashing, token creation, score decisions, knockout decisions, and audit-log intent.
+- Call AI helpers, storage helpers, security helpers, and repositories.
+- Control transaction boundaries consistently. If a workflow changes multiple records, commit at the service boundary after all records are prepared.
+
+Services may receive `AsyncSession`, but should not build complex SQLAlchemy queries directly. Move reusable or non-trivial DB access into repositories.
+
+### Repositories
+
+`repositories/` is only for database access:
+- Build SQLAlchemy `select`, `insert`, `update`, `delete`, joins, counts, filters, ordering, and pagination queries.
+- Provide functions such as `get_by_id`, `get_by_email`, `list_paginated`, `create`, `update`, `soft_delete`, `exists`, and domain-specific query helpers.
+- Return ORM models, scalar values, or simple query result objects to services.
+- Keep persistence details in one place so services do not duplicate SQL.
+
+Repositories must not contain business decisions:
+- Do not decide whether a candidate should be rejected, whether an HR user may publish a job, or whether an application may proceed.
+- Do not hash passwords, generate tokens, generate ticket/apply codes, call AI/OCR, upload files, or format API responses.
+- Do not return `StandardResponse` or raise HTTP-layer exceptions.
+
+### Schemas
+
+`schemas/` is for Pydantic request and response contracts:
+- Put request bodies, form payload models, filter objects, list item responses, detail responses, and command DTOs here.
+- Prefer explicit schemas over raw `dict`, `List[dict]`, or long endpoint parameter lists.
+- Use Pydantic validation for field-level rules such as required fields, numeric ranges, enum values, and string formats.
+- Keep API response shapes consistent and avoid hand-built dictionaries scattered across routers.
+
+### Models
+
+`models/` is the per-feature target for SQLAlchemy model exports. For now, all SQLAlchemy models still live in `app/features/models.py` as a compatibility layer.
+
+When splitting models later:
+- Move one domain at a time.
+- Update imports carefully.
+- Preserve table names, constraints, indexes, and relationships.
+- Keep Alembic autogenerate stable and review migrations before applying.
+
+### Refactor Priority
+
+Refactor existing feature internals gradually in this order:
+1. `users` — smallest feature, use it as the clean router/service/repository/schema template.
+2. `auth` — service exists, but DB queries should move from service to repository.
+3. `jobs` — move vacancy setup, publish, close, list, and detail workflows into service/repository/schema layers.
+4. `applications` — split public apply flow into service orchestration and repository persistence helpers.
+5. `screening` — move screening pipeline orchestration out of router into services; keep AI helpers in `app/ai` and screening-specific helpers in `screening/services/`.
+6. Remaining small features: `companies`, `documents`, `interviews`, `notifications`, `ranking`, `scoring`, `tickets`, and `audit_logs`.
 
 ## File Storage
 
