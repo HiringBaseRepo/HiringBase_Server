@@ -47,7 +47,9 @@ async def validate_document_content(
     Instruksi:
     1. Periksa apakah Nama di dalam dokumen cocok dengan Nama Pelamar (toleransi perbedaan ejaan kecil).
     2. Periksa apakah tipe dokumen yang dibaca benar-benar merupakan {doc_type}.
-    3. Identifikasi jika ada indikasi dokumen milik orang lain atau tidak wajar.
+    3. Periksa masa berlaku dokumen (jika ada). Pastikan tanggal berlaku masih aktif atau seumur hidup.
+    4. Periksa apakah terdapat format nomor dokumen yang valid (misal: NIK untuk KTP, Nomor Ijazah untuk Ijazah).
+    5. Identifikasi jika ada indikasi dokumen milik orang lain, hasil rekayasa teks, atau tidak wajar.
     
     Respon WAJIB dalam format JSON saja:
     {{
