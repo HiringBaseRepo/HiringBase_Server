@@ -3,7 +3,6 @@ from enum import Enum
 
 
 class DocumentType(str, Enum):
-    CV = "cv"
     IJAZAH = "ijazah"
     KTP = "ktp"
     SKCK = "skck"

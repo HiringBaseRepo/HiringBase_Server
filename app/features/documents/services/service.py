@@ -35,7 +35,7 @@ async def upload_document(
     if len(content) > MAX_FILE_SIZE_MB * 1024 * 1024:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File too large")
 
-    prefix = "cvs" if document_type == DocumentType.CV else "documents"
+    prefix = "portfolios" if document_type == DocumentType.PORTFOLIO else "documents"
     key = generate_filename(file.filename, prefix)
     s3 = get_s3_client()
     s3.put_object(

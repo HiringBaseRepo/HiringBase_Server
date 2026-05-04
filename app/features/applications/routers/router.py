@@ -51,7 +51,6 @@ async def public_apply(
     full_name: str = Form(...),
     phone: Optional[str] = Form(None),
     answers_json: Optional[str] = Form(None),  # JSON string of answers
-    cv: UploadFile = File(...),
     documents: Optional[List[UploadFile]] = File(None),
     db: AsyncSession = Depends(get_db),
 ):
@@ -62,7 +61,7 @@ async def public_apply(
         phone=phone,
         answers_json=answers_json,
     )
-    result = await public_apply_service(db, data=command, cv=cv, documents=documents)
+    result = await public_apply_service(db, data=command, documents=documents)
     return StandardResponse.ok(data=result, message="Application submitted successfully")
 
 

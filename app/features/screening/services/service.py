@@ -101,7 +101,7 @@ async def process_screening(application_id: int, company_id: int | None) -> None
 
         docs = await get_documents_by_application_id(db, application_id)
         doc_types = {doc.document_type for doc in docs}
-        required_docs = {DocumentType.CV, DocumentType.KTP, DocumentType.IJAZAH}
+        required_docs = {DocumentType.KTP, DocumentType.IJAZAH}
         missing = required_docs - doc_types
         if missing:
             application.status = ApplicationStatus.DOC_FAILED
@@ -134,16 +134,8 @@ async def process_screening(application_id: int, company_id: int | None) -> None
                 await db.commit()
                 return
 
-        cv_doc = next((doc for doc in docs if doc.document_type == DocumentType.CV), None)
         text = ""
         parsed_data = {}
-        if cv_doc:
-            try:
-                text = await extract_text_from_document(cv_doc.file_url)
-                parsed_data = parse_resume_text(text)
-                cv_doc.ocr_text = text
-            except Exception:
-                parsed_data = {}
 
         template = await get_scoring_template_by_job_id(db, job.id) or _default_template()
         requirements = await get_requirements_by_job_id(db, job.id)

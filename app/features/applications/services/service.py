@@ -121,7 +121,6 @@ async def public_apply(
     db: AsyncSession,
     *,
     data: PublicApplyCommand,
-    cv: UploadFile,
     documents: list[UploadFile] | None = None,
 ) -> PublicApplyResponse:
     job = await get_published_job_by_id(db, data.job_id)
@@ -162,7 +161,7 @@ async def public_apply(
                     ),
                 )
 
-    await _store_uploaded_document(db, application_id=application.id, upload=cv, document_type=DocumentType.CV)
+
     for upload in documents or []:
         try:
             await _store_uploaded_document(
@@ -212,7 +211,7 @@ async def _store_uploaded_document(
         if skip_invalid:
             return
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File too large")
-    prefix = "cvs" if document_type == DocumentType.CV else "documents"
+    prefix = "portfolios" if document_type == DocumentType.PORTFOLIO else "documents"
     key = generate_filename(upload.filename, prefix)
     s3 = get_s3_client()
     s3.put_object(
