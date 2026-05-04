@@ -2,7 +2,10 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.features.models import Application, Job, Ticket, User
+from app.features.applications.models import Application
+from app.features.jobs.models import Job
+from app.features.tickets.models import Ticket
+from app.features.users.models import User
 
 
 async def get_ticket_by_code(db: AsyncSession, ticket_code: str) -> Ticket | None:

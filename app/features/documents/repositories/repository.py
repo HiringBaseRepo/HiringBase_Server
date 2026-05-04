@@ -2,7 +2,8 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.features.models import Application, ApplicationDocument, Job
+from app.features.applications.models import Application, ApplicationDocument
+from app.features.jobs.models import Job
 
 
 async def get_application_for_company(
