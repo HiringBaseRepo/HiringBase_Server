@@ -5,7 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.features.documents.repositories.repository import get_application_for_company, save_document
 from app.features.documents.schemas.schema import DocumentUploadResponse
-from app.features.models import ApplicationDocument, User
+from app.features.applications.models import ApplicationDocument
+from app.features.users.models import User
 from app.shared.constants.storage import ALLOWED_EXTENSIONS, MAX_FILE_SIZE_MB
 from app.shared.enums.document_type import DocumentType
 from app.shared.helpers.storage import build_public_url, generate_filename, get_s3_client

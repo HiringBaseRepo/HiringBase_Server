@@ -5,7 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.main import app
 from app.core.database.base import get_db, AsyncSessionLocal
-from app.features.models import Job, Company, User, JobFormField
+from app.features.jobs.models import Job, JobFormField
+from app.features.companies.models import Company
+from app.features.users.models import User
 from app.shared.enums.job_status import JobStatus
 from app.shared.enums.field_type import FormFieldType
 from app.shared.enums.user_roles import UserRole

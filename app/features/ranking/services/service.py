@@ -3,7 +3,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.utils.pagination import PaginationParams
-from app.features.models import User
+from app.features.users.models import User
 from app.features.ranking.repositories.repository import (
     get_job_for_company,
     get_user_by_id,

@@ -2,7 +2,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.utils.pagination import PaginationParams
-from app.features.models import User
+from app.features.users.models import User
 from app.features.notifications.repositories.repository import (
     list_notifications as list_notifications_query,
     mark_all_notifications_read,

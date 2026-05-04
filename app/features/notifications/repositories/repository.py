@@ -3,7 +3,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.utils.pagination import PaginationParams
-from app.features.models import Notification
+from app.features.notifications.models import Notification
 
 
 async def list_notifications(

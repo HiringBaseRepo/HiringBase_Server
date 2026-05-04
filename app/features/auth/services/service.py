@@ -18,7 +18,7 @@ from app.features.auth.schemas.schema import RegisterRequest, TokenPair
 from app.shared.enums.user_roles import UserRole
 import uuid
 from datetime import datetime, timezone, timedelta
-# from app.features.models import RefreshToken (Moved to top)
+# Moved RefreshToken to top
 from sqlalchemy import select, delete
 
 

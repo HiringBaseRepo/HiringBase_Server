@@ -101,7 +101,7 @@ async def logout(response: Response, request: Request, db: AsyncSession = Depend
     if refresh_token:
         # Panggil service untuk revoke token
         from app.core.security.jwt import decode_token
-        from app.features.models import RefreshToken
+        from app.features.users.models import RefreshToken
         from sqlalchemy import delete
         
         payload = decode_token(refresh_token)
