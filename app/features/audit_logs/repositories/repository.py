@@ -3,7 +3,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.utils.pagination import PaginationParams
-from app.features.models import AuditLog
+from app.features.audit_logs.models import AuditLog
 from app.shared.enums.user_roles import UserRole
 
 

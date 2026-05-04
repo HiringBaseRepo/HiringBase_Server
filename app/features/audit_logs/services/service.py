@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.utils.pagination import PaginationParams
 from app.features.audit_logs.repositories.repository import list_audit_logs as list_audit_logs_query
 from app.features.audit_logs.schemas.schema import AuditLogItem
-from app.features.models import User
+from app.features.users.models import User
 from app.shared.schemas.response import PaginatedResponse
 
 

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database.base import get_db
 from app.core.security.jwt import decode_token
 from app.features.auth.repositories.repository import get_user_by_id
-from app.features.models import User
+from app.features.users.models import User
 from app.shared.enums.user_roles import UserRole
 
 security = HTTPBearer(auto_error=False)

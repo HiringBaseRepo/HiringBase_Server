@@ -12,7 +12,8 @@ from app.features.interviews.schemas.schema import (
     InterviewScheduledResponse,
     ScheduleInterviewRequest,
 )
-from app.features.models import Interview, User
+from app.features.interviews.models import Interview
+from app.features.users.models import User
 
 
 async def schedule_interview(
