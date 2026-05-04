@@ -24,7 +24,7 @@ from app.features.companies.schemas.schema import (
     CompanySuspendResponse,
     CreateCompanyRequest,
 )
-from app.features.models import Company
+from app.features.companies.models import Company
 from app.shared.enums.application_status import ApplicationStatus
 from app.shared.schemas.response import PaginatedResponse
 

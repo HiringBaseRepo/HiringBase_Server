@@ -3,7 +3,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.utils.pagination import PaginationParams
-from app.features.models import Job, JobFormField, JobKnockoutRule, JobRequirement
+from app.features.jobs.models import Job, JobFormField, JobKnockoutRule, JobRequirement
 from app.shared.enums.job_status import JobStatus
 
 
