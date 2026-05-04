@@ -10,6 +10,7 @@ def generate_explanation(
     soft_skill_score: float,
     admin_score: float,
     final_score: float,
+    red_flags: Dict = None,
 ) -> str:
     """Generate human-readable explanation for candidate score."""
     parts = []
@@ -38,5 +39,10 @@ def generate_explanation(
         parts.append("Cukup menarik untuk ditinjau lebih lanjut.")
     else:
         parts.append("Perlu pertimbangan HR sebelum lanjut.")
+
+    if red_flags and red_flags.get("red_flags"):
+        doc_warns = [f for f in red_flags["red_flags"] if "Peringatan" in f]
+        if doc_warns:
+            parts.append("Perhatian: Terdapat anomali pada verifikasi dokumen administrasi.")
 
     return " ".join(parts)

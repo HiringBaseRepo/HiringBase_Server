@@ -134,6 +134,21 @@ async def process_screening(application_id: int, company_id: int | None) -> None
                 await db.commit()
                 return
 
+        # Langkah 2 & 3: OCR JIT & Validasi Semantik Dokumen Berbasis LLM
+        from app.ai.validator.document_validator import validate_document_content
+        doc_validation_flags = []
+        for doc in docs:
+            if doc.document_type in [DocumentType.KTP, DocumentType.IJAZAH]:
+                log.info("Running JIT OCR and Semantic Validation", doc_type=doc.document_type)
+                extracted_text = await extract_text_from_document(doc.file_url)
+                v_res = await validate_document_content(
+                    doc.document_type.value,
+                    extracted_text,
+                    {"name": application.applicant.full_name, "email": application.applicant.email}
+                )
+                if not v_res.get("valid"):
+                    doc_validation_flags.append(f"Peringatan {doc.document_type.value}: {v_res.get('reason')}")
+
         answers = await get_answers_by_application_id(db, application_id)
         
         # Build parsed_data from form answers
@@ -200,6 +215,10 @@ async def process_screening(application_id: int, company_id: int | None) -> None
         ) / 100.0
 
         red_flags = detect_red_flags(parsed_data, text)
+        # Tambahkan hasil validasi dokumen ke red flags
+        if doc_validation_flags:
+            red_flags["red_flags"].extend(doc_validation_flags)
+            red_flags["risk_level"] = "high"
         explanation = generate_explanation(
             match_result,
             exp_score,
@@ -208,6 +227,7 @@ async def process_screening(application_id: int, company_id: int | None) -> None
             soft_skill_score,
             admin_score,
             final,
+            red_flags,
         )
         await save_candidate_score(
             db,
