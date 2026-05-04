@@ -4,8 +4,8 @@
 
 This is the **backend** of an AI-powered recruitment assistant that helps HR teams:
 - Create job vacancies with custom forms
-- Accept applications with document uploads
-- Automatically screen candidates using a hybrid AI engine
+- Accept applications via form responses and document uploads (Non-CV)
+- Automatically screen candidates using a hybrid AI engine based on form data
 - Rank applicants by weighted score
 - Provide explainable AI reasoning for every decision
 - Track application status via tickets
@@ -24,8 +24,8 @@ This is the **backend** of an AI-powered recruitment assistant that helps HR tea
 
 ## Architecture Principles
 
-1. **Layer 1 — Deterministic Engine**: All scoring, knockout rules, ranking, and validation are rule-based and reproducible.
-2. **Layer 2 — NLP / Embeddings**: Skill synonym matching + cosine similarity via `sentence-transformers`. Soft skill scoring via keyword NLP classifier di `app/ai/nlp/soft_skill_scorer.py`.
+1. **Layer 1 — Deterministic Engine**: All scoring, knockout rules, ranking, and validation are rule-based and reproducible, primarily using form answers (`ApplicationAnswer`).
+2. **Layer 2 — NLP / Embeddings**: Skill matching + cosine similarity via `sentence-transformers` using skills from form data. Soft skill scoring via keyword NLP classifier on concatenated text answers.
 3. **Layer 3 — LLM**: Used ONLY for natural language explanation generation. LLM never computes final scores.
 
 ## Project Structure
@@ -79,7 +79,7 @@ This is the **backend** of an AI-powered recruitment assistant that helps HR tea
 - `job_knockout_rules` — Auto-reject / pending rules (`field_key` untuk lookup answers)
 - `applications` — Candidate applications
 - `application_answers` — Form responses (`value_text`, `value_number`)
-- `application_documents` — Uploaded files (CV, KTP, etc.)
+- `application_documents` — Uploaded files (KTP, Ijazah, etc. — **NO CV**)
 - `candidate_scores` — AI computed scores + explanation
 - `application_status_logs` — Full status history
 - `tickets` — Public tracking codes (TKT-YYYY-NNNNN)
@@ -101,7 +101,7 @@ This is the **backend** of an AI-powered recruitment assistant that helps HR tea
 
 | Type | Operator | Contoh |
 |---|---|---|
-| `document` | n/a | Wajib punya CV, KTP, Ijazah |
+| `document` | n/a | Wajib punya KTP, Ijazah |
 | `experience` | gte, gt, lt, lte, eq | Minimal 2 tahun pengalaman |
 | `education` | gte | Minimal S1 |
 | `boolean` | eq, neq | Bersedia WFO = ya |
@@ -241,30 +241,33 @@ Before editing a feature, quickly scan its router for these patterns: `select(`,
 ## File Storage
 
 - Cloudflare R2 (S3-compatible)
-- CVs: `cvs/<uuid>.pdf`
 - Documents: `documents/<uuid>.pdf`
+- Portfolios: `portfolios/<uuid>.<ext>`
+- Company Assets: `company-assets/<uuid>.<ext>`
+- Job Attachments: `job-attachments/<uuid>.<ext>`
 - Public URL constructed from `R2_PUBLIC_URL`
 
 ## AI Implementation Details
 
+### Scoring Pipeline (Form-based)
+Sistem tidak lagi melakukan parsing file CV. Data untuk scoring diambil dari `ApplicationAnswer` dengan `field_key` standar:
+- `experience_years`: Digunakan untuk skor pengalaman.
+- `education_level`: Digunakan untuk skor pendidikan (SMA, D3, S1, S2, S3).
+- `skills`: List skill (comma-separated) untuk `Semantic Matcher`.
+- `github_url`, `portfolio_url`, `live_project_url`: Untuk skor portfolio.
+
 ### OCR Pipeline (`app/ai/ocr/engine.py`)
-- PDF: `pdfplumber` → extract text per halaman dengan `x_tolerance=3, y_tolerance=3`
-- Image: `EasyOCR` dengan bahasa `["id", "en"]`, GPU=False
-- Fallback chain: download → deteksi tipe → proses → return `""` jika gagal (tidak blokir pipeline)
+- Digunakan untuk ekstraksi teks dari dokumen pendukung (KTP, Ijazah) jika diperlukan validasi tambahan.
+- PDF: `pdfplumber`, Image: `EasyOCR`.
 
 ### Semantic Matcher (`app/ai/matcher/semantic_matcher.py`)
-- Layer 1: Exact string match (case-insensitive)
-- Layer 2: Curated synonym dict `_synonym_map()` — 11+ skill group
-- Layer 3: `SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")` cosine similarity
-- Model di-cache via `@lru_cache(maxsize=1)` (singleton)
-- Threshold cosine similarity: `0.65`
-- Confidence score: `0.90` jika model tersedia, `0.70` jika fallback exact-only
+- Mencocokkan list skill dari form jawaban dengan `JobRequirement`.
+- Layer 1: Exact match, Layer 2: Synonym map, Layer 3: Sentence Transformer.
 
 ### Soft Skill Scorer (`app/ai/nlp/soft_skill_scorer.py`)
-- 5 dimensi: communication, leadership, teamwork, problem_solving, initiative
-- Keyword-based (regex word boundary), no LLM needed
-- Output range: 20–100 per dimensi, composite_score = rata-rata 5 dimensi
-- Dipanggil dari screening pipeline; fallback ke 60.0 jika error
+- Menganalisis **gabungan teks dari semua jawaban form** pelamar.
+- Keyword-based (regex word boundary), no LLM needed.
+- Output range: 20–100 per dimensi.
 
 ### AI Fallback Strategy
 
