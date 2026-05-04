@@ -11,6 +11,7 @@ from app.features.models import (
     Company,
     Job,
     JobFormField,
+    JobKnockoutRule,
     Ticket,
     User,
 )
@@ -99,6 +100,16 @@ async def get_form_field_by_key(db: AsyncSession, *, job_id: int, field_key: str
         select(JobFormField).where(JobFormField.job_id == job_id, JobFormField.field_key == field_key)
     )
     return result.scalar_one_or_none()
+
+
+async def get_knockout_rules_by_job_id(db: AsyncSession, job_id: int) -> list[JobKnockoutRule]:
+    result = await db.execute(
+        select(JobKnockoutRule).where(
+            JobKnockoutRule.job_id == job_id,
+            JobKnockoutRule.is_active == True,
+        ).order_by(JobKnockoutRule.order_index)
+    )
+    return list(result.scalars().all())
 
 
 async def save_user(db: AsyncSession, user: User) -> User:

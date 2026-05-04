@@ -117,6 +117,8 @@ async def get_public_job_detail(db: AsyncSession, job_id: int) -> PublicJobDetai
     )
 
 
+from app.features.applications.repositories.repository import get_knockout_rules_by_job_id
+
 async def public_apply(
     db: AsyncSession,
     *,
@@ -126,6 +128,23 @@ async def public_apply(
     job = await get_published_job_by_id(db, data.job_id)
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found or not published")
+
+    # VALIDATION 1: Mandatory Form Fields
+    form_fields = await get_form_fields_by_job_id(db, job_id=data.job_id)
+    answers = json.loads(data.answers_json) if data.answers_json else {}
+    for field in form_fields:
+        if field.is_required and not answers.get(field.field_key):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Field '{field.label}' is required")
+
+    # VALIDATION 2: Required Documents
+    knockout_rules = await get_knockout_rules_by_job_id(db, job_id=data.job_id)
+    required_docs = [r.target_value.lower() for r in knockout_rules if r.rule_type == "document" and r.is_active]
+    
+    uploaded_filenames = [upload.filename.lower() for upload in documents] if documents else []
+    for req_doc in required_docs:
+        found = any(req_doc in fname for fname in uploaded_filenames)
+        if not found:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Required document '{req_doc}' is missing")
 
     applicant = await get_user_by_email(db, data.email)
     if applicant:

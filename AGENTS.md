@@ -71,7 +71,7 @@ This is the **backend** of an AI-powered recruitment assistant that helps HR tea
 ## Database Schema (Key Tables)
 
 - `companies` — Tenant / company accounts
-- `users` — Super Admin, HR, Applicant
+- `users` — Super Admin, HR (Pelamar menggunakan alur publik berbasis tiket tanpa sesi login)
 - `jobs` — Vacancies with multi-step setup
 - `job_requirements` — Skills, experience, education required
 - `job_scoring_templates` — Per-job weighted scoring config
@@ -118,6 +118,13 @@ APPLIED → DOC_CHECK → [DOC_FAILED]
         → INTERVIEW → OFFERED → HIRED
         → REJECTED (at any stage)
 ```
+
+### Public Applicant Flow (Ticket-Based)
+Pelamar tidak memiliki akun yang dapat dilogin. Alur pelamaran sepenuhnya publik:
+1. Pelamar mengisi form publik dan mengunggah dokumen wajib.
+2. Sistem memvalidasi kelengkapan bidang wajib, dokumen wajib (berdasarkan nama file), format file, dan duplikasi surel sebelum menyimpan data.
+3. Transaksi atomik menyimpan data ke R2 dan Database, lalu mengembalikan nomor Tiket (`TKT-YYYY-NNNNN`) kepada pelamar untuk pelacakan status.
+Pelamar direpresentasikan secara internal dalam tabel `users` (sebagai kontak) tanpa kredensial akses.
 
 ## API Conventions
 

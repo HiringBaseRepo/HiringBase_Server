@@ -49,11 +49,6 @@ async def register_hr(data: RegisterRequest, db: AsyncSession = Depends(get_db))
     )
 
 
-@router.post("/register/applicant", response_model=StandardResponse[UserResponse])
-async def register_applicant(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    user = await create_user(db, data, role=UserRole.APPLICANT)
-    return StandardResponse.ok(data=UserResponse.model_validate(user), message="Applicant registered")
-
 
 @router.post("/login", response_model=StandardResponse[AccessTokenResponse])
 async def login(data: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
