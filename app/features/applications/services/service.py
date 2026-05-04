@@ -34,14 +34,14 @@ from app.features.applications.schemas.schema import (
     PublicJobFormField,
     PublicJobItem,
 )
-from app.features.models import (
+from app.features.applications.models import (
     Application,
     ApplicationAnswer,
     ApplicationDocument,
     ApplicationStatusLog,
-    Ticket,
-    User,
 )
+from app.features.tickets.models import Ticket
+from app.features.users.models import User
 from app.shared.constants.errors import ERR_DUPLICATE_APPLICATION
 from app.shared.constants.storage import ALLOWED_EXTENSIONS, MAX_FILE_SIZE_MB
 from app.shared.enums.application_status import ApplicationStatus

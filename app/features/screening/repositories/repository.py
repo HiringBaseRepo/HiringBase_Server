@@ -3,13 +3,15 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.features.models import (
+from app.features.applications.models import (
     Application,
     ApplicationAnswer,
     ApplicationDocument,
     ApplicationStatusLog,
-    AuditLog,
-    CandidateScore,
+)
+from app.features.audit_logs.models import AuditLog
+from app.features.screening.models import CandidateScore
+from app.features.jobs.models import (
     Job,
     JobKnockoutRule,
     JobRequirement,

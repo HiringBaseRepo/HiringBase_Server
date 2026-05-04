@@ -7,14 +7,11 @@ from app.ai.matcher.semantic_matcher import match_candidate_to_job
 from app.ai.ocr.engine import extract_text_from_document
 from app.ai.parser.resume_parser import parse_resume_text
 from app.ai.redflag.detector import detect_red_flags
-from app.features.models import (
-    ApplicationStatusLog,
-    AuditLog,
-    CandidateScore,
-    JobKnockoutRule,
-    JobScoringTemplate,
-    User,
-)
+from app.features.applications.models import ApplicationStatusLog
+from app.features.audit_logs.models import AuditLog
+from app.features.screening.models import CandidateScore
+from app.features.jobs.models import JobKnockoutRule, JobScoringTemplate
+from app.features.users.models import User
 from app.features.screening.repositories.repository import (
     add_audit_log,
     add_status_log,

@@ -3,7 +3,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.utils.pagination import PaginationParams
-from app.features.models import Application, CandidateScore, Job, User
+from app.features.applications.models import Application
+from app.features.screening.models import CandidateScore
+from app.features.jobs.models import Job
+from app.features.users.models import User
 from app.shared.enums.application_status import ApplicationStatus
 
 
