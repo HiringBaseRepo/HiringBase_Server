@@ -2,7 +2,7 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.features.models import JobScoringTemplate
+from app.features.jobs.models import JobScoringTemplate
 from app.features.scoring.repositories.repository import (
     delete_template,
     get_template_by_id,

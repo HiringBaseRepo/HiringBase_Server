@@ -2,7 +2,7 @@
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.features.models import JobFormField
+from app.features.jobs.models import JobFormField
 
 
 async def save_form_field(db: AsyncSession, field: JobFormField) -> JobFormField:

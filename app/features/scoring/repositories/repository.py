@@ -2,7 +2,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.features.models import JobScoringTemplate
+from app.features.jobs.models import JobScoringTemplate
 
 
 async def get_template_by_job_id(db: AsyncSession, job_id: int) -> JobScoringTemplate | None:

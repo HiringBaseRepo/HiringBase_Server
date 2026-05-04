@@ -16,7 +16,7 @@ from app.features.job_forms.schemas.schema import (
     ReorderFieldsRequest,
     ReorderFieldsResponse,
 )
-from app.features.models import JobFormField
+from app.features.jobs.models import JobFormField
 
 
 async def create_form_field(

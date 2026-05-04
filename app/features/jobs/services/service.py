@@ -31,7 +31,8 @@ from app.features.jobs.schemas.schema import (
     PublishJobRequest,
     SetupJobFormRequest,
 )
-from app.features.models import Job, JobFormField, JobRequirement, User
+from app.features.jobs.models import Job, JobFormField, JobRequirement
+from app.features.users.models import User
 from app.shared.enums.job_status import JobStatus
 from app.shared.schemas.response import PaginatedResponse
 
