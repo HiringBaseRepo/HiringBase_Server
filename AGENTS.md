@@ -266,7 +266,13 @@ Sistem tidak lagi melakukan parsing file CV. Data untuk scoring diambil dari `Ap
 
 ### OCR & Validation Pipeline (`app/ai/ocr/engine.py` & `app/ai/validator/`)
 - Digunakan untuk ekstraksi teks dari dokumen pendukung (KTP, Ijazah).
-- **Semantic Document Validation**: Teks hasil OCR divalidasi menggunakan LLM (Groq) untuk memastikan kesesuaian Nama dan konteks dokumen dengan profil pelamar. Anomali dicatat sebagai `red_flags` dengan tingkat risiko tinggi.
+- **Semantic Document Validation**: Teks hasil OCR divalidasi menggunakan LLM (Groq) untuk memverifikasi:
+  1. Nama sesuai data pelamar
+  2. Tanggal berlaku aktif (atau seumur hidup)
+  3. Format nomor dokumen yang valid
+  4. Kesesuaian jenis dokumen
+  5. Kewajaran isi dokumen (deteksi anomali/rekayasa semantik)
+  Anomali dicatat sebagai `red_flags` dengan tingkat risiko tinggi.
 - PDF: `pdfplumber`, Image: `EasyOCR`.
 
 ### Semantic Matcher (`app/ai/matcher/semantic_matcher.py`)
