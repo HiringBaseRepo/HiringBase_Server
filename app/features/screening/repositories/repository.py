@@ -1,5 +1,6 @@
 """Screening data access helpers."""
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.features.models import (
@@ -23,7 +24,9 @@ async def get_application_for_company(
     company_id: int | None,
 ) -> Application | None:
     result = await db.execute(
-        select(Application).join(Job).where(
+        select(Application)
+        .options(selectinload(Application.applicant))
+        .join(Job).where(
             Application.id == application_id,
             Job.company_id == company_id,
         )
@@ -32,7 +35,11 @@ async def get_application_for_company(
 
 
 async def get_application_by_id(db: AsyncSession, application_id: int) -> Application | None:
-    result = await db.execute(select(Application).where(Application.id == application_id))
+    result = await db.execute(
+        select(Application)
+        .options(selectinload(Application.applicant))
+        .where(Application.id == application_id)
+    )
     return result.scalar_one_or_none()
 
 

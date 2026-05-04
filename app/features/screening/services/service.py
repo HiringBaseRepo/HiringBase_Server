@@ -134,8 +134,47 @@ async def process_screening(application_id: int, company_id: int | None) -> None
                 await db.commit()
                 return
 
-        text = ""
-        parsed_data = {}
+        answers = await get_answers_by_application_id(db, application_id)
+        
+        # Build parsed_data from form answers
+        from app.features.screening.services.helpers import find_answer_value
+        
+        parsed_data = {
+            "name": application.applicant.full_name if application.applicant else None,
+            "email": application.applicant.email if application.applicant else None,
+            "phone": application.applicant.phone if application.applicant else None,
+            "skills": [],
+            "education": [],
+            "total_years_experience": 0,
+            "github_url": find_answer_value("github_url", answers),
+            "portfolio_url": find_answer_value("portfolio_url", answers),
+            "live_project_url": find_answer_value("live_project_url", answers),
+        }
+
+        # Extract skills
+        skills_raw = find_answer_value("skills", answers)
+        if skills_raw:
+            parsed_data["skills"] = [s.strip().lower() for s in str(skills_raw).split(",") if s.strip()]
+
+        # Extract experience years
+        exp_years = find_answer_value("experience_years", answers)
+        if exp_years:
+            try:
+                parsed_data["total_years_experience"] = int(float(exp_years))
+            except (ValueError, TypeError):
+                parsed_data["total_years_experience"] = 0
+
+        # Extract education
+        edu_level = find_answer_value("education_level", answers)
+        if edu_level:
+            parsed_data["education"] = [{"level": str(edu_level).lower(), "raw": str(edu_level)}]
+
+        # Combine all text answers into one 'text' for soft skill analysis
+        text_parts = []
+        for ans in answers:
+            if ans.value_text:
+                text_parts.append(ans.value_text)
+        text = "\n".join(text_parts)
 
         template = await get_scoring_template_by_job_id(db, job.id) or _default_template()
         requirements = await get_requirements_by_job_id(db, job.id)
