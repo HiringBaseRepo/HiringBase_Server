@@ -1,5 +1,5 @@
 """Auth API endpoints."""
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request, Cookie
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.base import get_db
@@ -55,20 +55,60 @@ async def register_applicant(data: RegisterRequest, db: AsyncSession = Depends(g
 
 
 @router.post("/login", response_model=StandardResponse[TokenPair])
-async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
+async def login(data: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
     user = await authenticate_user(db, data.email, data.password)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    tokens = await generate_token_pair(user)
+    tokens = await generate_token_pair(db, user)
+    
+    response.set_cookie(
+        key="refresh_token",
+        value=tokens.refresh_token,
+        httponly=True,
+        secure=True,  # Set to True for production (HTTPS)
+        samesite="lax"
+    )
+    
     return StandardResponse.ok(data=tokens, message="Login successful")
 
 
 @router.post("/refresh", response_model=StandardResponse[TokenPair])
-async def refresh(data: RefreshRequest, db: AsyncSession = Depends(get_db)):
-    tokens = await refresh_access_token(db, data.refresh_token)
-    if not tokens:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
+async def refresh(response: Response, request: Request, db: AsyncSession = Depends(get_db)):
+    refresh_token = request.cookies.get("refresh_token")
+    if not refresh_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token missing from cookies")
+        
+    tokens = await refresh_access_token(db, refresh_token)
+    
+    response.set_cookie(
+        key="refresh_token",
+        value=tokens.refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="lax"
+    )
+    
     return StandardResponse.ok(data=tokens, message="Token refreshed")
+
+
+@router.post("/logout", response_model=StandardResponse[dict])
+async def logout(response: Response, request: Request, db: AsyncSession = Depends(get_db)):
+    refresh_token = request.cookies.get("refresh_token")
+    if refresh_token:
+        # Panggil service untuk revoke token
+        from app.core.security.jwt import decode_token
+        from app.features.models import RefreshToken
+        from sqlalchemy import delete
+        
+        payload = decode_token(refresh_token)
+        if payload and payload.get("jti"):
+            jti = payload.get("jti")
+            stmt = delete(RefreshToken).where(RefreshToken.jti == jti)
+            await db.execute(stmt)
+            await db.commit()
+            
+    response.delete_cookie(key="refresh_token")
+    return StandardResponse.ok(data={"message": "Logout successful"}, message="Logged out")
 
 
 @router.get("/me", response_model=StandardResponse[UserResponse])

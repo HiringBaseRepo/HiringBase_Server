@@ -296,7 +296,8 @@ If OCR fails:
 ## Security
 
 - Passwords hashed with bcrypt via Passlib (Pinned: `bcrypt==3.2.0` for compatibility)
-- JWT access + refresh tokens (JOSE `sub` field must be a string)
+- **Stateful JWT Auth**: Access tokens via JSON body, Refresh tokens via **HTTP-Only Cookies**.
+- **Advanced Auth Security**: Features **Refresh Token Rotation** (one-time use), **Reuse Detection** (force logout on theft), and **Global Kill Switch** via `token_version`.
 - Rate limiting per IP (60 req/min default)
 - File type and size validation
 - SQL injection protected by SQLAlchemy ORM
@@ -325,6 +326,5 @@ If OCR fails:
 3. **Import Errors Fix**: `PaginatedResponse` telah dipindahkan ke `app.shared.schemas.response` untuk memperbaiki `ImportError` yang terjadi di hampir semua router fitur.
 4. **Feature layer migration**: Semua feature router sudah dipisah ke layer aktif `routers/`, `services/`, `repositories/`, dan `schemas/`. Sisa cleanup: ganti `HTTPException` service-level dengan custom/domain exceptions saat tersedia, tambah test service/repository, dan review API clients yang terdampak body schema baru.
 5. **models.py monolitik**: Semua 16 model masih dalam `app/features/models.py` sebagai compatibility layer. Struktur `models/` per feature sudah disiapkan; pecah model per domain secara bertahap dan update import dengan hati-hati.
-6. **Revoke Sessions**: Masih no-op — butuh Redis atau token blacklist table
-7. **Image-based PDF**: Untuk PDF scan (bukan text), perlu convert page ke image sebelum EasyOCR (belum diimplementasi)
-8. **LLM Qwen3**: Target Qwen3 via HuggingFace Gradio Space belum diimplementasi — saat ini menggunakan HF Inference API + OpenRouter fallback
+6. **Image-based PDF**: Untuk PDF scan (bukan text), perlu convert page ke image sebelum EasyOCR (belum diimplementasi)
+7. **LLM Qwen3**: Target Qwen3 via HuggingFace Gradio Space belum diimplementasi — saat ini menggunakan HF Inference API + OpenRouter fallback

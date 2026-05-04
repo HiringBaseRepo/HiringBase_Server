@@ -8,7 +8,7 @@ from app.shared.enums.user_roles import UserRole
 
 class TokenPair(BaseModel):
     access_token: str
-    refresh_token: str
+    refresh_token: str = Field(exclude=True)
     token_type: str = "bearer"
     expires_in: int
 
