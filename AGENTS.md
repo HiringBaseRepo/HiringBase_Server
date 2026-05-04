@@ -54,10 +54,11 @@ This is the **backend** of an AI-powered recruitment assistant that helps HR tea
 │       │   └── service.py
 │       ├── repositories/   # SQLAlchemy query/data access layer
 │       ├── schemas/        # Pydantic validation schemas
-│       └── models/         # Per-feature model exports / future split target
+│       └── models/         # SQLAlchemy models (Package)
+│           └── __init__.py
 │
-│   # Current shared compatibility model file:
-│   └── models.py       # SQLAlchemy models are still centralized here for now
+│   # Central aggregator for Alembic:
+│   └── models.py       # Re-exports all models from features/*/models
 ├── shared/             # Shared utilities & global schemas
 │   ├── enums/          # Application enums (UserRole, ApplicationStatus, dll)
 │   ├── constants/      # scoring.py, storage.py, errors.py
@@ -203,21 +204,17 @@ Repositories must not contain business decisions:
 
 ### Models
 
-`models/` is the per-feature target for SQLAlchemy model exports. For now, all SQLAlchemy models still live in `app/features/models.py` as a compatibility layer.
-
-When splitting models later:
-- Move one domain at a time.
-- Update imports carefully.
-- Preserve table names, constraints, indexes, and relationships.
-- Keep Alembic autogenerate stable and review migrations before applying.
+`models/` is the per-feature package for SQLAlchemy models.
+- All models reside in `app/features/<feature>/models/__init__.py`.
+- Relationships use string literals (late-binding) to avoid circular imports.
+- `TYPE_CHECKING` blocks are used for cross-domain type hinting.
+- `app/features/models.py` acts as a central aggregator for Alembic discovery.
 
 ### Refactor Priority
 
-All existing feature routers have now been split into active router/service/repository/schema layers. Future refactors should focus on:
 1. Replacing service-level `HTTPException` with domain/custom exceptions once `app.core.exceptions` defines them.
-2. Moving SQLAlchemy models out of `app/features/models.py` into per-feature `models/` packages one domain at a time.
-3. Adding focused unit tests for each service/repository workflow.
-4. Reviewing API clients where endpoints moved from many scalar parameters to Pydantic body schemas.
+2. Adding focused unit tests for each service/repository workflow.
+3. Reviewing API clients where endpoints moved from many scalar parameters to Pydantic body schemas.
 
 ### Layer Compliance Audit
 
