@@ -15,6 +15,10 @@ from app.features.auth.repositories.repository import (
 )
 from app.features.auth.schemas.schema import RegisterRequest, TokenPair
 from app.shared.enums.user_roles import UserRole
+import uuid
+from datetime import datetime, timezone, timedelta
+from app.features.models import RefreshToken
+from sqlalchemy import select, delete
 
 
 async def authenticate_user(db: AsyncSession, email: str, password: str) -> Optional[User]:
@@ -61,16 +65,34 @@ async def create_company_and_hr(db: AsyncSession, data: RegisterRequest) -> Tupl
     return hr, company
 
 
-async def generate_token_pair(user: User) -> TokenPair:
-    payload = {
-        "sub": user.id,
+async def generate_token_pair(db: AsyncSession, user: User) -> TokenPair:
+    jti = str(uuid.uuid4())
+    payload_access = {
+        "sub": str(user.id),
         "email": user.email,
         "role": user.role.value,
         "company_id": user.company_id,
+        "token_version": user.token_version,
     }
-    access = create_access_token(payload)
-    refresh = create_refresh_token(payload)
+    payload_refresh = {
+        "sub": str(user.id),
+        "jti": jti,
+    }
+    
+    access = create_access_token(payload_access)
+    refresh = create_refresh_token(payload_refresh)
     from app.core.config import settings
+    
+    expires_at = datetime.now(timezone.utc) + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
+    
+    refresh_token_record = RefreshToken(
+        user_id=user.id,
+        jti=jti,
+        expires_at=expires_at
+    )
+    db.add(refresh_token_record)
+    await db.commit()
+    
     return TokenPair(
         access_token=access,
         refresh_token=refresh,
@@ -79,14 +101,56 @@ async def generate_token_pair(user: User) -> TokenPair:
 
 
 async def refresh_access_token(db: AsyncSession, refresh_token: str) -> Optional[TokenPair]:
+    from fastapi import HTTPException, status
+    
     payload = decode_token(refresh_token)
     if not payload or payload.get("type") != "refresh":
-        return None
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
+        
     user_id = int(payload.get("sub"))
+    jti = payload.get("jti")
+    
+    if not jti:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token structure")
+        
     user = await get_user_by_id(db, user_id)
     if not user or not user.is_active:
-        return None
-    return await generate_token_pair(user)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
+        
+    # Check DB for the refresh token
+    stmt = select(RefreshToken).where(RefreshToken.jti == jti)
+    result = await db.execute(stmt)
+    token_record = result.scalar_one_or_none()
+    
+    if not token_record:
+        # Potential theft or already revoked/used. 
+        # Revoke all tokens for this user by incrementing token_version and deleting all their refresh tokens.
+        user.token_version += 1
+        delete_stmt = delete(RefreshToken).where(RefreshToken.user_id == user.id)
+        await db.execute(delete_stmt)
+        await db.commit()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Security Alert: Please login again")
+        
+    if token_record.is_revoked:
+        user.token_version += 1
+        delete_stmt = delete(RefreshToken).where(RefreshToken.user_id == user.id)
+        await db.execute(delete_stmt)
+        await db.commit()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Security Alert: Token was already used. Please login again")
+        
+    if token_record.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired")
+
+    # Rotate token
+    # Using transaction to ensure atomic operation
+    try:
+        # Delete old token
+        await db.delete(token_record)
+        # We don't commit yet, generate_token_pair will add the new one and commit
+        return await generate_token_pair(db, user)
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to rotate token")
 
 
 async def request_password_reset(db: AsyncSession, email: str) -> str | None:
@@ -138,6 +202,10 @@ async def confirm_password_reset(db: AsyncSession, token: str, new_password: str
 
 
 async def revoke_all_sessions(db: AsyncSession, user_id: int) -> bool:
-    # In production: invalidate all refresh tokens via Redis or DB token blacklist
-    # MVP: no-op / client-side only
+    user = await get_user_by_id(db, user_id)
+    if user:
+        user.token_version += 1
+        delete_stmt = delete(RefreshToken).where(RefreshToken.user_id == user_id)
+        await db.execute(delete_stmt)
+        await db.commit()
     return True
