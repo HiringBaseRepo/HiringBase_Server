@@ -8,6 +8,7 @@ from app.features.auth.schemas.schema import (
     LoginRequest,
     RefreshRequest,
     TokenPair,
+    AccessTokenResponse,
     UserResponse,
     PasswordResetRequest,
     PasswordResetConfirm,
@@ -54,7 +55,7 @@ async def register_applicant(data: RegisterRequest, db: AsyncSession = Depends(g
     return StandardResponse.ok(data=UserResponse.model_validate(user), message="Applicant registered")
 
 
-@router.post("/login", response_model=StandardResponse[TokenPair])
+@router.post("/login", response_model=StandardResponse[AccessTokenResponse])
 async def login(data: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
     user = await authenticate_user(db, data.email, data.password)
     if not user:
@@ -69,10 +70,14 @@ async def login(data: LoginRequest, response: Response, db: AsyncSession = Depen
         samesite="lax"
     )
     
-    return StandardResponse.ok(data=tokens, message="Login successful")
+    response_data = AccessTokenResponse(
+        access_token=tokens.access_token,
+        expires_in=tokens.expires_in
+    )
+    return StandardResponse.ok(data=response_data, message="Login successful")
 
 
-@router.post("/refresh", response_model=StandardResponse[TokenPair])
+@router.post("/refresh", response_model=StandardResponse[AccessTokenResponse])
 async def refresh(response: Response, request: Request, db: AsyncSession = Depends(get_db)):
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
@@ -88,7 +93,11 @@ async def refresh(response: Response, request: Request, db: AsyncSession = Depen
         samesite="lax"
     )
     
-    return StandardResponse.ok(data=tokens, message="Token refreshed")
+    response_data = AccessTokenResponse(
+        access_token=tokens.access_token,
+        expires_in=tokens.expires_in
+    )
+    return StandardResponse.ok(data=response_data, message="Token refreshed")
 
 
 @router.post("/logout", response_model=StandardResponse[dict])
