@@ -38,6 +38,8 @@ This is the **backend** of an AI-powered recruitment assistant that helps HR tea
 │   ├── matcher/        # Semantic skill matcher (3-layer: exact, synonym, embedding)
 │   ├── nlp/            # Soft skill keyword scorer
 │   ├── scoring/        # Standalone scoring engine
+│   ├── redflag/        # Red flag detector
+│   ├── explanation/    # Template-based explanation generator
 │   ├── validator/      # Semantic document validator (Groq-based)
 │   └── llm/            # LLM client (Groq-based)
 ├── core/               # Global config, DB engine, security, middlewares
