@@ -6,7 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security.hashing import verify_password, get_password_hash
 from app.core.security.jwt import create_access_token, create_refresh_token, decode_token
 from app.core.utils.ticket import generate_apply_code
-from app.features.models import User, Company
+from app.features.users.models import User, RefreshToken
+from app.features.companies.models import Company
 from app.features.auth.repositories.repository import (
     get_user_by_email,
     get_user_by_id,
@@ -17,7 +18,7 @@ from app.features.auth.schemas.schema import RegisterRequest, TokenPair
 from app.shared.enums.user_roles import UserRole
 import uuid
 from datetime import datetime, timezone, timedelta
-from app.features.models import RefreshToken
+# from app.features.models import RefreshToken (Moved to top)
 from sqlalchemy import select, delete
 
 

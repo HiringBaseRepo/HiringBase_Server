@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security.hashing import get_password_hash
 from app.core.utils.pagination import PaginationParams
-from app.features.models import User
+from app.features.users.models import User
 from app.features.users.repositories.repository import list_users as list_users_query
 from app.features.users.repositories.repository import save_user
 from app.features.users.schemas.schema import CreateHRAccountRequest, UserCreatedResponse, UserListItem
