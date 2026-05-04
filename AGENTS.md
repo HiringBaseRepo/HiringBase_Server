@@ -38,9 +38,8 @@ This is the **backend** of an AI-powered recruitment assistant that helps HR tea
 │   ├── matcher/        # Semantic skill matcher (3-layer: exact, synonym, embedding)
 │   ├── nlp/            # Soft skill keyword scorer
 │   ├── scoring/        # Standalone scoring engine
-│   ├── redflag/        # Red flag detector
-│   ├── explanation/    # Template-based explanation generator
-│   └── llm/            # LLM client (HuggingFace + OpenRouter fallback)
+│   ├── validator/      # Semantic document validator (Groq-based)
+│   └── llm/            # LLM client (Groq-based)
 ├── core/               # Global config, DB engine, security, middlewares
 │   ├── config/         # Settings & environment variables
 │   ├── database/       # SQLAlchemy async engine & Base model
@@ -263,8 +262,9 @@ Sistem tidak lagi melakukan parsing file CV. Data untuk scoring diambil dari `Ap
 - `skills`: List skill (comma-separated) untuk `Semantic Matcher`.
 - `github_url`, `portfolio_url`, `live_project_url`: Untuk skor portfolio.
 
-### OCR Pipeline (`app/ai/ocr/engine.py`)
-- Digunakan untuk ekstraksi teks dari dokumen pendukung (KTP, Ijazah) jika diperlukan validasi tambahan.
+### OCR & Validation Pipeline (`app/ai/ocr/engine.py` & `app/ai/validator/`)
+- Digunakan untuk ekstraksi teks dari dokumen pendukung (KTP, Ijazah).
+- **Semantic Document Validation**: Teks hasil OCR divalidasi menggunakan LLM (Groq) untuk memastikan kesesuaian Nama dan konteks dokumen dengan profil pelamar. Anomali dicatat sebagai `red_flags` dengan tingkat risiko tinggi.
 - PDF: `pdfplumber`, Image: `EasyOCR`.
 
 ### Semantic Matcher (`app/ai/matcher/semantic_matcher.py`)
@@ -281,7 +281,7 @@ Sistem tidak lagi melakukan parsing file CV. Data untuk scoring diambil dari `Ap
 If LLM API fails:
 1. Use template-based explanation generator (`app/ai/explanation/generator.py`)
 2. Log failure to audit_logs
-3. Continue scoring pipeline without LLM enrichment
+3. Skip semantic document validation (mark as "Fallback Pass") and continue scoring pipeline
 
 If OCR fails:
 1. Log error, return empty string
@@ -334,4 +334,4 @@ If OCR fails:
 4. **Feature layer migration**: Semua feature router sudah dipisah ke layer aktif `routers/`, `services/`, `repositories/`, dan `schemas/`. Sisa cleanup: ganti `HTTPException` service-level dengan custom/domain exceptions saat tersedia, tambah test service/repository, dan review API clients yang terdampak body schema baru.
 5. **models.py monolitik**: Semua 16 model masih dalam `app/features/models.py` sebagai compatibility layer. Struktur `models/` per feature sudah disiapkan; pecah model per domain secara bertahap dan update import dengan hati-hati.
 6. **Image-based PDF**: Untuk PDF scan (bukan text), perlu convert page ke image sebelum EasyOCR (belum diimplementasi)
-7. **LLM Qwen3**: Target Qwen3 via HuggingFace Gradio Space belum diimplementasi — saat ini menggunakan HF Inference API + OpenRouter fallback
+7. **LLM Groq**: Implementasi menggunakan Groq API dengan model `qwen/qwen3-32b` untuk validasi dokumen dan penjelasan AI.
