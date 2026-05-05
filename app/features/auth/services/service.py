@@ -13,13 +13,16 @@ from app.features.auth.repositories.repository import (
     get_user_by_id,
     save_company,
     save_user,
+    create_refresh_token,
+    delete_all_refresh_tokens_by_user_id,
+    delete_refresh_token,
+    get_refresh_token_by_jti,
 )
 from app.features.auth.schemas.schema import RegisterRequest, TokenPair
 from app.shared.enums.user_roles import UserRole
 import uuid
 from datetime import datetime, timezone, timedelta
 # Moved RefreshToken to top
-from sqlalchemy import select, delete
 
 
 async def authenticate_user(db: AsyncSession, email: str, password: str) -> Optional[User]:
@@ -91,7 +94,7 @@ async def generate_token_pair(db: AsyncSession, user: User) -> TokenPair:
         jti=jti,
         expires_at=expires_at
     )
-    db.add(refresh_token_record)
+    await create_refresh_token(db, refresh_token_record)
     await db.commit()
     
     return TokenPair(
@@ -119,23 +122,19 @@ async def refresh_access_token(db: AsyncSession, refresh_token: str) -> Optional
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
         
     # Check DB for the refresh token
-    stmt = select(RefreshToken).where(RefreshToken.jti == jti)
-    result = await db.execute(stmt)
-    token_record = result.scalar_one_or_none()
+    token_record = await get_refresh_token_by_jti(db, jti)
     
     if not token_record:
         # Potential theft or already revoked/used. 
         # Revoke all tokens for this user by incrementing token_version and deleting all their refresh tokens.
         user.token_version += 1
-        delete_stmt = delete(RefreshToken).where(RefreshToken.user_id == user.id)
-        await db.execute(delete_stmt)
+        await delete_all_refresh_tokens_by_user_id(db, user.id)
         await db.commit()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Security Alert: Please login again")
         
     if token_record.is_revoked:
         user.token_version += 1
-        delete_stmt = delete(RefreshToken).where(RefreshToken.user_id == user.id)
-        await db.execute(delete_stmt)
+        await delete_all_refresh_tokens_by_user_id(db, user.id)
         await db.commit()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Security Alert: Token was already used. Please login again")
         
@@ -146,7 +145,7 @@ async def refresh_access_token(db: AsyncSession, refresh_token: str) -> Optional
     # Using transaction to ensure atomic operation
     try:
         # Delete old token
-        await db.delete(token_record)
+        await delete_refresh_token(db, token_record)
         # We don't commit yet, generate_token_pair will add the new one and commit
         return await generate_token_pair(db, user)
     except Exception as e:
@@ -206,7 +205,6 @@ async def revoke_all_sessions(db: AsyncSession, user_id: int) -> bool:
     user = await get_user_by_id(db, user_id)
     if user:
         user.token_version += 1
-        delete_stmt = delete(RefreshToken).where(RefreshToken.user_id == user_id)
-        await db.execute(delete_stmt)
+        await delete_all_refresh_tokens_by_user_id(db, user_id)
         await db.commit()
     return True
