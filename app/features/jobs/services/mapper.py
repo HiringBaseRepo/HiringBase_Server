@@ -1,5 +1,7 @@
 """Mapping logic for jobs service."""
 
+from typing import Any
+
 from app.features.jobs.schemas.schema import (
     JobFormFieldItem,
     JobKnockoutRuleItem,
