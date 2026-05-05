@@ -327,9 +327,57 @@ If OCR fails:
 - `test_ai_scoring.py` — Resume parser, red flag detector, soft skill scorer, scoring helpers
 - `test_knockout_rules.py` — Semua tipe knockout rule dengan mock
 
+### Integration Tests
+- `test_applications.py` — Public application flow, job listing
+- `test_jobs_public.py` — Public jobs endpoints with full database setup
+
+### Mocking Infrastructure
+The test suite includes comprehensive mocking for external services:
+
+- **R2 Storage**: `mock_r2` fixture using `unittest.mock` to simulate Cloudflare R2
+- **Groq LLM**: `mock_groq` fixture for AI explanation services
+- **Document Validator**: `mock_document_validator` fixture for semantic validation
+- **OCR Engine**: `mock_ocr_engine` fixture for text extraction
+
+### Zero External Dependency Testing
+The system is designed to work without external API credentials:
+- Groq LLM returns `None` when `GROQ_API_KEY` is not configured
+- Document validator returns valid response when API key is missing
+- All AI services have proper fallback mechanisms
+
+### Test Execution Commands
+```bash
+# Run all tests
+venv/bin/pytest app/tests/ -v --tb=short
+
+# Run unit tests only
+venv/bin/pytest app/tests/unit/ -v
+
+# Run integration tests only
+venv/bin/pytest app/tests/integration/ -v
+
+# Run specific test
+venv/bin/pytest app/tests/integration/jobs/test_jobs_public.py -v
+
+# With coverage
+venv/bin/pytest --cov=app --cov-report=term-missing app/tests/
+```
+
 ## Known Limitations & TODO
 
+### Resolved Issues ✅
+- **Testing Infrastructure**: Fixed NameError in mapper.py, added comprehensive mocking for external services
+- **Integration Tests**: Enhanced conftest.py with R2, Groq, OCR, and document validator mocks
+- **Zero Dependency Testing**: System now works without external API credentials for testing
+
+### Current Limitations
 1. **Password Reset Table**: Butuh tabel `password_reset_tokens` via Alembic migration untuk implementasi penuh fitur reset password.
 2. **Email Delivery**: SMTP/SendGrid belum dikonfigurasi — token di-log ke console saat development (`structlog` level INFO).
 3. **Image-based PDF**: Untuk PDF scan (bukan text), perlu convert page ke image sebelum EasyOCR (belum diimplementasi).
 4. **LLM Groq**: Implementasi menggunakan Groq API dengan model `qwen/qwen3-32b` (atau `llama3-70b-8192` tergantung config) untuk validasi dokumen dan penjelasan AI.
+
+### Test Coverage Status
+- **Unit Tests**: 59 tests (all passing)
+- **Integration Tests**: Enhanced with jobs module tests
+- **E2E Tests**: Ready with proper mocking infrastructure
+- **Coverage**: Can be measured with `pytest-cov`
