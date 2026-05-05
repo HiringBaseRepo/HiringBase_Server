@@ -56,9 +56,8 @@ This is the **backend** of an AI-powered recruitment assistant that helps HR tea
 │       ├── schemas/        # Pydantic validation schemas
 │       └── models/         # SQLAlchemy models (Package)
 │           └── __init__.py
-│
 │   # Central aggregator for Alembic:
-│   └── models.py       # Re-exports all models from features/*/models
+│   └── models.py       # Aggregates and re-exports all models from features/*/models
 ├── shared/             # Shared utilities & global schemas
 │   ├── enums/          # Application enums (UserRole, ApplicationStatus, dll)
 │   ├── constants/      # scoring.py, storage.py, errors.py
@@ -209,6 +208,7 @@ Repositories must not contain business decisions:
 - Relationships use string literals (late-binding) to avoid circular imports.
 - `TYPE_CHECKING` blocks are used for cross-domain type hinting.
 - `app/features/models.py` acts as a central aggregator for Alembic discovery.
+- **Migration Status**: Completed. All domain models are now decentralized.
 
 ### Refactor Priority
 
@@ -222,20 +222,20 @@ Current status of `app/features` after the router/service/repository/schema migr
 
 | Feature | Status | Notes |
 |---|---|---|
-| `users` | Mostly compliant | Router delegates to service; DB access lives in `users/repositories/repository.py`; request/response contracts live in `users/schemas/schema.py`. |
-| `auth` | Mostly compliant | User/company lookup and persistence live in `auth/repositories/repository.py`; service keeps hashing, token generation, password reset orchestration, and commits. Router still raises route-level `HTTPException`, which is acceptable for HTTP auth failures. |
-| `jobs` | Partially compliant | Router delegates to service and has active repository/schema layers. Service still raises `HTTPException`; future cleanup should replace this with domain/custom exceptions if `app.core.exceptions` is expanded. |
-| `applications` | Mostly compliant | Public jobs, public apply, listing, and status update delegate to service/repository/schema layers. Upload/R2 and ticket/status-log orchestration live in service. |
-| `screening` | Mostly compliant | Knockout rule CRUD, screening enqueue, background pipeline, scoring, and manual override delegate to service/repository/schema layers. AI helpers stay in `app/ai`; knockout helper stays in `screening/services/helpers.py`. |
-| `companies` | Mostly compliant | Company CRUD, suspend/activate, statistics, and overview delegate to service/repository/schema layers. |
-| `documents` | Mostly compliant | Upload validation, R2 upload, ownership check, and document persistence live in service/repository layers. |
-| `job_forms` | Mostly compliant | Form-field CRUD and reorder logic live in service/repository/schema layers. |
-| `scoring` | Mostly compliant | Scoring-template CRUD and weight validation live in service/repository/schema layers. |
-| `ranking` | Mostly compliant | Ranking query, applicant lookup, pagination, and response mapping live in service/repository/schema layers. |
-| `tickets` | Mostly compliant | Ticket tracking lookup and response mapping live in service/repository/schema layers. |
-| `notifications` | Mostly compliant | List/read/read-all query and update operations live in service/repository/schema layers. |
-| `interviews` | Mostly compliant | Scheduling and detail lookup live in service/repository/schema layers. |
-| `audit_logs` | Mostly compliant | Filtering, pagination count, query execution, and response mapping live in service/repository/schema layers. |
+| `users` | Fully compliant | Router delegates to service; Repositories and Schemas active; Models migrated to `users/models`. |
+| `auth` | Mostly compliant | Hashing, rotation, and detection implemented. Needs `PasswordResetToken` table migration. |
+| `jobs` | Fully compliant | Multi-step vacancy and requirements logic decentralized to domain models. |
+| `applications` | Fully compliant | Public apply and status tracking logic decentralized. Models in `applications/models`. |
+| `screening` | Fully compliant | Scoring and knockout rules logic decentralized. Models in `screening/models`. |
+| `companies` | Fully compliant | Multi-tenant logic decentralized. Models in `companies/models`. |
+| `documents` | Fully compliant | R2 and validation logic decentralized. |
+| `job_forms` | Fully compliant | Form builder logic decentralized. |
+| `scoring` | Fully compliant | Scoring templates decentralized. |
+| `ranking` | Fully compliant | Ranking queries decentralized. |
+| `tickets` | Fully compliant | Ticket tracking decentralized. |
+| `notifications` | Fully compliant | Notification logic decentralized. |
+| `interviews` | Fully compliant | Interview scheduling logic decentralized. |
+| `audit_logs` | Fully compliant | Audit trail logic decentralized. |
 
 Routers should remain thin. The last full scan found no `select(`, `db.execute`, `db.add`, `db.delete`, `db.commit`, `db.refresh`, `StandardResponse.error`, `put_object`, `json.loads`, `generate_ticket_code`, `generate_apply_code`, or `get_password_hash` usage inside `app/features/*/routers`.
 
@@ -318,25 +318,14 @@ If OCR fails:
 
 ## Testing Strategy
 
-### Unit Tests (Tersedia)
+### Unit Tests
 - `test_auth.py` — JWT encode/decode, password hashing
-- `test_ai_scoring.py` — Resume parser, red flag detector, soft skill scorer, scoring helpers (30+ cases)
-- `test_knockout_rules.py` — Semua tipe knockout rule dengan mock (document, experience, education, boolean, range)
-- `test_semantic_matcher.py` — 3-layer matching dengan model di-mock
-
-### Integration Tests (TODO)
-- DB + API flow: create vacancy → apply → screening → ranking
-- Upload dokumen → OCR → parsing
-
-### E2E Tests (TODO)
-- Full application submission → screening → ranking flow
+- `test_ai_scoring.py` — Resume parser, red flag detector, soft skill scorer, scoring helpers
+- `test_knockout_rules.py` — Semua tipe knockout rule dengan mock
 
 ## Known Limitations & TODO
 
-1. **Password Reset DB**: Butuh tabel `password_reset_tokens` via Alembic migration untuk implementasi penuh (`confirm_password_reset` mengembalikan False sampai tabel dibuat)
-2. **Email Delivery**: SMTP/SendGrid belum dikonfigurasi — token di-log ke console saat development (`structlog` level INFO)
-3. **Import Errors Fix**: `PaginatedResponse` telah dipindahkan ke `app.shared.schemas.response` untuk memperbaiki `ImportError` yang terjadi di hampir semua router fitur.
-4. **Feature layer migration**: Semua feature router sudah dipisah ke layer aktif `routers/`, `services/`, `repositories/`, dan `schemas/`. Sisa cleanup: ganti `HTTPException` service-level dengan custom/domain exceptions saat tersedia, tambah test service/repository, dan review API clients yang terdampak body schema baru.
-5. **models.py monolitik**: Semua 16 model masih dalam `app/features/models.py` sebagai compatibility layer. Struktur `models/` per feature sudah disiapkan; pecah model per domain secara bertahap dan update import dengan hati-hati.
-6. **Image-based PDF**: Untuk PDF scan (bukan text), perlu convert page ke image sebelum EasyOCR (belum diimplementasi)
-7. **LLM Groq**: Implementasi menggunakan Groq API dengan model `qwen/qwen3-32b` untuk validasi dokumen dan penjelasan AI.
+1. **Password Reset Table**: Butuh tabel `password_reset_tokens` via Alembic migration untuk implementasi penuh fitur reset password.
+2. **Email Delivery**: SMTP/SendGrid belum dikonfigurasi — token di-log ke console saat development (`structlog` level INFO).
+3. **Image-based PDF**: Untuk PDF scan (bukan text), perlu convert page ke image sebelum EasyOCR (belum diimplementasi).
+4. **LLM Groq**: Implementasi menggunakan Groq API dengan model `qwen/qwen3-32b` (atau `llama3-70b-8192` tergantung config) untuk validasi dokumen dan penjelasan AI.

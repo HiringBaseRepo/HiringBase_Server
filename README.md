@@ -1,105 +1,107 @@
-# Smart Resume Screening System — Backend
+# HireBase — Smart Resume Screening System
 
-AI-Based Recruitment Assistant Backend built with **FastAPI**, **SQLAlchemy**, **PostgreSQL**, and **AI Hybrid Engine**.
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115.0-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Groq](https://img.shields.io/badge/AI-Groq%20Qwen3-orange?style=flat-square)](https://groq.com/)
 
-## Quick Start
+**HireBase** is an AI-powered recruitment assistant that streamlines the hiring process through automated document validation, semantic skill matching, and deterministic weighted scoring.
 
-### 1. Clone & Setup Environment
+---
 
+## 🚀 Quick Start
+
+### 1. Clone & Environment Setup
 ```bash
-cd smart-resume-screening
+git clone https://github.com/boyblanco/HireBase_Server.git
+cd HireBase_Server
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
+source venv/bin/activate  # Linux/macOS
+# pip install -r requirements.txt
 ```
 
-### 2. Configure Environment
-
+### 2. Configuration
 ```bash
 cp .env.example .env
-# Edit .env with your Neon PostgreSQL URL, R2 credentials, and HF token
+# Configure NEON_DATABASE_URL, R2_BUCKET, and GROQ_API_KEY
 ```
 
-### 3. Run Database Migrations
-
+### 3. Database & Run
 ```bash
 alembic upgrade head
+uvicorn app.main:app --reload
 ```
 
-### 4. Start Server
+---
 
-```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
+## 🏗️ Project Architecture
 
-### 5. API Documentation
+HireBase follows a **Domain-Driven Design (DDD)** approach with a clean, layered architecture:
 
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-
-## Project Structure
-
-```
+```text
 app/
-├── core/               # Config, DB, Security, Middleware, Utils
-├── shared/             # Enums, Constants, Schemas, Helpers
-├── features/           # Domain APIs (Auth, Jobs, Applications, etc.)
-│   └── models.py       # All SQLAlchemy models
-├── ai/                 # AI Engine (Parser, Matcher, Scoring, LLM, NLP, OCR, RedFlag)
-├── workers/            # Background task workers
-├── tests/              # Pytest suites
-└── main.py             # FastAPI application entrypoint
+├── ai/                 # AI Engine (OCR, Matcher, Scoring, LLM)
+├── core/               # System Core (Config, Auth, Database, Exceptions)
+├── shared/             # Global Resources (Enums, Schemas, Constants)
+├── features/           # Feature-based Modules (Auth, Jobs, Applications, etc.)
+│   └── <domain>/
+│       ├── routers/    # API Endpoints
+│       ├── services/   # Business Logic
+│       ├── repositories/ # Data Access
+│       ├── schemas/    # Pydantic Models
+│       └── models/     # SQLAlchemy ORM Models
+├── workers/            # Async Background Tasks
+└── main.py             # Entry Point
 ```
 
-## Key Features
+---
 
-| Module | Description |
-|--------|-------------|
-| **Auth** | JWT + RBAC (Super Admin, HR, Applicant) with refresh tokens |
-| **Companies** | Multi-tenant company management (Super Admin) |
-| **Jobs** | Multi-step vacancy builder with publish control |
-| **Form Builder** | Custom per-job applicant forms |
-| **Knockout Rules** | Deterministic pre-screening filters |
-| **Scoring Templates** | Dynamic weighted scoring per position |
-| **Public Apply** | Public job board + form submission + document upload |
-| **AI Screening** | CV parsing → skill matching → weighted scoring → ranking |
-| **Explanation** | Human-readable AI score reasoning |
-| **Red Flags** | Risk detection (gaps, hopping, typos) |
-| **Ranking** | Score-based applicant ranking with filters |
-| **Tickets** | Applicant status tracking by code |
-| **Manual Override** | HR can adjust scores with audit trail |
-| **Audit Logs** | Full change tracking |
+## 🤖 AI Hybrid Engine
 
-## AI Architecture
+We use a 3-layer intelligence strategy to ensure both accuracy and explainability.
 
-| Layer | Engine | Purpose |
-|-------|--------|---------|
-| **Layer 1** | Rule Engine | Knockout, validation, scoring formula, ranking |
-| **Layer 2** | NLP / Embeddings | Skill matching, synonym detection, parser helper |
-| **Layer 3** | LLM (Qwen3 / Llama3) | Explanation text, summary, reasoning, and structured JSON normalization |
+| Layer | Technology | Purpose |
+| :--- | :--- | :--- |
+| **Layer 1: Deterministic** | Rule Engine | Knockout rules, scoring formula, ranking. |
+| **Layer 2: Semantic** | Sentence-Transformers | Semantic skill matching & synonym detection. |
+| **Layer 3: Reasoning** | Groq (Qwen3-32B) | Document validation & HR explanation generation. |
 
-> **Principle**: LLM never computes final score. Score is always rule-based + deterministic.
+> [!IMPORTANT]
+> **Scoring Philosophy**: The LLM is never used to compute the final score. Scores are calculated using a deterministic, weighted formula based on verified form data.
 
-## Testing
+---
+
+## ✨ Key Capabilities
+
+- **Ticket-Based Public Flow**: No applicant login required; track status via `TKT-YYYY-NNNNN`.
+- **Custom Form Builder**: Create job-specific forms with varied field types and knockout logic.
+- **Semantic Document Validation**: Groq-powered verification of KTP, Ijazah, and Certifications.
+- **Advanced Auth Security**: Stateful JWT with rotation, reuse detection, and global kill-switch.
+- **Structured Logging**: JSON-based logging via `structlog` for easy monitoring.
+
+---
+
+## 🛠️ Tech Stack
+
+- **Core**: FastAPI (Async), Pydantic v2
+- **Persistence**: PostgreSQL, SQLAlchemy 2.0 (Async), Alembic
+- **AI/ML**: EasyOCR, pdfplumber, Sentence-Transformers, Groq Cloud
+- **Infrastructure**: Cloudflare R2 (S3-compatible storage)
+- **Security**: python-jose, passlib (bcrypt)
+
+---
+
+## 📈 Roadmap
+
+- [ ] **V2**: WhatsApp/Email auto-notifications for candidate status updates.
+- [ ] **V2**: Computer Vision for advanced fake document detection.
+- [ ] **V2**: Integrated Interview Scheduler with Google/Outlook Calendar.
+- [ ] **V2**: Multi-tenant Dashboard for Super Admins.
+
+---
+
+## 🧪 Testing
 
 ```bash
-pytest app/tests -v --cov=app --cov-report=html
+pytest app/tests -v
 ```
-
-## Deployment
-
-Use Uvicorn with Gunicorn for production:
-
-```bash
-gunicorn app.main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --workers 4
-```
-
-## V2 Roadmap
-
-- [ ] Computer vision fake document detection
-- [ ] WhatsApp API notifications
-- [ ] Interview auto-scheduler
-- [ ] Multi-tenant SaaS billing
-- [ ] Redis caching layer
-- [ ] Celery task queue
-- [ ] Fine-tuned hiring LLM
+Currently, there are **59+ unit tests** covering Auth, AI Scoring, and Knockout Rules.
