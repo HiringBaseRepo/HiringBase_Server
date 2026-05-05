@@ -1,5 +1,5 @@
 """
-Smart Resume Screening System — Main FastAPI Application
+Hiringbase — Main FastAPI Application
 """
 from contextlib import asynccontextmanager
 
