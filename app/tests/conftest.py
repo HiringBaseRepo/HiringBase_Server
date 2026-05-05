@@ -4,64 +4,20 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import NullPool
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
-from app.core.database.base import Base, get_db
-from app.main import app
+from app.core.database.base import AsyncSessionLocal
 
 
 @pytest_asyncio.fixture
 async def db_session() -> AsyncSession:
     """Create a fresh database session for each test."""
-    # Create an in-memory SQLite database for testing
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        poolclass=NullPool,
-        connect_args={"check_same_thread": False},
-    )
-
-    # Create all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    # Create session
-    TestingSessionLocal = sessionmaker(
-        engine, expire_on_commit=False, class_=AsyncSession
-    )
-
-    async with TestingSessionLocal() as session:
-        try:
-            yield session
-        finally:
-            await session.rollback()
-            await session.close()
-
-    # Drop all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-
-    await engine.dispose()
-
-
-@pytest_asyncio.fixture
-async def client(db_session: AsyncSession) -> AsyncClient:
-    """Create an HTTP test client with mocked database session."""
-
-    async def override_get_db():
-        yield db_session
-
-    app.dependency_overrides[get_db] = override_get_db
-
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as ac:
-        yield ac
-
-    app.dependency_overrides.clear()
+    session = AsyncSessionLocal()
+    try:
+        yield session
+    finally:
+        await session.rollback()
+        await session.close()
 
 
 @pytest.fixture
