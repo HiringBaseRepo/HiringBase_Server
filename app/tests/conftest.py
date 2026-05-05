@@ -4,13 +4,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.base import AsyncSessionLocal
 
 
 @pytest_asyncio.fixture
-async def db_session() -> AsyncSession:
+async def db_session():
     """Create a fresh database session for each test."""
     session = AsyncSessionLocal()
     try:
