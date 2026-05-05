@@ -51,7 +51,10 @@ This is the **backend** of an AI-powered recruitment assistant that helps HR tea
 │       ├── routers/        # FastAPI endpoints only
 │       │   └── router.py
 │       ├── services/       # Business logic / orchestration
-│       │   └── service.py
+│       │   ├── service.py  # Main orchestration
+│       │   ├── mapper.py   # Data mapping helpers
+│       │   ├── validator.py # Validation helpers
+│       │   └── parser.py    # Data parsing helpers
 │       ├── repositories/   # SQLAlchemy query/data access layer
 │       ├── schemas/        # Pydantic validation schemas
 │       └── models/         # SQLAlchemy models (Package)
@@ -215,6 +218,7 @@ Repositories must not contain business decisions:
 1. Replacing service-level `HTTPException` with domain/custom exceptions once `app.core.exceptions` defines them.
 2. Adding focused unit tests for each service/repository workflow.
 3. Reviewing API clients where endpoints moved from many scalar parameters to Pydantic body schemas.
+4. Further modularization of service files by extracting helper functions to separate modules (parser, validator, mapper).
 
 ### Layer Compliance Audit
 

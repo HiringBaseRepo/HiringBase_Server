@@ -1,21 +1,18 @@
 """Screening business logic."""
+
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.explanation.generator import generate_explanation
 from app.ai.matcher.semantic_matcher import match_candidate_to_job
-from app.ai.ocr.engine import extract_text_from_document
-from app.ai.parser.resume_parser import parse_resume_text
 from app.ai.redflag.detector import detect_red_flags
 from app.features.applications.models import ApplicationStatusLog
 from app.features.audit_logs.models import AuditLog
-from app.features.screening.models import CandidateScore
 from app.features.jobs.models import JobKnockoutRule, JobScoringTemplate
-from app.features.users.models import User
+from app.features.screening.models import CandidateScore
 from app.features.screening.repositories.repository import (
     add_audit_log,
     add_status_log,
-    delete_knockout_rule as delete_knockout_rule_query,
     get_active_knockout_rules,
     get_answers_by_application_id,
     get_application_by_id,
@@ -29,6 +26,9 @@ from app.features.screening.repositories.repository import (
     save_candidate_score,
     save_knockout_rule,
 )
+from app.features.screening.repositories.repository import (
+    delete_knockout_rule as delete_knockout_rule_query,
+)
 from app.features.screening.schemas.schema import (
     KnockoutRuleCreateCommand,
     KnockoutRuleCreatedResponse,
@@ -37,7 +37,16 @@ from app.features.screening.schemas.schema import (
     ScreeningQueuedResponse,
 )
 from app.features.screening.services.helpers import evaluate_knockout_rule
-from app.shared.constants.scoring import EDUCATION_RANK, MINIMUM_PASS_SCORE
+from app.features.screening.services.parser import (
+    _score_education,
+    _score_experience,
+    _score_portfolio,
+    _score_soft_skills,
+    build_candidate_profile,
+)
+from app.features.screening.services.validator_step import run_document_semantic_check
+from app.features.users.models import User
+from app.shared.constants.scoring import MINIMUM_PASS_SCORE
 from app.shared.enums.application_status import ApplicationStatus
 from app.shared.enums.document_type import DocumentType
 
@@ -60,10 +69,14 @@ async def create_knockout_rule(
     return KnockoutRuleCreatedResponse(rule_id=rule.id, job_id=data.job_id)
 
 
-async def delete_knockout_rule(db: AsyncSession, rule_id: int) -> KnockoutRuleDeletedResponse:
+async def delete_knockout_rule(
+    db: AsyncSession, rule_id: int
+) -> KnockoutRuleDeletedResponse:
     rule = await get_knockout_rule_by_id(db, rule_id)
     if not rule:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found"
+        )
     await delete_knockout_rule_query(db, rule)
     await db.commit()
     return KnockoutRuleDeletedResponse(deleted=True)
@@ -81,7 +94,9 @@ async def queue_screening(
         company_id=current_user.company_id,
     )
     if not application:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Application not found"
+        )
     return ScreeningQueuedResponse(message="Screening queued")
 
 
@@ -132,54 +147,14 @@ async def process_screening(application_id: int, company_id: int | None) -> None
                 return
 
         # Langkah 2 & 3: OCR JIT & Validasi Semantik Dokumen Berbasis LLM
-        from app.ai.validator.document_validator import validate_document_content
-        doc_validation_flags = []
-        for doc in docs:
-            if doc.document_type in [DocumentType.KTP, DocumentType.IJAZAH]:
-                log.info("Running JIT OCR and Semantic Validation", doc_type=doc.document_type)
-                extracted_text = await extract_text_from_document(doc.file_url)
-                v_res = await validate_document_content(
-                    doc.document_type.value,
-                    extracted_text,
-                    {"name": application.applicant.full_name, "email": application.applicant.email}
-                )
-                if not v_res.get("valid"):
-                    doc_validation_flags.append(f"Peringatan {doc.document_type.value}: {v_res.get('reason')}")
+        doc_validation_flags = await run_document_semantic_check(
+            docs, application.applicant
+        )
 
         answers = await get_answers_by_application_id(db, application_id)
-        
+
         # Build parsed_data from form answers
-        from app.features.screening.services.helpers import find_answer_value
-        
-        parsed_data = {
-            "name": application.applicant.full_name if application.applicant else None,
-            "email": application.applicant.email if application.applicant else None,
-            "phone": application.applicant.phone if application.applicant else None,
-            "skills": [],
-            "education": [],
-            "total_years_experience": 0,
-            "github_url": find_answer_value("github_url", answers),
-            "portfolio_url": find_answer_value("portfolio_url", answers),
-            "live_project_url": find_answer_value("live_project_url", answers),
-        }
-
-        # Extract skills
-        skills_raw = find_answer_value("skills", answers)
-        if skills_raw:
-            parsed_data["skills"] = [s.strip().lower() for s in str(skills_raw).split(",") if s.strip()]
-
-        # Extract experience years
-        exp_years = find_answer_value("experience_years", answers)
-        if exp_years:
-            try:
-                parsed_data["total_years_experience"] = int(float(exp_years))
-            except (ValueError, TypeError):
-                parsed_data["total_years_experience"] = 0
-
-        # Extract education
-        edu_level = find_answer_value("education_level", answers)
-        if edu_level:
-            parsed_data["education"] = [{"level": str(edu_level).lower(), "raw": str(edu_level)}]
+        parsed_data = build_candidate_profile(application, answers)
 
         # Combine all text answers into one 'text' for soft skill analysis
         text_parts = []
@@ -188,16 +163,24 @@ async def process_screening(application_id: int, company_id: int | None) -> None
                 text_parts.append(ans.value_text)
         text = "\n".join(text_parts)
 
-        template = await get_scoring_template_by_job_id(db, job.id) or _default_template()
+        template = (
+            await get_scoring_template_by_job_id(db, job.id) or _default_template()
+        )
         requirements = await get_requirements_by_job_id(db, job.id)
-        match_result = await match_candidate_to_job(parsed_data, requirements, job.description)
+        match_result = await match_candidate_to_job(
+            parsed_data, requirements, job.description
+        )
         exp_score = _score_experience(
             parsed_data.get("total_years_experience", 0),
-            next((req.value for req in requirements if req.category == "experience"), "0"),
+            next(
+                (req.value for req in requirements if req.category == "experience"), "0"
+            ),
         )
         edu_score = _score_education(
             parsed_data.get("education", []),
-            next((req.value for req in requirements if req.category == "education"), ""),
+            next(
+                (req.value for req in requirements if req.category == "education"), ""
+            ),
         )
         portfolio_score = _score_portfolio(parsed_data)
         soft_skill_score = _score_soft_skills(text)
@@ -242,7 +225,11 @@ async def process_screening(application_id: int, company_id: int | None) -> None
                 risk_level=red_flags.get("risk_level"),
             ),
         )
-        application.status = ApplicationStatus.AI_PASSED if final >= MINIMUM_PASS_SCORE else ApplicationStatus.UNDER_REVIEW
+        application.status = (
+            ApplicationStatus.AI_PASSED
+            if final >= MINIMUM_PASS_SCORE
+            else ApplicationStatus.UNDER_REVIEW
+        )
         await add_status_log(
             db,
             ApplicationStatusLog(
@@ -265,55 +252,6 @@ def _default_template() -> JobScoringTemplate:
     )
 
 
-def _score_soft_skills(text: str) -> float:
-    try:
-        from app.ai.nlp.soft_skill_scorer import score_soft_skills
-
-        return score_soft_skills(text).get("composite_score", 60.0)
-    except Exception:
-        return 60.0
-
-
-def _score_experience(years: int, required: str) -> float:
-    try:
-        req = int(required)
-    except (ValueError, TypeError):
-        req = 0
-    if req <= 0:
-        return 100.0
-    if years >= req:
-        return 100.0
-    return (years / req) * 100.0
-
-
-def _score_education(candidate_edu: list, required: str) -> float:
-    if not required:
-        return 100.0
-    if not candidate_edu:
-        return 0.0
-    req_rank = EDUCATION_RANK.get(required.lower().replace(".", "").replace(" ", ""), 1)
-    cand_rank = 1
-    for item in candidate_edu:
-        level = str(item.get("level", "")).lower().replace(".", "").replace(" ", "")
-        cand_rank = max(cand_rank, EDUCATION_RANK.get(level, 1))
-    if cand_rank >= req_rank:
-        return 100.0
-    return (cand_rank / req_rank) * 100.0
-
-
-def _score_portfolio(parsed: dict) -> float:
-    has_github = bool(parsed.get("github_url"))
-    has_portfolio = bool(parsed.get("portfolio_url"))
-    has_live = bool(parsed.get("live_project_url"))
-    if has_github and has_live:
-        return 100.0
-    if has_github:
-        return 75.0
-    if has_portfolio:
-        return 60.0
-    return 0.0
-
-
 async def manual_override_score(
     db: AsyncSession,
     *,
@@ -333,15 +271,23 @@ async def manual_override_score(
         company_id=current_user.company_id,
     )
     if not score:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Score not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Score not found"
+        )
 
     old_final = score.final_score
     score.skill_match_score = _clamp_score(score.skill_match_score + skill_adjustment)
-    score.experience_score = _clamp_score(score.experience_score + experience_adjustment)
+    score.experience_score = _clamp_score(
+        score.experience_score + experience_adjustment
+    )
     score.education_score = _clamp_score(score.education_score + education_adjustment)
     score.portfolio_score = _clamp_score(score.portfolio_score + portfolio_adjustment)
-    score.soft_skill_score = _clamp_score(score.soft_skill_score + soft_skill_adjustment)
-    score.administrative_score = _clamp_score(score.administrative_score + admin_adjustment)
+    score.soft_skill_score = _clamp_score(
+        score.soft_skill_score + soft_skill_adjustment
+    )
+    score.administrative_score = _clamp_score(
+        score.administrative_score + admin_adjustment
+    )
     score.final_score = (
         score.skill_match_score * 0.4
         + score.experience_score * 0.2

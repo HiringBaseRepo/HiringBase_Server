@@ -1,4 +1,5 @@
 """Job management business logic."""
+
 from datetime import datetime
 
 from fastapi import HTTPException, status
@@ -6,32 +7,36 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.utils.pagination import PaginationParams
 from app.core.utils.ticket import generate_apply_code
+from app.features.jobs.models import Job, JobFormField, JobRequirement
 from app.features.jobs.repositories.repository import (
     get_form_fields_by_job_id,
     get_job_for_company,
     get_knockout_rules_by_job_id,
     get_requirements_by_job_id,
-    list_jobs as list_jobs_query,
     save_form_fields,
     save_job,
     save_requirements,
+)
+from app.features.jobs.repositories.repository import (
+    list_jobs as list_jobs_query,
 )
 from app.features.jobs.schemas.schema import (
     AddJobRequirementsRequest,
     CreateJobStep1Request,
     JobCloseResponse,
     JobDetailResponse,
-    JobFormFieldItem,
     JobFormFieldInput,
-    JobKnockoutRuleItem,
-    JobListItem,
     JobPublishResponse,
-    JobRequirementItem,
     JobStepResponse,
     PublishJobRequest,
     SetupJobFormRequest,
 )
-from app.features.jobs.models import Job, JobFormField, JobRequirement
+from app.features.jobs.services.mapper import (
+    map_form_field_to_item,
+    map_job_to_list_item,
+    map_knockout_rule_to_item,
+    map_requirement_to_item,
+)
 from app.features.users.models import User
 from app.shared.enums.job_status import JobStatus
 from app.shared.schemas.response import PaginatedResponse
@@ -175,20 +180,7 @@ async def list_jobs(
     )
     pages = (total + pagination.per_page - 1) // pagination.per_page
     return PaginatedResponse(
-        data=[
-            JobListItem(
-                id=job.id,
-                title=job.title,
-                department=job.department,
-                employment_type=job.employment_type,
-                status=job.status,
-                location=job.location,
-                apply_code=job.apply_code,
-                published_at=job.published_at.isoformat() if job.published_at else None,
-                created_at=job.created_at.isoformat() if job.created_at else None,
-            )
-            for job in jobs
-        ],
+        data=[map_job_to_list_item(job) for job in jobs],
         total=total,
         page=pagination.page,
         per_page=pagination.per_page,
@@ -215,11 +207,9 @@ async def get_job_detail(
         id=job.id,
         title=job.title,
         description=job.description,
-        requirements=[JobRequirementItem.model_validate(item, from_attributes=True) for item in requirements],
-        form_fields=[JobFormFieldItem.model_validate(item, from_attributes=True) for item in form_fields],
-        knockout_rules=[
-            JobKnockoutRuleItem.model_validate(item, from_attributes=True) for item in knockout_rules
-        ],
+        requirements=[map_requirement_to_item(item) for item in requirements],
+        form_fields=[map_form_field_to_item(item) for item in form_fields],
+        knockout_rules=[map_knockout_rule_to_item(item) for item in knockout_rules],
     )
 
 

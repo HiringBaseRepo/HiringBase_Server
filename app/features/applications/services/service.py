@@ -1,4 +1,5 @@
 """Application business logic."""
+
 import json
 
 from fastapi import HTTPException, UploadFile, status
@@ -7,6 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.utils.pagination import PaginationParams
 from app.core.utils.ticket import generate_ticket_code
+from app.features.applications.models import (
+    Application,
+    ApplicationAnswer,
+    ApplicationDocument,
+    ApplicationStatusLog,
+)
 from app.features.applications.repositories.repository import (
     add_answer,
     add_document,
@@ -16,14 +23,18 @@ from app.features.applications.repositories.repository import (
     get_company_by_id,
     get_form_field_by_key,
     get_form_fields_by_job_id,
-    get_published_job_by_id,
     get_public_job_by_id,
+    get_published_job_by_id,
     get_user_by_email,
-    list_applications as list_applications_query,
-    list_public_jobs as list_public_jobs_query,
     save_application,
     save_ticket,
     save_user,
+)
+from app.features.applications.repositories.repository import (
+    list_applications as list_applications_query,
+)
+from app.features.applications.repositories.repository import (
+    list_public_jobs as list_public_jobs_query,
 )
 from app.features.applications.schemas.schema import (
     ApplicationListItem,
@@ -32,13 +43,10 @@ from app.features.applications.schemas.schema import (
     PublicApplyResponse,
     PublicJobDetailResponse,
     PublicJobFormField,
-    PublicJobItem,
 )
-from app.features.applications.models import (
-    Application,
-    ApplicationAnswer,
-    ApplicationDocument,
-    ApplicationStatusLog,
+from app.features.applications.services.mapper import map_job_to_public_item
+from app.features.applications.services.validator import (
+    validate_public_apply_requirements,
 )
 from app.features.tickets.models import Ticket
 from app.features.users.models import User
@@ -48,7 +56,11 @@ from app.shared.enums.application_status import ApplicationStatus
 from app.shared.enums.document_type import DocumentType
 from app.shared.enums.ticket_status import TicketStatus
 from app.shared.enums.user_roles import UserRole
-from app.shared.helpers.storage import build_public_url, generate_filename, get_s3_client
+from app.shared.helpers.storage import (
+    build_public_url,
+    generate_filename,
+    get_s3_client,
+)
 from app.shared.schemas.response import PaginatedResponse
 
 
@@ -59,25 +71,13 @@ async def list_public_jobs(
     q: str | None = None,
     location: str | None = None,
 ) -> PaginatedResponse[PublicJobItem]:
-    jobs, total = await list_public_jobs_query(db, pagination=pagination, q=q, location=location)
+    jobs, total = await list_public_jobs_query(
+        db, pagination=pagination, q=q, location=location
+    )
     items = []
     for job in jobs:
         company = await get_company_by_id(db, job.company_id)
-        items.append(
-            PublicJobItem(
-                id=job.id,
-                title=job.title,
-                department=job.department,
-                employment_type=job.employment_type.value,
-                location=job.location,
-                salary_min=job.salary_min,
-                salary_max=job.salary_max,
-                description=job.description,
-                apply_code=job.apply_code,
-                company_name=company.name if company else None,
-                published_at=job.published_at.isoformat() if job.published_at else None,
-            )
-        )
+        items.append(map_job_to_public_item(job, company))
     pages = (total + pagination.per_page - 1) // pagination.per_page
     return PaginatedResponse(
         data=items,
@@ -90,10 +90,14 @@ async def list_public_jobs(
     )
 
 
-async def get_public_job_detail(db: AsyncSession, job_id: int) -> PublicJobDetailResponse:
+async def get_public_job_detail(
+    db: AsyncSession, job_id: int
+) -> PublicJobDetailResponse:
     job = await get_public_job_by_id(db, job_id)
     if not job:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Job not found"
+        )
     company = await get_company_by_id(db, job.company_id)
     form_fields = await get_form_fields_by_job_id(db, job_id)
     return PublicJobDetailResponse(
@@ -117,53 +121,36 @@ async def get_public_job_detail(db: AsyncSession, job_id: int) -> PublicJobDetai
     )
 
 
-from app.features.applications.repositories.repository import get_knockout_rules_by_job_id
-
 async def public_apply(
     db: AsyncSession,
     *,
     data: PublicApplyCommand,
     documents: list[UploadFile] | None = None,
 ) -> PublicApplyResponse:
+    # Validate all requirements
+    await validate_public_apply_requirements(db, data, documents)
+
+    # Get job and applicant
     job = await get_published_job_by_id(db, data.job_id)
-    if not job:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found or not published")
-
-    # VALIDATION 1: Mandatory Form Fields
-    form_fields = await get_form_fields_by_job_id(db, job_id=data.job_id)
-    answers = json.loads(data.answers_json) if data.answers_json else {}
-    for field in form_fields:
-        if field.is_required and not answers.get(field.field_key):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Field '{field.label}' is required")
-
-    # VALIDATION 2: Required Documents
-    knockout_rules = await get_knockout_rules_by_job_id(db, job_id=data.job_id)
-    required_docs = [r.target_value.lower() for r in knockout_rules if r.rule_type == "document" and r.is_active]
-    
-    uploaded_filenames = [upload.filename.lower() for upload in documents] if documents else []
-    for req_doc in required_docs:
-        found = any(req_doc in fname for fname in uploaded_filenames)
-        if not found:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Required document '{req_doc}' is missing")
-
     applicant = await get_user_by_email(db, data.email)
-    if applicant:
-        duplicate = await get_application_by_job_and_applicant(
-            db,
-            job_id=data.job_id,
-            applicant_id=applicant.id,
-        )
-        if duplicate and not job.allow_multiple_apply:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=ERR_DUPLICATE_APPLICATION)
-    else:
+    if not applicant:
         applicant = await save_user(
             db,
-            User(email=data.email, full_name=data.full_name, phone=data.phone, role=UserRole.APPLICANT),
+            User(
+                email=data.email,
+                full_name=data.full_name,
+                phone=data.phone,
+                role=UserRole.APPLICANT,
+            ),
         )
 
     application = await save_application(
         db,
-        Application(job_id=data.job_id, applicant_id=applicant.id, status=ApplicationStatus.APPLIED),
+        Application(
+            job_id=data.job_id,
+            applicant_id=applicant.id,
+            status=ApplicationStatus.APPLIED,
+        ),
     )
 
     if data.answers_json:
@@ -179,7 +166,6 @@ async def public_apply(
                         value_text=str(value) if value is not None else None,
                     ),
                 )
-
 
     for upload in documents or []:
         try:
@@ -202,7 +188,12 @@ async def public_apply(
             subject=f"Application for {job.title}",
         ),
     )
-    await add_status_log(db, ApplicationStatusLog(application_id=application.id, to_status=ApplicationStatus.APPLIED.value))
+    await add_status_log(
+        db,
+        ApplicationStatusLog(
+            application_id=application.id, to_status=ApplicationStatus.APPLIED.value
+        ),
+    )
     await db.commit()
     await db.refresh(ticket)
     return PublicApplyResponse(
@@ -224,12 +215,16 @@ async def _store_uploaded_document(
     if ext not in ALLOWED_EXTENSIONS:
         if skip_invalid:
             return
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid file type")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid file type"
+        )
     content = await upload.read()
     if len(content) > MAX_FILE_SIZE_MB * 1024 * 1024:
         if skip_invalid:
             return
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File too large")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="File too large"
+        )
     prefix = "portfolios" if document_type == DocumentType.PORTFOLIO else "documents"
     key = generate_filename(upload.filename, prefix)
     s3 = get_s3_client()
@@ -304,7 +299,9 @@ async def update_application_status(
         company_id=current_user.company_id,
     )
     if not application:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Application not found"
+        )
     old_status = application.status
     application.status = new_status
     await add_status_log(
