@@ -26,6 +26,7 @@ from app.features.jobs.schemas.schema import (
     JobCloseResponse,
     JobDetailResponse,
     JobFormFieldInput,
+    JobListItem,
     JobPublishResponse,
     JobStepResponse,
     PublishJobRequest,

@@ -1,5 +1,7 @@
 """Mapping logic for applications service."""
 
+from typing import Any
+
 from app.features.applications.schemas.schema import PublicJobItem
 
 

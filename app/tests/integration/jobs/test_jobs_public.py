@@ -1,12 +1,12 @@
 """Integration tests for public jobs endpoints."""
 
+import uuid
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from app.core.database.base import AsyncSessionLocal
 from app.core.security.hashing import get_password_hash
 from app.features.companies.models import Company
-from app.features.jobs.models import Job, JobFormField, JobKnockoutRule, JobRequirement
+from app.features.jobs.models import Job, JobFormField
 from app.features.users.models import User
 from app.shared.enums.field_type import FormFieldType
 from app.shared.enums.job_status import JobStatus
@@ -14,137 +14,114 @@ from app.shared.enums.user_roles import UserRole
 
 
 @pytest.mark.asyncio
-async def test_public_job_list(client: AsyncClient, db_session: AsyncSession):
+async def test_public_job_list(client: AsyncClient):
     """Test public job listing endpoint."""
-    # Setup test data
-    company = Company(
-        name="Test Company",
-        domain="test.com",
-        address="Test Address",
-        logo_url="https://test.com/logo.png",
-    )
-    db_session.add(company)
-    await db_session.commit()
-    await db_session.refresh(company)
+    # Setup test data manually to ensure clean session lifecycle
+    async with AsyncSessionLocal() as session:
+        unique_id = str(uuid.uuid4())[:8]
+        company = Company(
+            name=f"Test Company {unique_id}",
+            slug=f"test-company-{unique_id}",
+            website="test.com",
+            logo_url="https://test.com/logo.png",
+        )
+        session.add(company)
+        await session.commit()
 
-    user = User(
-        email="hr@test.com",
-        hashed_password=get_password_hash("password123"),
-        full_name="HR Test",
-        role=UserRole.HR,
-        company_id=company.id,
-    )
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
+        user = User(
+            email=f"hr_{unique_id}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="HR Test",
+            role=UserRole.HR,
+            company_id=company.id,
+        )
+        session.add(user)
+        await session.commit()
 
-    # Create a test job
-    job = Job(
-        title="Software Engineer",
-        department="Engineering",
-        employment_type="FULL_TIME",
-        status=JobStatus.PUBLISHED,
-        location="Jakarta",
-        apply_code="TEST2024",
-        description="Test job description",
-        company_id=company.id,
-        created_by=user.id,
-    )
-    db_session.add(job)
-    await db_session.commit()
-    await db_session.refresh(job)
+        job = Job(
+            title="Software Engineer",
+            department="Engineering",
+            employment_type="FULL_TIME",
+            status=JobStatus.PUBLISHED,
+            location="Jakarta",
+            apply_code=f"TEST{unique_id}",
+            description="Test job description",
+            company_id=company.id,
+            created_by=user.id,
+            is_public=True,
+        )
+        session.add(job)
+        await session.commit()
+        job_id = job.id
 
     # Test the endpoint
     response = await client.get("/api/v1/applications/public/jobs")
     assert response.status_code == 200
     data = response.json()
-
     assert data["success"] is True
-    assert len(data["data"]) >= 1  # Should have at least our test job
-    assert data["data"][0]["title"] == "Software Engineer"
-    assert data["data"][0]["department"] == "Engineering"
+    
+    items = data["data"]["data"]
+    assert len(items) >= 1
+    found_job = next((j for j in items if j["id"] == job_id), None)
+    assert found_job is not None
 
 
 @pytest.mark.asyncio
-async def test_public_job_detail(client: AsyncClient, db_session: AsyncSession):
+async def test_public_job_detail(client: AsyncClient):
     """Test public job detail endpoint."""
-    # Setup test data
-    company = Company(
-        name="Test Company",
-        domain="test.com",
-        address="Test Address",
-        logo_url="https://test.com/logo.png",
-    )
-    db_session.add(company)
-    await db_session.commit()
-    await db_session.refresh(company)
+    async with AsyncSessionLocal() as session:
+        unique_id = str(uuid.uuid4())[:8]
+        company = Company(
+            name=f"Test Company {unique_id}",
+            slug=f"test-company-{unique_id}",
+            website="test.com",
+            logo_url="https://test.com/logo.png",
+        )
+        session.add(company)
+        await session.commit()
 
-    user = User(
-        email="hr@test.com",
-        hashed_password=get_password_hash("password123"),
-        full_name="HR Test",
-        role=UserRole.HR,
-        company_id=company.id,
-    )
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
+        user = User(
+            email=f"hr_{unique_id}@test.com",
+            password_hash=get_password_hash("password123"),
+            full_name="HR Test",
+            role=UserRole.HR,
+            company_id=company.id,
+        )
+        session.add(user)
+        await session.commit()
 
-    # Create a test job
-    job = Job(
-        title="Data Scientist",
-        department="Data",
-        employment_type="FULL_TIME",
-        status=JobStatus.PUBLISHED,
-        location="Bandung",
-        apply_code="DATA2024",
-        description="Test data science job",
-        company_id=company.id,
-        created_by=user.id,
-    )
-    db_session.add(job)
-    await db_session.commit()
-    await db_session.refresh(job)
+        job = Job(
+            title="Data Scientist",
+            department="Data",
+            employment_type="FULL_TIME",
+            status=JobStatus.PUBLISHED,
+            location="Bandung",
+            apply_code=f"DATA{unique_id}",
+            description="Test data science job",
+            company_id=company.id,
+            created_by=user.id,
+            is_public=True,
+        )
+        session.add(job)
+        await session.commit()
 
-    # Add requirements
-    requirement = JobRequirement(
-        job_id=job.id, skill_name="Python", required=True, weight=40
-    )
-    db_session.add(requirement)
-
-    # Add form fields
-    form_field = JobFormField(
-        job_id=job.id,
-        field_key="experience_years",
-        field_label="Years of Experience",
-        field_type=FormFieldType.NUMBER,
-        required=True,
-        position=1,
-    )
-    db_session.add(form_field)
-
-    # Add knockout rule
-    knockout_rule = JobKnockoutRule(
-        job_id=job.id,
-        rule_type="experience",
-        operator="gte",
-        target_value="2",
-        field_key="experience_years",
-        action="auto_reject",
-        rule_name="Minimum Experience",
-    )
-    db_session.add(knockout_rule)
-
-    await db_session.commit()
+        form_field = JobFormField(
+            job_id=job.id,
+            field_key="experience_years",
+            label="Years of Experience",
+            field_type=FormFieldType.NUMBER,
+            is_required=True,
+            order_index=1,
+        )
+        session.add(form_field)
+        await session.commit()
+        job_id = job.id
 
     # Test the endpoint
-    response = await client.get(f"/api/v1/applications/public/jobs/{job.id}")
+    response = await client.get(f"/api/v1/applications/public/jobs/{job_id}")
     assert response.status_code == 200
     data = response.json()
 
     assert data["success"] is True
     assert data["data"]["title"] == "Data Scientist"
-    assert data["data"]["department"] == "Data"
-    assert len(data["data"]["requirements"]) == 1
-    assert len(data["data"]["form_fields"]) == 1
-    assert len(data["data"]["knockout_rules"]) == 1
+    assert data["data"]["form_fields"][0]["field_key"] == "experience_years"

@@ -43,6 +43,7 @@ from app.features.applications.schemas.schema import (
     PublicApplyResponse,
     PublicJobDetailResponse,
     PublicJobFormField,
+    PublicJobItem,
 )
 from app.features.applications.services.mapper import map_job_to_public_item
 from app.features.applications.services.validator import (
