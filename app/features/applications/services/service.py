@@ -18,7 +18,6 @@ from app.features.applications.repositories.repository import (
     add_answer,
     add_document,
     add_status_log,
-    get_application_by_job_and_applicant,
     get_application_for_company,
     get_company_by_id,
     get_form_field_by_key,
@@ -51,7 +50,6 @@ from app.features.applications.services.validator import (
 )
 from app.features.tickets.models import Ticket
 from app.features.users.models import User
-from app.shared.constants.errors import ERR_DUPLICATE_APPLICATION
 from app.shared.constants.storage import ALLOWED_EXTENSIONS, MAX_FILE_SIZE_MB
 from app.shared.enums.application_status import ApplicationStatus
 from app.shared.enums.document_type import DocumentType
@@ -186,7 +184,7 @@ async def public_apply(
             application_id=application.id,
             code=generate_ticket_code(),
             status=TicketStatus.OPEN,
-            subject=f"Application for {job.title}",
+            subject=f"Application for {job.title if job else 'Unknown Position'}",
         ),
     )
     await add_status_log(
@@ -212,7 +210,7 @@ async def _store_uploaded_document(
     document_type: DocumentType,
     skip_invalid: bool = False,
 ) -> None:
-    ext = upload.filename.split(".")[-1].lower()
+    ext = (upload.filename or "").split(".")[-1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         if skip_invalid:
             return
@@ -227,7 +225,7 @@ async def _store_uploaded_document(
             status_code=status.HTTP_400_BAD_REQUEST, detail="File too large"
         )
     prefix = "portfolios" if document_type == DocumentType.PORTFOLIO else "documents"
-    key = generate_filename(upload.filename, prefix)
+    key = generate_filename(upload.filename or "unknown", prefix)
     s3 = get_s3_client()
     s3.put_object(
         Bucket=settings.R2_BUCKET_NAME,
