@@ -116,18 +116,7 @@ async def process_screening(application_id: int, company_id: int | None) -> None
         required_docs = {DocumentType.KTP, DocumentType.IJAZAH}
         missing = required_docs - doc_types
         if missing:
-            application.status = ApplicationStatus.DOC_FAILED
-            await add_status_log(
-                db,
-                ApplicationStatusLog(
-                    application_id=application.id,
-                    from_status=ApplicationStatus.APPLIED.value,
-                    to_status=ApplicationStatus.DOC_FAILED.value,
-                    reason=f"Missing documents: {[doc.value for doc in missing]}",
-                ),
-            )
-            await db.commit()
-            return
+            raise MissingDocumentsException([doc.value for doc in missing])
 
         application.status = ApplicationStatus.DOC_CHECK
         rules = await get_active_knockout_rules(db, job.id)

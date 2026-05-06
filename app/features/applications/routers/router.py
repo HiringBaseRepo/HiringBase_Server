@@ -1,10 +1,16 @@
 """Public Applicant + Application Management API."""
-from typing import Optional, List
-from fastapi import APIRouter, Depends, UploadFile, File, Form
+
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.base import get_db
-from app.features.auth.dependencies.auth import require_hr
+from app.core.exceptions import (
+    ApplicationNotFoundException,
+    JobNotFoundException,
+)
+from app.core.utils.pagination import PaginationParams
 from app.features.applications.schemas.schema import (
     ApplicationListItem,
     ApplicationStatusUpdateResponse,
@@ -15,33 +21,50 @@ from app.features.applications.schemas.schema import (
 )
 from app.features.applications.services.service import (
     get_public_job_detail as get_public_job_detail_service,
+)
+from app.features.applications.services.service import (
     list_applications as list_applications_service,
+)
+from app.features.applications.services.service import (
     list_public_jobs as list_public_jobs_service,
+)
+from app.features.applications.services.service import (
     public_apply as public_apply_service,
+)
+from app.features.applications.services.service import (
     update_application_status as update_application_status_service,
 )
-from app.shared.schemas.response import StandardResponse, PaginatedResponse
-from app.core.utils.pagination import PaginationParams
+from app.features.auth.dependencies.auth import require_hr
 from app.shared.enums.application_status import ApplicationStatus
+from app.shared.schemas.response import PaginatedResponse, StandardResponse
 
 router = APIRouter(prefix="/applications", tags=["Applications"])
 
 
-@router.get("/public/jobs", response_model=StandardResponse[PaginatedResponse[PublicJobItem]])
+@router.get(
+    "/public/jobs", response_model=StandardResponse[PaginatedResponse[PublicJobItem]]
+)
 async def public_list_jobs(
     q: Optional[str] = None,
     location: Optional[str] = None,
     pagination: PaginationParams = Depends(),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await list_public_jobs_service(db, pagination=pagination, q=q, location=location)
+    result = await list_public_jobs_service(
+        db, pagination=pagination, q=q, location=location
+    )
     return StandardResponse.ok(data=result)
 
 
-@router.get("/public/jobs/{job_id}", response_model=StandardResponse[PublicJobDetailResponse])
+@router.get(
+    "/public/jobs/{job_id}", response_model=StandardResponse[PublicJobDetailResponse]
+)
 async def public_job_detail(job_id: int, db: AsyncSession = Depends(get_db)):
-    result = await get_public_job_detail_service(db, job_id)
-    return StandardResponse.ok(data=result)
+    try:
+        result = await get_public_job_detail_service(db, job_id)
+        return StandardResponse.ok(data=result)
+    except JobNotFoundException as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
 @router.post("/public/apply", response_model=StandardResponse[PublicApplyResponse])
@@ -62,7 +85,9 @@ async def public_apply(
         answers_json=answers_json,
     )
     result = await public_apply_service(db, data=command, documents=documents)
-    return StandardResponse.ok(data=result, message="Application submitted successfully")
+    return StandardResponse.ok(
+        data=result, message="Application submitted successfully"
+    )
 
 
 @router.get("", response_model=StandardResponse[PaginatedResponse[ApplicationListItem]])
@@ -85,7 +110,10 @@ async def list_applications(
     return StandardResponse.ok(data=result)
 
 
-@router.patch("/{application_id}/status", response_model=StandardResponse[ApplicationStatusUpdateResponse])
+@router.patch(
+    "/{application_id}/status",
+    response_model=StandardResponse[ApplicationStatusUpdateResponse],
+)
 async def update_application_status(
     application_id: int,
     new_status: ApplicationStatus,
@@ -93,11 +121,14 @@ async def update_application_status(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_hr),
 ):
-    result = await update_application_status_service(
-        db,
-        current_user=current_user,
-        application_id=application_id,
-        new_status=new_status,
-        reason=reason,
-    )
-    return StandardResponse.ok(data=result)
+    try:
+        result = await update_application_status_service(
+            db,
+            current_user=current_user,
+            application_id=application_id,
+            new_status=new_status,
+            reason=reason,
+        )
+        return StandardResponse.ok(data=result)
+    except ApplicationNotFoundException as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
