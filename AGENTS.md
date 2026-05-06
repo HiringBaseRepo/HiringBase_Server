@@ -303,7 +303,7 @@ If OCR fails:
 - **Migrations**:
   - Create: `alembic revision --autogenerate -m "description"`
   - Apply: `alembic upgrade head`
-- **Testing**: `pytest app/tests/ -v` (Semua 59 unit tests PASSED)
+- **Testing**: `pytest app/tests/ -v` (Semua 62 tests PASSED)
 - **Test AI only**: `pytest app/tests/unit/test_ai_scoring.py -v`
 - **Test Knockout**: `pytest app/tests/unit/test_knockout_rules.py -v`
 - **Test Semantic Matcher**: `pytest app/tests/unit/test_semantic_matcher.py -v`
@@ -329,7 +329,7 @@ If OCR fails:
 
 ### Integration Tests
 - `test_applications.py` — Public application flow, job listing
-- `test_jobs_public.py` — Public jobs endpoints with full database setup
+- `test_jobs_public.py` — Public jobs endpoints with independent session management for asyncpg stability
 
 ### Mocking Infrastructure
 The test suite includes comprehensive mocking for external services:
@@ -367,7 +367,9 @@ venv/bin/pytest --cov=app --cov-report=term-missing app/tests/
 
 ### Resolved Issues ✅
 - **Testing Infrastructure**: Fixed NameError in mapper.py, added comprehensive mocking for external services
-- **Integration Tests**: Enhanced conftest.py with R2, Groq, OCR, and document validator mocks
+- **Integration Tests**: Resolved `InterfaceError` and transaction conflicts by implementing independent session management in `conftest.py`.
+- **API Assertions**: Fixed `test_jobs_public.py` assertions to match `PaginatedResponse` and `PublicJobDetailResponse` schemas.
+- **Lifespan Stability**: Prevented premature engine disposal in `app/main.py` during test runs.
 - **Zero Dependency Testing**: System now works without external API credentials for testing
 
 ### Current Limitations
@@ -377,7 +379,7 @@ venv/bin/pytest --cov=app --cov-report=term-missing app/tests/
 4. **LLM Groq**: Implementasi menggunakan Groq API dengan model `qwen/qwen3-32b` (atau `llama3-70b-8192` tergantung config) untuk validasi dokumen dan penjelasan AI.
 
 ### Test Coverage Status
-- **Unit Tests**: 59 tests (all passing)
-- **Integration Tests**: Enhanced with jobs module tests
+- **Unit Tests**: 60 tests (all passing)
+- **Integration Tests**: 2 tests (all passing)
 - **E2E Tests**: Ready with proper mocking infrastructure
 - **Coverage**: Can be measured with `pytest-cov`
