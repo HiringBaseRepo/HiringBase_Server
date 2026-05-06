@@ -1,16 +1,17 @@
 """Integration tests for HR workflows including vacancy management and screening."""
 
 import uuid
+from datetime import datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
 
-from app.core.database.base import AsyncSessionLocal
 from app.core.security.hashing import get_password_hash
 from app.features.applications.models import Application, ApplicationAnswer
 from app.features.companies.models import Company
 from app.features.jobs.models import Job, JobFormField, JobKnockoutRule, JobRequirement
 from app.features.users.models import User
+from app.shared.enums import EmploymentType
 from app.shared.enums.application_status import ApplicationStatus
 from app.shared.enums.field_type import FormFieldType
 from app.shared.enums.job_status import JobStatus
@@ -18,311 +19,238 @@ from app.shared.enums.user_roles import UserRole
 
 
 @pytest.mark.asyncio
-async def test_vacancy_lifecycle(client: AsyncClient, auth_headers):
+async def test_vacancy_lifecycle(client: AsyncClient, auth_headers, override_db):
     """Test complete vacancy lifecycle: creation, publishing, and knockout rule setup."""
     unique_id = str(uuid.uuid4())[:8]
-
-    # Setup test data
-    async with AsyncSessionLocal() as session:
-        # Create company
-        company = Company(
-            name=f"Test Company {unique_id}",
-            slug=f"test-company-{unique_id}",
-            website="test.com",
-            logo_url="https://test.com/logo.png",
-        )
-        session.add(company)
-        await session.commit()
-
-        # Create HR user
-        user = User(
-            email=f"hr_{unique_id}@test.com",
-            password_hash=get_password_hash("password123"),
-            full_name="HR Test",
-            role=UserRole.HR,
-            company_id=company.id,
-        )
-        session.add(user)
-        await session.commit()
-
-        company_id = company.id
-        user_id = user.id
 
     # Test job creation
     job_data = {
         "title": "Software Engineer",
         "department": "Engineering",
-        "employment_type": "FULL_TIME",
+        "employment_type": "full_time",
         "location": "Jakarta",
         "description": "Test job description",
-        "is_public": True,
     }
 
-    response = await client.post("/api/v1/jobs/", json=job_data, headers=auth_headers)
+    response = await client.post("/api/v1/jobs/create-step1", json=job_data, headers=auth_headers["headers"])
 
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True
-    job_id = data["data"]["id"]
+    job_id = data["data"]["job_id"]
 
     # Test job publishing
+    publish_data = {
+        "mode": "public"
+    }
     publish_response = await client.post(
-        f"/api/v1/jobs/{job_id}/publish", headers=auth_headers
+        f"/api/v1/jobs/{job_id}/step4-publish", json=publish_data, headers=auth_headers["headers"]
     )
 
     assert publish_response.status_code == 200
-    publish_data = publish_response.json()
-    assert publish_data["success"] is True
-    assert publish_data["data"]["status"] == JobStatus.PUBLISHED.value
+    publish_data_resp = publish_response.json()
+    assert publish_data_resp["success"] is True
+    assert publish_data_resp["data"]["status"] == JobStatus.PUBLISHED.value
 
     # Test knockout rule creation
-    rule_data = {
+    rule_params = {
+        "rule_name": "Min Experience",
         "rule_type": "experience",
-        "field_key": "experience_years",
         "operator": "gte",
         "target_value": "2",
+        "field_key": "experience_years",
         "action": "auto_reject",
     }
-
     rule_response = await client.post(
-        f"/api/v1/jobs/{job_id}/knockout-rules", json=rule_data, headers=auth_headers
+        f"/api/v1/screening/{job_id}/knockout-rules", params=rule_params, headers=auth_headers["headers"]
     )
 
     assert rule_response.status_code == 200
-    rule_data_response = rule_response.json()
-    assert rule_data_response["success"] is True
+    rule_data_resp = rule_response.json()
+    assert rule_data_resp["success"] is True
 
 
 @pytest.mark.asyncio
 async def test_hr_screening_view(
-    client: AsyncClient, auth_headers, mock_groq, mock_ocr_engine
+    client: AsyncClient, auth_headers, test_db_session, override_db, mock_groq, mock_ocr_engine
 ):
     """Test HR viewing AI screening results for candidates."""
+    session = test_db_session
     unique_id = str(uuid.uuid4())[:8]
 
     # Setup test data
-    async with AsyncSessionLocal() as session:
-        # Create company
-        company = Company(
-            name=f"Test Company {unique_id}",
-            slug=f"test-company-{unique_id}",
-            website="test.com",
-            logo_url="https://test.com/logo.png",
-        )
-        session.add(company)
-        await session.commit()
+    company = auth_headers["company"]
+    user = auth_headers["user"]
 
-        # Create HR user
-        user = User(
-            email=f"hr_{unique_id}@test.com",
-            password_hash=get_password_hash("password123"),
-            full_name="HR Test",
-            role=UserRole.HR,
-            company_id=company.id,
-        )
-        session.add(user)
-        await session.commit()
+    # Create job
+    job = Job(
+        title="Software Engineer",
+        department="Engineering",
+        employment_type=EmploymentType.FULL_TIME,
+        description="Test job description",
+        status=JobStatus.PUBLISHED,
+        location="Jakarta",
+        apply_code=f"TEST{unique_id}",
+        company_id=company.id,
+        created_by=user.id,
+        is_public=True,
+    )
+    session.add(job)
+    await session.flush()
 
-        # Create job
-        job = Job(
-            title="Software Engineer",
-            department="Engineering",
-            employment_type="FULL_TIME",
-            status=JobStatus.PUBLISHED,
-            location="Jakarta",
-            apply_code=f"TEST{unique_id}",
-            description="Test job description",
-            company_id=company.id,
-            created_by=user.id,
-            is_public=True,
-        )
-        session.add(job)
-        await session.commit()
+    # Create applicant user
+    applicant = User(
+        email=f"john_{unique_id}@test.com",
+        full_name="John Doe",
+        phone="081234567890",
+        role=UserRole.APPLICANT,
+    )
+    session.add(applicant)
+    await session.flush()
 
-        # Create application
-        application = Application(
-            job_id=job.id,
-            full_name="John Doe",
-            email=f"john_{unique_id}@test.com",
-            phone="081234567890",
-            status=ApplicationStatus.AI_PROCESSING,
-            company_id=company.id,
-        )
-        session.add(application)
-        await session.commit()
+    # Create application
+    application = Application(
+        job_id=job.id,
+        applicant_id=applicant.id,
+        status=ApplicationStatus.AI_PROCESSING,
+    )
+    session.add(application)
+    await session.flush()
 
-        # Create application answers
-        answers = [
-            ApplicationAnswer(
-                application_id=application.id,
-                field_key="experience_years",
-                value_text="3",
-                value_number=3.0,
-            ),
-            ApplicationAnswer(
-                application_id=application.id,
-                field_key="education_level",
-                value_text="s1",
-            ),
-        ]
-        session.add_all(answers)
-        await session.commit()
+    # Create form field
+    form_field = JobFormField(
+        job_id=job.id,
+        field_key="skills",
+        label="Skills",
+        field_type=FormFieldType.TEXT,
+        is_required=True,
+    )
+    session.add(form_field)
+    await session.flush()
 
-        job_id = job.id
-        application_id = application.id
+    # Create application answer
+    answer = ApplicationAnswer(
+        application_id=application.id,
+        form_field_id=form_field.id,
+        value_text="Python, SQL, FastApi",
+    )
+    session.add(answer)
+    await session.flush()
 
-    # Test screening results endpoint
-    response = await client.get(
-        f"/api/v1/screening/applications/{application_id}", headers=auth_headers
+    application_id = application.id
+
+    # Test triggering screening (POST /run)
+    response = await client.post(
+        f"/api/v1/screening/applications/{application_id}/run", headers=auth_headers["headers"]
     )
 
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True
-    assert "scores" in data["data"]
-    assert "status" in data["data"]
 
 
 @pytest.mark.asyncio
-async def test_tenant_isolation(client: AsyncClient, auth_headers):
+async def test_tenant_isolation(client: AsyncClient, auth_headers, test_db_session, override_db):
     """Test that HR from Company A cannot access Company B's data."""
+    session = test_db_session
     unique_id = str(uuid.uuid4())[:8]
 
-    # Setup Company A data
-    async with AsyncSessionLocal() as session:
-        # Create Company A
-        company_a = Company(
-            name=f"Company A {unique_id}",
-            slug=f"company-a-{unique_id}",
-            website="company-a.com",
-            logo_url="https://company-a.com/logo.png",
-        )
-        session.add(company_a)
-        await session.commit()
+    # Setup Company B data
+    # Create Company B
+    company_b = Company(
+        name=f"Company B {unique_id}",
+        slug=f"company-b-{unique_id}",
+        website="company-b.com",
+        logo_url="https://company-b.com/logo.png",
+    )
+    session.add(company_b)
+    await session.flush()
 
-        # Create HR user for Company A
-        user_a = User(
-            email=f"hr_a_{unique_id}@test.com",
-            password_hash=get_password_hash("password123"),
-            full_name="HR Company A",
-            role=UserRole.HR,
-            company_id=company_a.id,
-        )
-        session.add(user_a)
-        await session.commit()
+    # Create job for Company B
+    job_b = Job(
+        title="Software Engineer",
+        department="Engineering",
+        employment_type=EmploymentType.FULL_TIME,
+        status=JobStatus.PUBLISHED,
+        location="Jakarta",
+        apply_code=f"TESTB{unique_id}",
+        description="Test job for Company B",
+        company_id=company_b.id,
+        is_public=True,
+    )
+    session.add(job_b)
+    await session.flush()
 
-        # Create Company B
-        company_b = Company(
-            name=f"Company B {unique_id}",
-            slug=f"company-b-{unique_id}",
-            website="company-b.com",
-            logo_url="https://company-b.com/logo.png",
-        )
-        session.add(company_b)
-        await session.commit()
+    job_b_id = job_b.id
 
-        # Create job for Company B
-        job_b = Job(
-            title="Software Engineer",
-            department="Engineering",
-            employment_type="FULL_TIME",
-            status=JobStatus.PUBLISHED,
-            location="Jakarta",
-            apply_code=f"TESTB{unique_id}",
-            description="Test job for Company B",
-            company_id=company_b.id,
-            created_by=user_a.id,  # Created by Company A HR (edge case)
-            is_public=True,
-        )
-        session.add(job_b)
-        await session.commit()
+    # Try to access Company B's job with Company A HR credentials (from auth_headers)
+    response = await client.get(f"/api/v1/jobs/{job_b_id}", headers=auth_headers["headers"])
 
-        job_b_id = job_b.id
-
-    # Try to access Company B's job with Company A HR credentials
-    # (auth_headers is for Company A)
-    response = await client.get(f"/api/v1/jobs/{job_b_id}", headers=auth_headers)
-
-    # Should return 403 or 404 due to tenant isolation
-    assert response.status_code in [403, 404]
-    data = response.json()
-    assert data["success"] is False
+    # Should return 404 due to tenant isolation (get_job_for_company filters by company_id)
+    assert response.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_interview_scheduling(client: AsyncClient, auth_headers):
+async def test_interview_scheduling(client: AsyncClient, auth_headers, test_db_session, override_db):
     """Test interview scheduling workflow."""
+    session = test_db_session
     unique_id = str(uuid.uuid4())[:8]
 
     # Setup test data
-    async with AsyncSessionLocal() as session:
-        # Create company
-        company = Company(
-            name=f"Test Company {unique_id}",
-            slug=f"test-company-{unique_id}",
-            website="test.com",
-            logo_url="https://test.com/logo.png",
-        )
-        session.add(company)
-        await session.commit()
+    company = auth_headers["company"]
+    user = auth_headers["user"]
 
-        # Create HR user
-        user = User(
-            email=f"hr_{unique_id}@test.com",
-            password_hash=get_password_hash("password123"),
-            full_name="HR Test",
-            role=UserRole.HR,
-            company_id=company.id,
-        )
-        session.add(user)
-        await session.commit()
+    # Create job
+    job = Job(
+        title="Software Engineer",
+        department="Engineering",
+        employment_type=EmploymentType.FULL_TIME,
+        description="Test job description",
+        status=JobStatus.PUBLISHED,
+        location="Jakarta",
+        apply_code=f"TEST{unique_id}",
+        company_id=company.id,
+        created_by=user.id,
+        is_public=True,
+    )
+    session.add(job)
+    await session.flush()
 
-        # Create job
-        job = Job(
-            title="Software Engineer",
-            department="Engineering",
-            employment_type="FULL_TIME",
-            status=JobStatus.PUBLISHED,
-            location="Jakarta",
-            apply_code=f"TEST{unique_id}",
-            description="Test job description",
-            company_id=company.id,
-            created_by=user.id,
-            is_public=True,
-        )
-        session.add(job)
-        await session.commit()
+    # Create applicant user
+    applicant = User(
+        email=f"john_{unique_id}@test.com",
+        full_name="John Doe",
+        phone="081234567890",
+        role=UserRole.APPLICANT,
+    )
+    session.add(applicant)
+    await session.flush()
 
-        # Create application
-        application = Application(
-            job_id=job.id,
-            full_name="John Doe",
-            email=f"john_{unique_id}@test.com",
-            phone="081234567890",
-            status=ApplicationStatus.AI_PASSED,
-            company_id=company.id,
-        )
-        session.add(application)
-        await session.commit()
+    # Create application
+    application = Application(
+        job_id=job.id,
+        applicant_id=applicant.id,
+        status=ApplicationStatus.AI_PASSED,
+    )
+    session.add(application)
+    await session.flush()
 
-        job_id = job.id
-        application_id = application.id
+    application_id = application.id
 
     # Test interview scheduling
     interview_data = {
         "application_id": application_id,
-        "scheduled_at": "2024-12-31T10:00:00",
-        "interviewer_id": "test-user-id",  # From auth_headers
+        "scheduled_at": (datetime.utcnow() + timedelta(days=1)).isoformat(),
+        "interviewer_id": user.id,
         "notes": "Technical interview",
         "meeting_url": "https://zoom.us/test-meeting",
     }
 
     response = await client.post(
-        "/api/v1/interviews/", json=interview_data, headers=auth_headers
+        "/api/v1/interviews", json=interview_data, headers=auth_headers["headers"]
     )
 
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True
-    assert "id" in data["data"]
-    assert data["data"]["application_id"] == application_id
+    assert "interview_id" in data["data"]

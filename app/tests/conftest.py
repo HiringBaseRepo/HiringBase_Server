@@ -1,27 +1,15 @@
-"""Global test fixtures and configuration."""
-
+"""Global test fixtures."""
 import asyncio
+import os
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
-
 import pytest
 import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-
-from app.core.config.settings import settings
+from httpx import AsyncClient, ASGITransport
 from app.main import app
+from app.core.config import settings
 
 # Force testing environment
 settings.APP_ENV = "testing"
-
-
-@pytest_asyncio.fixture(scope="session")
-def event_loop():
-    """Create a session-scoped event loop."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
 
 @pytest_asyncio.fixture
 async def client():
@@ -31,86 +19,119 @@ async def client():
     ) as ac:
         yield ac
 
+@pytest.fixture(autouse=True)
+def override_db(test_db_session):
+    """Override get_db dependency to use the test session."""
+    from app.main import app
+    from app.core.database.base import get_db
+    
+    async def _get_db_override():
+        yield test_db_session
+        
+    app.dependency_overrides[get_db] = _get_db_override
+    yield
+    app.dependency_overrides.pop(get_db, None)
 
-@pytest.fixture
-def mock_r2():
-    """Mock Cloudflare R2 storage service."""
-    mock_put_object = AsyncMock(return_value={"success": True})
-    mock_get_presigned_url = AsyncMock(return_value="https://mock-r2-url.com/test.pdf")
+@pytest_asyncio.fixture
+async def test_db_session():
+    """Provide isolated database session for each test with a dedicated engine."""
+    from app.core.database.base import create_engine_instance
+    from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
-    with (
-        patch("boto3.client", return_value=MagicMock(put_object=mock_put_object)),
-    ):
-        yield {
-            "put_object": mock_put_object,
-            "get_presigned_url": mock_get_presigned_url,
-        }
-
-
-@pytest.fixture
-def mock_groq():
-    """Mock Groq LLM service."""
-    mock_call_llm = AsyncMock(
-        return_value="Mock LLM explanation generated successfully"
+    # Create a fresh engine for this test's loop
+    test_engine = create_engine_instance()
+    test_session_factory = async_sessionmaker(
+        test_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
     )
-    mock_validate_document = AsyncMock(
-        return_value={
-            "valid": True,
-            "reason": "Document validation passed",
-            "confidence": 0.95,
+    
+    async with test_session_factory() as session:
+        yield session
+        await session.rollback()
+        await test_engine.dispose()
+
+@pytest_asyncio.fixture
+async def auth_headers(test_db_session):
+    """Generate authentication headers for a real HR user using the shared test session."""
+    from app.core.security.jwt import create_access_token
+    from app.features.companies.models import Company
+    from app.features.users.models import User
+    from app.shared.enums import UserRole
+
+    unique_id = str(uuid.uuid4())[:8]
+    
+    # Create test company
+    company = Company(
+        name=f"Auth Company {unique_id}",
+        slug=f"auth-company-{unique_id}",
+    )
+    test_db_session.add(company)
+    await test_db_session.flush()
+    await test_db_session.refresh(company)
+
+    # Create test HR user
+    user = User(
+        email=f"hr_{unique_id}@test.com",
+        full_name="Auth HR User",
+        role=UserRole.HR,
+        company_id=company.id,
+        is_active=True,
+    )
+    test_db_session.add(user)
+    await test_db_session.flush()
+    await test_db_session.refresh(user)
+
+    access_token = create_access_token(
+        data={
+            "sub": str(user.id), 
+            "role": user.role.value, 
+            "cid": user.company_id, 
+            "uid": user.id,
+            "token_version": user.token_version
         }
     )
-
-    with (
-        patch("app.ai.llm.client.call_llm", mock_call_llm),
-        patch(
-            "app.ai.validator.document_validator.validate_document_content",
-            mock_validate_document,
-        ),
-    ):
-        yield {"call_llm": mock_call_llm, "validate_document": mock_validate_document}
-
-
-@pytest.fixture
-def mock_ocr_engine():
-    """Mock OCR engine for document text extraction."""
-    mock_extract_text = AsyncMock(return_value="Mock OCR extracted text from document")
-
-    with patch("app.ai.ocr.engine.extract_text_from_document", mock_extract_text):
-        yield {"extract_text": mock_extract_text}
-
+    
+    return {
+        "headers": {"Authorization": f"Bearer {access_token}"},
+        "user": user,
+        "company": company
+    }
 
 @pytest.fixture
 def mock_unique_id():
-    """Generate unique IDs for test isolation."""
+    """Generate a unique ID for test isolation."""
     return str(uuid.uuid4())[:8]
 
+@pytest.fixture
+def mock_r2(monkeypatch):
+    """Mock R2 storage operations."""
+    class MockR2:
+        def put_object(self, **kwargs): return {}
+        def generate_presigned_url(self, **kwargs): return "https://mock-url.com/file"
+        def delete_object(self, **kwargs): return {}
+    
+    mock = MockR2()
+    monkeypatch.setattr("boto3.client", lambda *args, **kwargs: mock)
+    return mock
 
 @pytest.fixture
-async def test_db_session():
-    """Provide isolated database session for each test."""
-    from app.core.database.base import AsyncSessionLocal
-
-    async with AsyncSessionLocal() as session:
-        # Begin transaction
-        await session.begin()
-        yield session
-        # Rollback transaction after test
-        await session.rollback()
-
+def mock_groq(monkeypatch):
+    """Mock Groq LLM calls."""
+    async def mock_call_llm(*args, **kwargs):
+        return "Mocked AI explanation for candidate scoring."
+    
+    async def mock_validate_document(*args, **kwargs):
+        return {"is_valid": True, "confidence": 0.95, "reason": "Document matches applicant data."}
+    
+    monkeypatch.setattr("app.ai.llm.client.call_llm", mock_call_llm)
+    monkeypatch.setattr("app.ai.validator.document_validator.validate_document_content", mock_validate_document)
 
 @pytest.fixture
-async def auth_headers():
-    """Generate authentication headers for HR user."""
-    from app.core.security.jwt import create_access_token
-
-    # Create a mock user
-    user_data = {
-        "user_id": "test-user-id",
-        "email": "test@hr.com",
-        "role": "hr",
-        "company_id": "test-company-id",
-    }
-
-    token = create_access_token(user_data)
-    return {"Authorization": f"Bearer {token}"}
+def mock_ocr_engine(monkeypatch):
+    """Mock OCR text extraction."""
+    async def mock_extract(*args, **kwargs):
+        return "Mocked extracted text from document for testing."
+    
+    monkeypatch.setattr("app.ai.ocr.engine.extract_text_from_document", mock_extract)

@@ -303,10 +303,11 @@ If OCR fails:
 - **Migrations**:
   - Create: `alembic revision --autogenerate -m "description"`
   - Apply: `alembic upgrade head`
-- **Testing**: `pytest app/tests/ -v` (Semua 62 tests PASSED)
+- **Testing**: `pytest app/tests/ -v` (Semua **61 tests PASSED** — 51 unit + 9 integration + 1 lainnya)
 - **Test AI only**: `pytest app/tests/unit/test_ai_scoring.py -v`
 - **Test Knockout**: `pytest app/tests/unit/test_knockout_rules.py -v`
 - **Test Semantic Matcher**: `pytest app/tests/unit/test_semantic_matcher.py -v`
+- **Test Integration only**: `pytest app/tests/integration/ -v`
 - **Linting**: `ruff check .` / `black .`
 
 ## Security
@@ -338,10 +339,10 @@ If OCR fails:
 Global test fixtures in `app/tests/conftest.py` provide comprehensive mocking:
 
 - **R2 Storage**: `mock_r2` fixture mocks `boto3.client()` for Cloudflare R2 operations
-- **Groq LLM**: `mock_groq` fixture provides mock responses for `call_llm()` and `validate_document_content()`
+- **Groq LLM**: `mock_groq` fixture mocks `app.ai.llm.client.call_llm` dan `app.ai.validator.document_validator.validate_document_content`
 - **OCR Engine**: `mock_ocr_engine` fixture mocks `extract_text_from_document()` for text extraction
-- **Database Isolation**: `test_db_session` fixture provides transactional rollback for each test
-- **Authentication**: `auth_headers` fixture generates valid JWT tokens for HR user testing
+- **Database Isolation**: `test_db_session` fixture — function-scoped engine per-test, auto-rollback setelah selesai. Override via `override_db` autouse fixture.
+- **Authentication**: `auth_headers` fixture generates valid JWT tokens (dengan `token_version` dan integer `sub`) for HR user testing
 
 ### Zero External Dependency Testing
 All tests run successfully without external API credentials:
@@ -352,13 +353,13 @@ All tests run successfully without external API credentials:
 
 ### Test Execution Commands
 ```bash
-# Run all tests
+# Run all tests (61 total)
 venv/bin/pytest app/tests/ -v --tb=short
 
-# Run unit tests only
+# Run unit tests only (51 tests)
 venv/bin/pytest app/tests/unit/ -v
 
-# Run integration tests only
+# Run integration tests only (9 tests)
 venv/bin/pytest app/tests/integration/ -v
 
 # Run specific test
@@ -372,13 +373,16 @@ venv/bin/pytest --cov=app --cov-report=term-missing app/tests/
 
 ### Resolved Issues ✅
 - **Testing Infrastructure**: Fixed NameError in mapper.py, added comprehensive mocking for external services
-- **Integration Tests**: Resolved `InterfaceError` and transaction conflicts by implementing independent session management in `conftest.py`.
+- **Integration Tests**: Resolved `InterfaceError` dan `RuntimeError: Task attached to different loop` dengan mengubah `asyncio_default_test_loop_scope` ke `function` di `pytest.ini` dan menggunakan per-test engine lifecycle di `conftest.py`.
 - **API Assertions**: Fixed `test_jobs_public.py` assertions to match `PaginatedResponse` and `PublicJobDetailResponse` schemas.
 - **Lifespan Stability**: Prevented premature engine disposal in `app/main.py` during test runs.
 - **Zero Dependency Testing**: System now works without external API credentials for testing
 - **Unit Test Cleanup**: Eliminated 21 duplicated helper functions from `test_ai_scoring.py`, now uses actual service functions
 - **Public Application Flow**: Implemented complete public application submission and ticket tracking tests
 - **HR Workflow Testing**: Added vacancy lifecycle, screening, tenant isolation, and interview scheduling tests
+- **Enum Fix**: Semua instansiasi model `Job` di test kini menggunakan `EmploymentType.FULL_TIME` (Enum object) bukan string `"FULL_TIME"` untuk menghindari `AttributeError` di mapper dan `NotNullViolationError` di DB.
+- **Mock Path Fix**: Path modul validator di `conftest.py` diperbaiki ke `app.ai.validator.document_validator.validate_document_content`.
+- **Assertion Alignment**: Status code duplikasi aplikasi adalah `409` (bukan `400`); interview response menggunakan key `interview_id`; screening dipicu via `POST /screening/applications/{id}/run`.
 
 ### Current Limitations
 1. **Password Reset Table**: Butuh tabel `password_reset_tokens` via Alembic migration untuk implementasi penuh fitur reset password.
@@ -387,13 +391,24 @@ venv/bin/pytest --cov=app --cov-report=term-missing app/tests/
 4. **LLM Groq**: Implementasi menggunakan Groq API dengan model `qwen/qwen3-32b` (atau `llama3-70b-8192` tergantung config) untuk validasi dokumen dan penjelasan AI.
 
 ### Test Coverage Status
-- **Unit Tests**: 62 tests (all passing)
+- **Unit Tests**: 51 tests (all passing)
   - `test_auth.py`: 2 tests
-  - `test_ai_scoring.py`: 21 tests  
+  - `test_ai_scoring.py`: 21 tests
   - `test_knockout_rules.py`: 20 tests
   - `test_semantic_matcher.py`: 8 tests
-  - `test_public_application.py`: 3 tests
-  - `test_hr_workflows.py`: 4 tests
-- **Integration Tests**: 9 tests (core tests passing)
+- **Integration Tests**: 9 tests (all passing ✅)
+  - `test_public_application.py`: 3 tests (submit, duplikasi 409, ticket tracking)
+  - `test_hr_workflows.py`: 4 tests (vacancy lifecycle, screening run, tenant isolation, interview scheduling)
+  - `test_jobs_public.py`: 2 tests (list publik, detail dengan form fields)
+- **Total**: **61 tests PASSED** (0 failed)
 - **E2E Tests**: Ready with proper mocking infrastructure
 - **Coverage**: Can be measured with `pytest-cov`
+
+### Catatan Penting untuk Test
+- Field `employment_type` pada model `Job` WAJIB diisi dengan `EmploymentType.FULL_TIME` (enum object), bukan string `"FULL_TIME"`.
+- Field `description` pada model `Job` adalah NOT NULL — wajib disertakan di semua test fixture.
+- JWT token untuk test harus menyertakan claim `token_version: int` dan `sub: str(user_id)` (integer sebagai string).
+- Duplikasi lamaran mengembalikan status `409 Conflict` (bukan 400).
+- Response `InterviewScheduledResponse` menggunakan field `interview_id`, bukan `id`.
+- Screening dipicu via `POST /api/v1/screening/applications/{id}/run` — tidak ada GET endpoint untuk hasil screening langsung.
+- `pytest.ini` dikonfigurasi dengan `asyncio_default_test_loop_scope = function` untuk isolasi penuh antar test.
