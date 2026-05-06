@@ -323,27 +323,32 @@ If OCR fails:
 ## Testing Strategy
 
 ### Unit Tests
-- `test_auth.py` — JWT encode/decode, password hashing
-- `test_ai_scoring.py` — Resume parser, red flag detector, soft skill scorer, scoring helpers
-- `test_knockout_rules.py` — Semua tipe knockout rule dengan mock
+- `test_auth.py` — JWT encode/decode, password hashing (2 tests)
+- `test_ai_scoring.py` — Resume parser, red flag detector, soft skill scorer, scoring helpers (21 tests)
+- `test_knockout_rules.py` — Semua tipe knockout rule dengan mock (20 tests)
+- `test_semantic_matcher.py` — Skill matching logic with exact, synonym, and embedding layers (8 tests)
 
 ### Integration Tests
 - `test_applications.py` — Public application flow, job listing
-- `test_jobs_public.py` — Public jobs endpoints with independent session management for asyncpg stability
+- `test_jobs_public.py` — Public jobs endpoints with independent session management
+- `test_public_application.py` — Complete public application submission and ticket tracking (3 tests)
+- `test_hr_workflows.py` — HR vacancy lifecycle, screening, tenant isolation, and interview scheduling (4 tests)
 
 ### Mocking Infrastructure
-The test suite includes comprehensive mocking for external services:
+Global test fixtures in `app/tests/conftest.py` provide comprehensive mocking:
 
-- **R2 Storage**: `mock_r2` fixture using `unittest.mock` to simulate Cloudflare R2
-- **Groq LLM**: `mock_groq` fixture for AI explanation services
-- **Document Validator**: `mock_document_validator` fixture for semantic validation
-- **OCR Engine**: `mock_ocr_engine` fixture for text extraction
+- **R2 Storage**: `mock_r2` fixture mocks `boto3.client()` for Cloudflare R2 operations
+- **Groq LLM**: `mock_groq` fixture provides mock responses for `call_llm()` and `validate_document_content()`
+- **OCR Engine**: `mock_ocr_engine` fixture mocks `extract_text_from_document()` for text extraction
+- **Database Isolation**: `test_db_session` fixture provides transactional rollback for each test
+- **Authentication**: `auth_headers` fixture generates valid JWT tokens for HR user testing
 
 ### Zero External Dependency Testing
-The system is designed to work without external API credentials:
-- Groq LLM returns `None` when `GROQ_API_KEY` is not configured
-- Document validator returns valid response when API key is missing
-- All AI services have proper fallback mechanisms
+All tests run successfully without external API credentials:
+- Groq LLM mocks return structured responses when `GROQ_API_KEY` is missing
+- R2 storage mocks simulate successful file uploads and URL generation
+- OCR engine mocks provide consistent text extraction results
+- All AI services have proper fallback mechanisms implemented
 
 ### Test Execution Commands
 ```bash
