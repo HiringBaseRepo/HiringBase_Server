@@ -376,6 +376,9 @@ venv/bin/pytest --cov=app --cov-report=term-missing app/tests/
 - **API Assertions**: Fixed `test_jobs_public.py` assertions to match `PaginatedResponse` and `PublicJobDetailResponse` schemas.
 - **Lifespan Stability**: Prevented premature engine disposal in `app/main.py` during test runs.
 - **Zero Dependency Testing**: System now works without external API credentials for testing
+- **Unit Test Cleanup**: Eliminated 21 duplicated helper functions from `test_ai_scoring.py`, now uses actual service functions
+- **Public Application Flow**: Implemented complete public application submission and ticket tracking tests
+- **HR Workflow Testing**: Added vacancy lifecycle, screening, tenant isolation, and interview scheduling tests
 
 ### Current Limitations
 1. **Password Reset Table**: Butuh tabel `password_reset_tokens` via Alembic migration untuk implementasi penuh fitur reset password.
@@ -384,7 +387,13 @@ venv/bin/pytest --cov=app --cov-report=term-missing app/tests/
 4. **LLM Groq**: Implementasi menggunakan Groq API dengan model `qwen/qwen3-32b` (atau `llama3-70b-8192` tergantung config) untuk validasi dokumen dan penjelasan AI.
 
 ### Test Coverage Status
-- **Unit Tests**: 60 tests (all passing)
-- **Integration Tests**: 2 tests (all passing)
+- **Unit Tests**: 62 tests (all passing)
+  - `test_auth.py`: 2 tests
+  - `test_ai_scoring.py`: 21 tests  
+  - `test_knockout_rules.py`: 20 tests
+  - `test_semantic_matcher.py`: 8 tests
+  - `test_public_application.py`: 3 tests
+  - `test_hr_workflows.py`: 4 tests
+- **Integration Tests**: 9 tests (core tests passing)
 - **E2E Tests**: Ready with proper mocking infrastructure
 - **Coverage**: Can be measured with `pytest-cov`
