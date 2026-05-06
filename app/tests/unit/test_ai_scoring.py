@@ -1,10 +1,15 @@
 """Unit tests untuk AI scoring dan parsing logic."""
+
 import pytest
+
+from app.ai.nlp.soft_skill_scorer import score_soft_skills
 from app.ai.parser.resume_parser import parse_resume_text
 from app.ai.redflag.detector import detect_red_flags
-from app.ai.nlp.soft_skill_scorer import score_soft_skills
+from app.features.screening.services.helpers import (
+    compare_numeric,
+    find_answer_value,
+)
 from app.shared.constants.scoring import EDUCATION_RANK
-
 
 # =====================================================
 # Resume Parser Tests
@@ -84,6 +89,7 @@ def test_parse_resume_empty_text():
 # Red Flag Detection Tests
 # =====================================================
 
+
 def test_redflag_no_flags_clean_cv():
     parsed = {
         "experiences": [{"start": 2019, "end": 2022, "years": 3}],
@@ -136,6 +142,7 @@ def test_redflag_high_risk_multiple_flags():
 # Soft Skill Scorer Tests
 # =====================================================
 
+
 def test_soft_skill_scorer_communication_keywords():
     text = "Berpengalaman dalam komunikasi dan presentasi kepada stakeholder. Public speaking dan negosiasi kontrak."
     result = score_soft_skills(text)
@@ -175,6 +182,7 @@ def test_soft_skill_scorer_short_text():
 # Education Rank Tests
 # =====================================================
 
+
 def test_education_rank_ordering():
     assert EDUCATION_RANK["s1"] > EDUCATION_RANK["d3"]
     assert EDUCATION_RANK["s2"] > EDUCATION_RANK["s1"]
@@ -183,118 +191,90 @@ def test_education_rank_ordering():
 
 
 # =====================================================
-# Screening helper functions Tests
+# Screening Helper Functions Tests
 # =====================================================
-
-# =====================================================
-# Standalone helper implementations untuk testing
-# (Duplikasi dari screening/router.py agar test tidak
-#  bergantung pada FastAPI app initialization)
-# =====================================================
-
-from app.shared.constants.scoring import EDUCATION_RANK
-
-
-def _compare_numeric(value: float, target: float, operator: str) -> bool:
-    op_map = {
-        "eq": value == target, "=": value == target, "==": value == target,
-        "neq": value != target, "!=": value != target,
-        "gt": value > target, ">": value > target,
-        "gte": value >= target, ">=": value >= target,
-        "lt": value < target, "<": value < target,
-        "lte": value <= target, "<=": value <= target,
-    }
-    return op_map.get(operator, True)
-
-
-def _score_experience(years: int, required: str) -> float:
-    try:
-        req = int(required)
-    except (ValueError, TypeError):
-        req = 0
-    if req <= 0:
-        return 100.0
-    if years >= req:
-        return 100.0
-    return round((years / req) * 100.0, 2)
-
-
-def _score_education(edu: list, required: str) -> float:
-    if not required:
-        return 100.0
-    if not edu:
-        return 0.0
-    req_rank = EDUCATION_RANK.get(required.lower().replace(".", "").replace(" ", ""), 1)
-    cand_rank = 1
-    for e in edu:
-        level = str(e.get("level", "")).lower().replace(".", "").replace(" ", "")
-        cand_rank = max(cand_rank, EDUCATION_RANK.get(level, 1))
-    if cand_rank >= req_rank:
-        return 100.0
-    return round((cand_rank / req_rank) * 100.0, 2)
-
-
-def _score_portfolio(parsed: dict) -> float:
-    has_github = bool(parsed.get("github_url"))
-    has_live = bool(parsed.get("live_project_url"))
-    has_portfolio = bool(parsed.get("portfolio_url"))
-    if has_github and has_live:
-        return 100.0
-    if has_github:
-        return 75.0
-    if has_portfolio:
-        return 60.0
-    return 0.0
 
 
 def test_compare_numeric_operators():
-    assert _compare_numeric(5.0, 3.0, "gt") is True
-    assert _compare_numeric(3.0, 5.0, "gt") is False
-    assert _compare_numeric(5.0, 5.0, "gte") is True
-    assert _compare_numeric(3.0, 5.0, "gte") is False
-    assert _compare_numeric(3.0, 5.0, "lt") is True
-    assert _compare_numeric(5.0, 5.0, "eq") is True
-    assert _compare_numeric(4.0, 5.0, "neq") is True
+    assert compare_numeric(5.0, 3.0, "gt") is True
+    assert compare_numeric(3.0, 5.0, "gt") is False
+    assert compare_numeric(5.0, 5.0, "gte") is True
+    assert compare_numeric(3.0, 5.0, "gte") is False
+    assert compare_numeric(3.0, 5.0, "lt") is True
+    assert compare_numeric(5.0, 5.0, "eq") is True
+    assert compare_numeric(4.0, 5.0, "neq") is True
 
 
-def test_score_experience_meets_requirement():
-    assert _score_experience(3, "2") == 100.0
+def test_find_answer_value():
+    # Mock answer objects
+    class MockAnswer:
+        def __init__(self, field_key, value_text=None, value_number=None):
+            self.field_key = field_key
+            self.value_text = value_text
+            self.value_number = value_number
+
+    answers = [
+        MockAnswer("experience_years", value_text="3", value_number=3.0),
+        MockAnswer("education_level", value_text="s1"),
+    ]
+
+    # Test finding text value
+    result = find_answer_value("experience_years", answers)
+    assert result == "3"
+
+    # Test finding different field
+    result = find_answer_value("education_level", answers)
+    assert result == "s1"
+
+    # Test non-existent field
+    result = find_answer_value("nonexistent", answers)
+    assert result is None
+
+    # Test empty field key
+    result = find_answer_value(None, answers)
+    assert result is None
+
+    # Test empty answers
+    result = find_answer_value("experience_years", [])
+    assert result is None
 
 
-def test_score_experience_below_requirement():
-    score = _score_experience(1, "2")
-    assert score == 50.0
+def test_education_rank_usage_in_helpers():
+    """Test that EDUCATION_RANK is properly used in screening helpers."""
+    # This test verifies the integration between constants and helpers
+    from app.features.screening.services.helpers import evaluate_knockout_rule
 
+    # Mock objects for testing
+    class MockRule:
+        def __init__(self, rule_type, field_key, operator, target_value):
+            self.rule_type = rule_type
+            self.field_key = field_key
+            self.operator = operator
+            self.target_value = target_value
 
-def test_score_experience_no_requirement():
-    assert _score_experience(0, "0") == 100.0
+    class MockAnswer:
+        def __init__(self, field_key, value_text):
+            self.field_key = field_key
+            self.value_text = value_text
 
+    class MockDocument:
+        def __init__(self, document_type):
+            self.document_type = document_type
 
-def test_score_education_meets():
-    edu = [{"level": "s1"}]
-    assert _score_education(edu, "s1") == 100.0
+    # Test education knockout rule
+    rule = MockRule("education", "education_level", "gte", "s1")
+    answers = [MockAnswer("education_level", "s2")]
+    docs = []
 
+    result = evaluate_knockout_rule(rule, None, docs, answers)
+    assert result is True  # s2 >= s1 should pass
 
-def test_score_education_overqualified():
-    edu = [{"level": "s2"}]
-    assert _score_education(edu, "s1") == 100.0
+    # Test education knockout rule that should pass (equal case)
+    rule_equal = MockRule("education", "education_level", "gte", "s2")
+    result_equal = evaluate_knockout_rule(rule_equal, None, docs, answers)
+    assert result_equal is True  # s2 >= s2 should pass (equal)
 
-
-def test_score_education_underqualified():
-    edu = [{"level": "d3"}]
-    score = _score_education(edu, "s1")
-    assert score < 100.0
-
-
-def test_score_portfolio_full():
-    parsed = {"github_url": "https://github.com/test", "live_project_url": "https://myapp.com"}
-    assert _score_portfolio(parsed) == 100.0
-
-
-def test_score_portfolio_github_only():
-    parsed = {"github_url": "https://github.com/test"}
-    assert _score_portfolio(parsed) == 75.0
-
-
-def test_score_portfolio_empty():
-    assert _score_portfolio({}) == 0.0
+    # Test education knockout rule that should fail
+    rule_fail = MockRule("education", "education_level", "gte", "s3")
+    result_fail = evaluate_knockout_rule(rule_fail, None, docs, answers)
+    assert result_fail is False  # s2 >= s3 should fail
