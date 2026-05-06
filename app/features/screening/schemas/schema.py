@@ -1,4 +1,5 @@
 """Screening schemas."""
+
 from pydantic import BaseModel
 
 

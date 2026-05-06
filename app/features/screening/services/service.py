@@ -5,9 +5,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.explanation.generator import generate_explanation
 from app.ai.matcher.semantic_matcher import match_candidate_to_job
 from app.ai.redflag.detector import detect_red_flags
+from app.ai.scoring.engine import (
+    calculate_final_score,
+    get_application_status,
+    score_education,
+    score_experience,
+    score_portfolio,
+)
 from app.core.exceptions import (
     ApplicationNotFoundException,
-    JobNotFoundException,
     MissingDocumentsException,
     RuleNotFoundException,
 )
@@ -43,15 +49,15 @@ from app.features.screening.schemas.schema import (
 )
 from app.features.screening.services.helpers import evaluate_knockout_rule
 from app.features.screening.services.parser import (
-    _score_education,
-    _score_experience,
-    _score_portfolio,
     _score_soft_skills,
     build_candidate_profile,
 )
 from app.features.screening.services.validator_step import run_document_semantic_check
 from app.features.users.models import User
-from app.shared.constants.scoring import MINIMUM_PASS_SCORE
+from app.shared.constants.scoring import (
+    MINIMUM_PASS_SCORE,
+    get_default_scoring_template,
+)
 from app.shared.enums.application_status import ApplicationStatus
 from app.shared.enums.document_type import DocumentType
 
@@ -165,38 +171,44 @@ async def process_screening(application_id: int, company_id: int | None) -> None
                     text_parts.append(ans.value_text)
             text = "\n".join(text_parts)
 
-            template = (
-                await get_scoring_template_by_job_id(db, job.id) or _default_template()
-            )
+            template = await get_scoring_template_by_job_id(
+                db, job.id
+            ) or JobScoringTemplate(**get_default_scoring_template())
             requirements = await get_requirements_by_job_id(db, job.id)
             match_result = await match_candidate_to_job(
                 parsed_data, requirements, job.description
             )
-            exp_score = _score_experience(
+            exp_score = score_experience(
                 parsed_data.get("total_years_experience", 0),
                 next(
                     (req.value for req in requirements if req.category == "experience"),
                     "0",
                 ),
             )
-            edu_score = _score_education(
+            edu_score = score_education(
                 parsed_data.get("education", []),
                 next(
                     (req.value for req in requirements if req.category == "education"),
                     "",
                 ),
             )
-            portfolio_score = _score_portfolio(parsed_data)
+            portfolio_score = score_portfolio(parsed_data)
             soft_skill_score = _score_soft_skills(text)
             admin_score = 100.0
-            final = (
-                match_result["match_percentage"] * template.skill_match_weight
-                + exp_score * template.experience_weight
-                + edu_score * template.education_weight
-                + portfolio_score * template.portfolio_weight
-                + soft_skill_score * template.soft_skill_weight
-                + admin_score * template.administrative_weight
-            ) / 100.0
+            final = calculate_final_score(
+                skill_match_score=match_result["match_percentage"],
+                experience_score=exp_score,
+                education_score=edu_score,
+                portfolio_score=portfolio_score,
+                soft_skill_score=soft_skill_score,
+                administrative_score=admin_score,
+                skill_match_weight=template.skill_match_weight,
+                experience_weight=template.experience_weight,
+                education_weight=template.education_weight,
+                portfolio_weight=template.portfolio_weight,
+                soft_skill_weight=template.soft_skill_weight,
+                administrative_weight=template.administrative_weight,
+            )
 
             red_flags = detect_red_flags(parsed_data, text)
             # Tambahkan hasil validasi dokumen ke red flags
@@ -229,11 +241,7 @@ async def process_screening(application_id: int, company_id: int | None) -> None
                     risk_level=red_flags.get("risk_level"),
                 ),
             )
-            application.status = (
-                ApplicationStatus.AI_PASSED
-                if final >= MINIMUM_PASS_SCORE
-                else ApplicationStatus.UNDER_REVIEW
-            )
+            application.status = get_application_status(final)
             await add_status_log(
                 db,
                 ApplicationStatusLog(
@@ -255,128 +263,6 @@ async def process_screening(application_id: int, company_id: int | None) -> None
                 ),
             )
             await db.commit()
-
-        application.status = ApplicationStatus.DOC_CHECK
-        rules = await get_active_knockout_rules(db, job.id)
-        answers = await get_answers_by_application_id(db, application_id)
-        for rule in rules:
-            if not evaluate_knockout_rule(rule, application, docs, answers=answers):
-                application.status = ApplicationStatus.KNOCKOUT
-                await add_status_log(
-                    db,
-                    ApplicationStatusLog(
-                        application_id=application.id,
-                        to_status=ApplicationStatus.KNOCKOUT.value,
-                        reason=f"Knockout rule failed: {rule.rule_name}",
-                    ),
-                )
-                await db.commit()
-                return
-
-        # Langkah 2 & 3: OCR JIT & Validasi Semantik Dokumen Berbasis LLM
-        doc_validation_flags = await run_document_semantic_check(
-            docs, application.applicant
-        )
-
-        answers = await get_answers_by_application_id(db, application_id)
-
-        # Build parsed_data from form answers
-        parsed_data = build_candidate_profile(application, answers)
-
-        # Combine all text answers into one 'text' for soft skill analysis
-        text_parts = []
-        for ans in answers:
-            if ans.value_text:
-                text_parts.append(ans.value_text)
-        text = "\n".join(text_parts)
-
-        template = (
-            await get_scoring_template_by_job_id(db, job.id) or _default_template()
-        )
-        requirements = await get_requirements_by_job_id(db, job.id)
-        match_result = await match_candidate_to_job(
-            parsed_data, requirements, job.description
-        )
-        exp_score = _score_experience(
-            parsed_data.get("total_years_experience", 0),
-            next(
-                (req.value for req in requirements if req.category == "experience"), "0"
-            ),
-        )
-        edu_score = _score_education(
-            parsed_data.get("education", []),
-            next(
-                (req.value for req in requirements if req.category == "education"), ""
-            ),
-        )
-        portfolio_score = _score_portfolio(parsed_data)
-        soft_skill_score = _score_soft_skills(text)
-        admin_score = 100.0
-        final = (
-            match_result["match_percentage"] * template.skill_match_weight
-            + exp_score * template.experience_weight
-            + edu_score * template.education_weight
-            + portfolio_score * template.portfolio_weight
-            + soft_skill_score * template.soft_skill_weight
-            + admin_score * template.administrative_weight
-        ) / 100.0
-
-        red_flags = detect_red_flags(parsed_data, text)
-        # Tambahkan hasil validasi dokumen ke red flags
-        if doc_validation_flags:
-            red_flags["red_flags"].extend(doc_validation_flags)
-            red_flags["risk_level"] = "high"
-        explanation = generate_explanation(
-            match_result,
-            exp_score,
-            edu_score,
-            portfolio_score,
-            soft_skill_score,
-            admin_score,
-            final,
-            red_flags,
-        )
-        await save_candidate_score(
-            db,
-            CandidateScore(
-                application_id=application.id,
-                skill_match_score=match_result["match_percentage"],
-                experience_score=exp_score,
-                education_score=edu_score,
-                portfolio_score=portfolio_score,
-                soft_skill_score=soft_skill_score,
-                administrative_score=admin_score,
-                final_score=final,
-                explanation=explanation,
-                red_flags=red_flags.get("red_flags"),
-                risk_level=red_flags.get("risk_level"),
-            ),
-        )
-        application.status = (
-            ApplicationStatus.AI_PASSED
-            if final >= MINIMUM_PASS_SCORE
-            else ApplicationStatus.UNDER_REVIEW
-        )
-        await add_status_log(
-            db,
-            ApplicationStatusLog(
-                application_id=application.id,
-                to_status=application.status.value,
-                reason=f"AI screening complete. Final score: {final:.1f}",
-            ),
-        )
-        await db.commit()
-
-
-def _default_template() -> JobScoringTemplate:
-    return JobScoringTemplate(
-        skill_match_weight=40,
-        experience_weight=20,
-        education_weight=10,
-        portfolio_weight=10,
-        soft_skill_weight=10,
-        administrative_weight=10,
-    )
 
 
 async def manual_override_score(

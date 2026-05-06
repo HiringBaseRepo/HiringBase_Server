@@ -20,12 +20,9 @@ from app.features.screening.schemas.schema import (
 )
 from app.features.screening.services.service import (
     create_knockout_rule as create_knockout_rule_service,
-)
-from app.features.screening.services.service import (
     delete_knockout_rule as delete_knockout_rule_service,
-)
-from app.features.screening.services.service import (
     process_screening,
+    process_screening_with_exception_handling,
     queue_screening,
 )
 from app.shared.schemas.response import StandardResponse

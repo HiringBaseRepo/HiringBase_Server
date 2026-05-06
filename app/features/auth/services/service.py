@@ -236,3 +236,11 @@ async def revoke_all_sessions(db: AsyncSession, user_id: int) -> bool:
         await delete_all_refresh_tokens_by_user_id(db, user_id)
         await db.commit()
     return True
+
+
+async def logout(db: AsyncSession, jti: str) -> None:
+    """Revoke a refresh token by its JTI."""
+    from app.features.auth.repositories.repository import revoke_refresh_token
+
+    await revoke_refresh_token(db, jti)
+    await db.commit()

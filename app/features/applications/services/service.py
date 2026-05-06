@@ -27,17 +27,12 @@ from app.features.applications.repositories.repository import (
     get_company_by_id,
     get_form_field_by_key,
     get_form_fields_by_job_id,
-    get_public_job_by_id,
     get_published_job_by_id,
     get_user_by_email,
     save_application,
     save_ticket,
     save_user,
-)
-from app.features.applications.repositories.repository import (
     list_applications as list_applications_query,
-)
-from app.features.applications.repositories.repository import (
     list_public_jobs as list_public_jobs_query,
 )
 from app.features.applications.schemas.schema import (

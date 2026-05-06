@@ -303,10 +303,13 @@ If OCR fails:
 - **Migrations**:
   - Create: `alembic revision --autogenerate -m "description"`
   - Apply: `alembic upgrade head`
-- **Testing**: `pytest app/tests/ -v` (Semua **61 tests PASSED** — 51 unit + 9 integration + 1 lainnya)
+- **Testing**: `pytest app/tests/ -v` (Semua **107 tests PASSED** — 86 unit + 21 integration)
 - **Test AI only**: `pytest app/tests/unit/test_ai_scoring.py -v`
 - **Test Knockout**: `pytest app/tests/unit/test_knockout_rules.py -v`
 - **Test Semantic Matcher**: `pytest app/tests/unit/test_semantic_matcher.py -v`
+- **Test Screening Pipeline**: `pytest app/tests/unit/test_screening_pipeline.py -v`
+- **Test Validator Step**: `pytest app/tests/unit/test_validator_step.py -v`
+- **Test Document Validator**: `pytest app/tests/unit/test_document_validator.py -v`
 - **Test Integration only**: `pytest app/tests/integration/ -v`
 - **Linting**: `ruff check .` / `black .`
 
@@ -323,17 +326,22 @@ If OCR fails:
 
 ## Testing Strategy
 
-### Unit Tests
+### Unit Tests (86 tests)
 - `test_auth.py` — JWT encode/decode, password hashing (2 tests)
 - `test_ai_scoring.py` — Resume parser, red flag detector, soft skill scorer, scoring helpers (21 tests)
 - `test_knockout_rules.py` — Semua tipe knockout rule dengan mock (20 tests)
-- `test_semantic_matcher.py` — Skill matching logic with exact, synonym, and embedding layers (8 tests)
+- `test_semantic_matcher.py` — Skill matching logic with exact, synonym, and embedding layers (10 tests)
+- `test_screening_pipeline.py` — Orchestrator `process_screening`: DOC_FAILED, KNOCKOUT, AI_PASSED, UNDER_REVIEW, red flags, weighted score (11 tests)
+- `test_validator_step.py` — `run_document_semantic_check`: routing OCR+LLM, flag generation, non-required doc skip (8 tests)
+- `test_document_validator.py` — `validate_document_content` (LLM fallback, parse response) + OCR engine internals `_download_file`, `_extract_text_pdf`, `_extract_text_image`, `_is_image` (15 tests)
 
-### Integration Tests
-- `test_applications.py` — Public application flow, job listing
-- `test_jobs_public.py` — Public jobs endpoints with independent session management
-- `test_public_application.py` — Complete public application submission and ticket tracking (3 tests)
-- `test_hr_workflows.py` — HR vacancy lifecycle, screening, tenant isolation, and interview scheduling (4 tests)
+### Integration Tests (21 tests)
+- `test_public_application.py` — Public application submission, duplicate 409, ticket tracking (3 tests)
+- `test_hr_workflows.py` — HR vacancy lifecycle, screening run, tenant isolation, interview scheduling (4 tests)
+- `test_jobs_public.py` — Public jobs endpoints (list, detail dengan form fields) (2 tests)
+- `test_auth_security.py` — Refresh token rotation, reuse detection kill switch, concurrent rotation, invalid format, token version (5 tests)
+- `test_document_pipeline.py` — Document completeness check, full pipeline with all docs, tenant isolation (3 tests)
+- `test_ranking.py` — Ranking dengan custom weights, tenant isolation, top-N limit, pagination (4 tests)
 
 ### Mocking Infrastructure
 Global test fixtures in `app/tests/conftest.py` provide comprehensive mocking:
@@ -344,6 +352,18 @@ Global test fixtures in `app/tests/conftest.py` provide comprehensive mocking:
 - **Database Isolation**: `test_db_session` fixture — function-scoped engine per-test, auto-rollback setelah selesai. Override via `override_db` autouse fixture.
 - **Authentication**: `auth_headers` fixture generates valid JWT tokens (dengan `token_version` dan integer `sub`) for HR user testing
 
+### Unit Test Isolation (Local Conftest)
+`app/tests/unit/conftest.py` meng-override **semua** autouse fixture dari root conftest sehingga unit test AI module dapat memanggil fungsi aslinya:
+- `mock_ocr_engine`, `mock_groq`, `mock_r2` → no-op di scope unit
+- `db_cleanup`, `override_db`, `mock_get_session` → no-op di scope unit
+- Test AI internal (`validate_document_content`, `extract_text_from_document`) di-test melalui **direct module namespace patching** (`validator_module.settings`, `ocr_module._download_file`) untuk menghindari konflik dengan mock global.
+
+### Call-Site Mocking Pattern
+Untuk menghindari masalah lazy import pada `process_screening` (yang import `get_session` di dalam function body):
+- Patch `app.core.database.session.get_session` (source module) — bukan attribute di service module
+- Gunakan `@asynccontextmanager` wrapper sebagai mock session context
+- Patch semua repository functions di namespace service: `app.features.screening.services.service.<func_name>`
+
 ### Zero External Dependency Testing
 All tests run successfully without external API credentials:
 - Groq LLM mocks return structured responses when `GROQ_API_KEY` is missing
@@ -353,17 +373,18 @@ All tests run successfully without external API credentials:
 
 ### Test Execution Commands
 ```bash
-# Run all tests (61 total)
+# Run all tests (107 total)
 venv/bin/pytest app/tests/ -v --tb=short
 
-# Run unit tests only (51 tests)
+# Run unit tests only (86 tests)
 venv/bin/pytest app/tests/unit/ -v
 
-# Run integration tests only (9 tests)
+# Run integration tests only (21 tests)
 venv/bin/pytest app/tests/integration/ -v
 
-# Run specific test
-venv/bin/pytest app/tests/integration/jobs/test_jobs_public.py -v
+# Run specific test file
+venv/bin/pytest app/tests/unit/test_screening_pipeline.py -v
+venv/bin/pytest app/tests/integration/ranking/test_ranking.py -v
 
 # With coverage
 venv/bin/pytest --cov=app --cov-report=term-missing app/tests/
@@ -376,13 +397,22 @@ venv/bin/pytest --cov=app --cov-report=term-missing app/tests/
 - **Integration Tests**: Resolved `InterfaceError` dan `RuntimeError: Task attached to different loop` dengan mengubah `asyncio_default_test_loop_scope` ke `function` di `pytest.ini` dan menggunakan per-test engine lifecycle di `conftest.py`.
 - **API Assertions**: Fixed `test_jobs_public.py` assertions to match `PaginatedResponse` and `PublicJobDetailResponse` schemas.
 - **Lifespan Stability**: Prevented premature engine disposal in `app/main.py` during test runs.
-- **Zero Dependency Testing**: System now works without external API credentials for testing
-- **Unit Test Cleanup**: Eliminated 21 duplicated helper functions from `test_ai_scoring.py`, now uses actual service functions
-- **Public Application Flow**: Implemented complete public application submission and ticket tracking tests
-- **HR Workflow Testing**: Added vacancy lifecycle, screening, tenant isolation, and interview scheduling tests
+- **Zero Dependency Testing**: System now works without external API credentials for testing.
+- **Unit Test Cleanup**: Eliminated 21 duplicated helper functions from `test_ai_scoring.py`, now uses actual service functions.
+- **Public Application Flow**: Implemented complete public application submission and ticket tracking tests.
+- **HR Workflow Testing**: Added vacancy lifecycle, screening, tenant isolation, and interview scheduling tests.
 - **Enum Fix**: Semua instansiasi model `Job` di test kini menggunakan `EmploymentType.FULL_TIME` (Enum object) bukan string `"FULL_TIME"` untuk menghindari `AttributeError` di mapper dan `NotNullViolationError` di DB.
 - **Mock Path Fix**: Path modul validator di `conftest.py` diperbaiki ke `app.ai.validator.document_validator.validate_document_content`.
 - **Assertion Alignment**: Status code duplikasi aplikasi adalah `409` (bukan `400`); interview response menggunakan key `interview_id`; screening dipicu via `POST /screening/applications/{id}/run`.
+- **Auth Security Tests**: Added 5 integration tests for refresh token rotation, reuse detection (kill switch), concurrent rotation, invalid format rejection, dan token version tracking.
+- **Document Pipeline Tests**: Added 3 integration tests validating OCR+LLM pipeline through API (completeness check, full pipeline, tenant isolation).
+- **Ranking Tests**: Added 4 integration tests dengan DB injection `CandidateScore` langsung untuk determinisme (custom weights, tenant isolation, top-N, pagination).
+- **AI Unit Test Coverage**: Tambah 3 file unit test baru:
+  - `test_screening_pipeline.py` — orchestrator `process_screening` dengan lazy import handling via `app.core.database.session.get_session` patch.
+  - `test_validator_step.py` — `run_document_semantic_check` OCR+LLM orchestration.
+  - `test_document_validator.py` — `validate_document_content` LLM parsing + OCR engine internal helpers.
+- **Unit Test Isolation**: Tambah `app/tests/unit/conftest.py` lokal yang override semua autouse fixture root agar AI unit test bisa memanggil fungsi asli tanpa konflik mock global.
+- **Lazy Import Handling**: `process_screening` menggunakan lazy import `get_session` — di-patch via source module (`app.core.database.session.get_session`) menggunakan `@asynccontextmanager` wrapper, bukan via service module attribute.
 
 ### Current Limitations
 1. **Password Reset Table**: Butuh tabel `password_reset_tokens` via Alembic migration untuk implementasi penuh fitur reset password.
@@ -391,18 +421,39 @@ venv/bin/pytest --cov=app --cov-report=term-missing app/tests/
 4. **LLM Groq**: Implementasi menggunakan Groq API dengan model `qwen/qwen3-32b` (atau `llama3-70b-8192` tergantung config) untuk validasi dokumen dan penjelasan AI.
 
 ### Test Coverage Status
-- **Unit Tests**: 51 tests (all passing)
+- **Unit Tests**: 86 tests (all passing ✅)
   - `test_auth.py`: 2 tests
   - `test_ai_scoring.py`: 21 tests
-  - `test_knockout_rules.py`: 20 tests
-  - `test_semantic_matcher.py`: 8 tests
-- **Integration Tests**: 9 tests (all passing ✅)
-  - `test_public_application.py`: 3 tests (submit, duplikasi 409, ticket tracking)
-  - `test_hr_workflows.py`: 4 tests (vacancy lifecycle, screening run, tenant isolation, interview scheduling)
-  - `test_jobs_public.py`: 2 tests (list publik, detail dengan form fields)
-- **Total**: **61 tests PASSED** (0 failed)
+  - `test_knockout_rules.py`: 20 tests (semua tipe rule)
+  - `test_semantic_matcher.py`: 10 tests (exact, synonym, embedding)
+  - `test_screening_pipeline.py`: 11 tests (status transitions, weighted score, red flags)
+  - `test_validator_step.py`: 8 tests (OCR+LLM orchestration)
+  - `test_document_validator.py`: 15 tests (LLM response parsing, OCR routing, fallbacks)
+- **Integration Tests**: 21 tests (all passing ✅)
+  - `test_public_application.py`: 3 tests
+  - `test_hr_workflows.py`: 4 tests
+  - `test_jobs_public.py`: 2 tests
+  - `test_auth_security.py`: 5 tests (refresh rotation, reuse detection, kill switch)
+  - `test_document_pipeline.py`: 3 tests
+  - `test_ranking.py`: 4 tests (custom weights, tenant isolation, pagination)
+- **Total**: **107 tests PASSED** (0 failed)
 - **E2E Tests**: Ready with proper mocking infrastructure
 - **Coverage**: Can be measured with `pytest-cov`
+
+### Feature Coverage Gap (Belum Ada Integration Test)
+Feature berikut belum memiliki integration test dan menjadi prioritas berikutnya:
+1. `scoring_templates` — create/update/get scoring weight template
+2. `companies` — multi-tenant management (super admin)
+3. `users` — HR account management
+4. `notifications` — list, mark read/unread
+5. `job_forms` — form field builder (create/update/delete/reorder)
+6. `auth` login/logout/register/me — endpoint dasar belum punya dedicated test
+7. `audit_logs` — list audit trail
+
+### AI Module Coverage Gap (Belum Ada Unit Test)
+1. `app/ai/explanation/generator.py` — template-based explanation
+2. `app/ai/llm/client.py` — Groq API client wrapper
+3. `app/ai/scoring/engine.py` — standalone scoring engine
 
 ### Catatan Penting untuk Test
 - Field `employment_type` pada model `Job` WAJIB diisi dengan `EmploymentType.FULL_TIME` (enum object), bukan string `"FULL_TIME"`.
@@ -412,4 +463,7 @@ venv/bin/pytest --cov=app --cov-report=term-missing app/tests/
 - Response `InterviewScheduledResponse` menggunakan field `interview_id`, bukan `id`.
 - Screening dipicu via `POST /api/v1/screening/applications/{id}/run` — tidak ada GET endpoint untuk hasil screening langsung.
 - `pytest.ini` dikonfigurasi dengan `asyncio_default_test_loop_scope = function` untuk isolasi penuh antar test.
+- **Unit test AI module** menggunakan `app/tests/unit/conftest.py` lokal yang meng-override autouse fixture root — jangan hapus file ini.
+- **Ranking test** menggunakan injeksi langsung `CandidateScore` ke DB (bukan `process_screening`) untuk determinisme penuh.
+- `doc_type.value` pada `DocumentType` enum dikirim sebagai **lowercase** ke LLM validator (contoh: `"ktp"`, bukan `"KTP"`).
  

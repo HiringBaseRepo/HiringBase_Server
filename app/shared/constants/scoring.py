@@ -22,6 +22,13 @@ EDUCATION_RANK = {
 }
 
 MINIMUM_PASS_SCORE = 60.0
+
+
+def get_default_scoring_template() -> dict:
+    """Return default scoring template weights."""
+    return DEFAULT_WEIGHTS
+
+
 KNOCKOUT_AUTO_REJECT = True
 
 # Ticket format prefix

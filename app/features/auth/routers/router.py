@@ -138,18 +138,13 @@ async def logout(
 ):
     refresh_token = request.cookies.get("refresh_token")
     if refresh_token:
-        # Panggil service untuk revoke token
-        from sqlalchemy import delete
-
         from app.core.security.jwt import decode_token
-        from app.features.users.models import RefreshToken
+        from app.features.auth.services.service import logout as logout_service
 
         payload = decode_token(refresh_token)
         if payload and payload.get("jti"):
             jti = payload.get("jti")
-            stmt = delete(RefreshToken).where(RefreshToken.jti == jti)
-            await db.execute(stmt)
-            await db.commit()
+            await logout_service(db, jti)
 
     response.delete_cookie(key="refresh_token")
     return StandardResponse.ok(

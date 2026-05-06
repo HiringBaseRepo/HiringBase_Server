@@ -61,3 +61,11 @@ async def delete_all_refresh_tokens_by_user_id(db: AsyncSession, user_id: int) -
 
     await db.execute(delete(RefreshToken).where(RefreshToken.user_id == user_id))
     await db.flush()
+
+
+async def revoke_refresh_token(db: AsyncSession, jti: str) -> None:
+    """Revoke a refresh token by its JTI."""
+    from sqlalchemy import delete
+
+    await db.execute(delete(RefreshToken).where(RefreshToken.jti == jti))
+    await db.flush()
