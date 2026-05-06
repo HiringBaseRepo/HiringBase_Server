@@ -105,7 +105,7 @@ async def test_invalid_ijazah_adds_flag():
         flags = await run_document_semantic_check(docs, applicant)
 
     assert len(flags) == 1
-    assert "IJAZAH" in flags[0]
+    assert "ijazah" in flags[0].lower()
 
 
 @pytest.mark.asyncio
@@ -179,8 +179,9 @@ async def test_validator_called_with_correct_applicant_data():
         from app.features.screening.services.validator_step import run_document_semantic_check
         await run_document_semantic_check(docs, applicant)
 
+    # validator_step mengirim doc_type.value → enum value (lowercase)
     mock_validate.assert_called_once_with(
-        "KTP",
+        "ktp",
         ocr_text,
         {"name": "Budi Santoso", "email": "budi@example.com"},
     )
