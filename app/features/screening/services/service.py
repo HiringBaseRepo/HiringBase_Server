@@ -110,11 +110,11 @@ async def queue_screening(
 async def process_screening_with_exception_handling(
     application_id: int, company_id: int | None
 ) -> None:
-    """Wrapper untuk process_screening yang menangani exception di BackgroundTasks."""
+    """Wrapper for process_screening that handles exceptions in BackgroundTasks."""
     try:
         await process_screening(application_id, company_id)
     except MissingDocumentsException:
-        # Exception sudah ditangani di process_screening
+        # Exception already handled in process_screening
         pass
 
 
@@ -130,15 +130,19 @@ async def process_screening(application_id: int, company_id: int | None) -> None
             return
 
         try:
-            docs = await get_documents_by_application_id(db, application_id)
-            doc_types = {doc.document_type for doc in docs}
-            required_docs = {DocumentType.KTP, DocumentType.IJAZAH}
-            missing = required_docs - doc_types
-            if missing:
-                raise MissingDocumentsException([doc.value for doc in missing])
-
             application.status = ApplicationStatus.DOC_CHECK
             rules = await get_active_knockout_rules(db, job.id)
+            
+            # Langkah 1: Validasi kelengkapan dokumen wajib (Dynamic dari Knockout Rules)
+            docs = await get_documents_by_application_id(db, application_id)
+            doc_types = {doc.document_type for doc in docs}
+            required_doc_rules = [r for r in rules if r.rule_type == "document"]
+            
+            for rule in required_doc_rules:
+                # Target value berisi DocumentType enum value (misal: "KTP", "IJAZAH")
+                if rule.target_value not in [d.value for d in doc_types]:
+                    raise MissingDocumentsException([rule.target_value])
+            
             answers = await get_answers_by_application_id(db, application_id)
             for rule in rules:
                 if not evaluate_knockout_rule(rule, application, docs, answers=answers):
@@ -215,7 +219,7 @@ async def process_screening(application_id: int, company_id: int | None) -> None
             if doc_validation_flags:
                 red_flags["red_flags"].extend(doc_validation_flags)
                 red_flags["risk_level"] = "high"
-            explanation = generate_explanation(
+            explanation = await generate_explanation(
                 match_result,
                 exp_score,
                 edu_score,
@@ -299,13 +303,20 @@ async def manual_override_score(
     score.administrative_score = _clamp_score(
         score.administrative_score + admin_adjustment
     )
+
+    # Ambil template bobot dari Job
+    application = await get_application_by_id(db, application_id)
+    template = await get_scoring_template_by_job_id(
+        db, application.job_id
+    ) or JobScoringTemplate(**get_default_scoring_template())
+
     score.final_score = (
-        score.skill_match_score * 0.4
-        + score.experience_score * 0.2
-        + score.education_score * 0.1
-        + score.portfolio_score * 0.1
-        + score.soft_skill_score * 0.1
-        + score.administrative_score * 0.1
+        (score.skill_match_score * template.skill_match_weight / 100.0)
+        + (score.experience_score * template.experience_weight / 100.0)
+        + (score.education_score * template.education_weight / 100.0)
+        + (score.portfolio_score * template.portfolio_weight / 100.0)
+        + (score.soft_skill_score * template.soft_skill_weight / 100.0)
+        + (score.administrative_score * template.administrative_weight / 100.0)
     )
     score.is_manual_override = True
     score.manual_override_reason = reason

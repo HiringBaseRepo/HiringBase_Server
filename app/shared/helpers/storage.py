@@ -26,3 +26,15 @@ def generate_filename(original: str, prefix: str) -> str:
 def build_public_url(key: str) -> str:
     base = settings.R2_PUBLIC_URL or settings.R2_ENDPOINT_URL
     return f"{base}/{key}"
+
+
+def upload_file(content: bytes, key: str, content_type: str = "application/pdf") -> str:
+    """Upload content to R2 and return the public URL."""
+    s3 = get_s3_client()
+    s3.put_object(
+        Bucket=settings.R2_BUCKET_NAME,
+        Key=key,
+        Body=content,
+        ContentType=content_type,
+    )
+    return build_public_url(key)

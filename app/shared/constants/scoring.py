@@ -1,12 +1,12 @@
 """Scoring constants."""
 
 DEFAULT_WEIGHTS = {
-    "skill_match": 40,
-    "experience": 20,
-    "education": 10,
-    "portfolio": 10,
-    "soft_skill": 10,
-    "administrative": 10,
+    "skill_match_weight": 40,
+    "experience_weight": 20,
+    "education_weight": 10,
+    "portfolio_weight": 10,
+    "soft_skill_weight": 10,
+    "administrative_weight": 10,
 }
 
 EDUCATION_RANK = {

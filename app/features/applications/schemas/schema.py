@@ -56,6 +56,8 @@ class ApplicationListItem(BaseModel):
     status: str
     created_at: str | None
 
+    model_config = {"from_attributes": True}
+
 
 class ApplicationStatusUpdateResponse(BaseModel):
     application_id: int

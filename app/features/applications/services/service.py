@@ -29,11 +29,12 @@ from app.features.applications.repositories.repository import (
     get_form_fields_by_job_id,
     get_published_job_by_id,
     get_user_by_email,
+    list_applications as list_applications_query,
+    list_public_jobs as list_public_jobs_query,
     save_application,
     save_ticket,
     save_user,
-    list_applications as list_applications_query,
-    list_public_jobs as list_public_jobs_query,
+    update_application_status as update_application_status_repo,
 )
 from app.features.applications.schemas.schema import (
     ApplicationListItem,
@@ -56,9 +57,8 @@ from app.shared.enums.document_type import DocumentType
 from app.shared.enums.ticket_status import TicketStatus
 from app.shared.enums.user_roles import UserRole
 from app.shared.helpers.storage import (
-    build_public_url,
     generate_filename,
-    get_s3_client,
+    upload_file,
 )
 from app.shared.schemas.response import PaginatedResponse
 
@@ -220,12 +220,10 @@ async def _store_uploaded_document(
         raise FileTooLargeException()
     prefix = "portfolios" if document_type == DocumentType.PORTFOLIO else "documents"
     key = generate_filename(upload.filename or "unknown", prefix)
-    s3 = get_s3_client()
-    s3.put_object(
-        Bucket=settings.R2_BUCKET_NAME,
-        Key=key,
-        Body=content,
-        ContentType=upload.content_type or "application/pdf",
+    file_url = upload_file(
+        content=content,
+        key=key,
+        content_type=upload.content_type or "application/pdf",
     )
     await add_document(
         db,
@@ -233,7 +231,7 @@ async def _store_uploaded_document(
             application_id=application_id,
             document_type=document_type,
             file_name=upload.filename,
-            file_url=build_public_url(key),
+            file_url=file_url,
             file_size=len(content),
             mime_type=upload.content_type or "application/pdf",
         ),
@@ -258,17 +256,21 @@ async def list_applications(
         q=q,
     )
     pages = (total + pagination.per_page - 1) // pagination.per_page
+    
+    items = []
+    for app in applications:
+        # Pydantic model_validate handles attribute access, but status needs .value
+        item_data = {
+            "id": app.id,
+            "job_id": app.job_id,
+            "applicant_id": app.applicant_id,
+            "status": app.status.value,
+            "created_at": app.created_at.isoformat() if app.created_at else None
+        }
+        items.append(ApplicationListItem.model_validate(item_data))
+
     return PaginatedResponse(
-        data=[
-            ApplicationListItem(
-                id=item.id,
-                job_id=item.job_id,
-                applicant_id=item.applicant_id,
-                status=item.status.value,
-                created_at=item.created_at.isoformat() if item.created_at else None,
-            )
-            for item in applications
-        ],
+        data=items,
         total=total,
         page=pagination.page,
         per_page=pagination.per_page,
@@ -294,7 +296,7 @@ async def update_application_status(
     if not application:
         raise ApplicationNotFoundException()
     old_status = application.status
-    application.status = new_status
+    await update_application_status_repo(db, application, new_status)
     await add_status_log(
         db,
         ApplicationStatusLog(

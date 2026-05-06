@@ -94,11 +94,18 @@ async def test_process_screening_doc_failed_when_missing_ijazah():
     docs = [_make_doc(DocumentType.KTP)]  # Hanya KTP
 
     mock_db = AsyncMock()
+    ktp_rule = MagicMock()
+    ktp_rule.rule_type = "document"
+    ktp_rule.target_value = "KTP"
+    ijazah_rule = MagicMock()
+    ijazah_rule.rule_type = "document"
+    ijazah_rule.target_value = "IJAZAH"
 
     with patch("app.core.database.session.get_session", _mock_session_ctx(mock_db)), \
          patch("app.features.screening.services.service.get_application_by_id", AsyncMock(return_value=app)), \
          patch("app.features.screening.services.service.get_job_by_id", AsyncMock(return_value=job)), \
          patch("app.features.screening.services.service.get_documents_by_application_id", AsyncMock(return_value=docs)), \
+         patch("app.features.screening.services.service.get_active_knockout_rules", AsyncMock(return_value=[ktp_rule, ijazah_rule])), \
          patch("app.features.screening.services.service.add_status_log", AsyncMock()):
 
         from app.features.screening.services.service import process_screening
@@ -115,11 +122,15 @@ async def test_process_screening_doc_failed_when_missing_ktp():
     docs = [_make_doc(DocumentType.IJAZAH)]  # Hanya Ijazah
 
     mock_db = AsyncMock()
+    ktp_rule = MagicMock()
+    ktp_rule.rule_type = "document"
+    ktp_rule.target_value = "KTP"
 
     with patch("app.core.database.session.get_session", _mock_session_ctx(mock_db)), \
          patch("app.features.screening.services.service.get_application_by_id", AsyncMock(return_value=app)), \
          patch("app.features.screening.services.service.get_job_by_id", AsyncMock(return_value=job)), \
          patch("app.features.screening.services.service.get_documents_by_application_id", AsyncMock(return_value=docs)), \
+         patch("app.features.screening.services.service.get_active_knockout_rules", AsyncMock(return_value=[ktp_rule])), \
          patch("app.features.screening.services.service.add_status_log", AsyncMock()):
 
         from app.features.screening.services.service import process_screening
@@ -135,10 +146,15 @@ async def test_process_screening_doc_failed_no_documents():
     job = _make_job()
     mock_db = AsyncMock()
 
+    ktp_rule = MagicMock()
+    ktp_rule.rule_type = "document"
+    ktp_rule.target_value = "KTP"
+
     with patch("app.core.database.session.get_session", _mock_session_ctx(mock_db)), \
          patch("app.features.screening.services.service.get_application_by_id", AsyncMock(return_value=app)), \
          patch("app.features.screening.services.service.get_job_by_id", AsyncMock(return_value=job)), \
          patch("app.features.screening.services.service.get_documents_by_application_id", AsyncMock(return_value=[])), \
+         patch("app.features.screening.services.service.get_active_knockout_rules", AsyncMock(return_value=[ktp_rule])), \
          patch("app.features.screening.services.service.add_status_log", AsyncMock()):
 
         from app.features.screening.services.service import process_screening

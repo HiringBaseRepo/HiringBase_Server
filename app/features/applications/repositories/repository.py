@@ -184,3 +184,11 @@ async def get_application_for_company(
         )
     )
     return result.scalar_one_or_none()
+
+
+async def update_application_status(
+    db: AsyncSession, application: Application, new_status: ApplicationStatus
+) -> Application:
+    application.status = new_status
+    await db.flush()
+    return application
