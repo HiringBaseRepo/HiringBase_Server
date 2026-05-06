@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database.base import get_db
 from app.core.exceptions import (
     ApplicationNotFoundException,
+    FileTooLargeException,
+    InvalidFileTypeException,
     JobNotFoundException,
 )
 from app.core.utils.pagination import PaginationParams
@@ -84,7 +86,13 @@ async def public_apply(
         phone=phone,
         answers_json=answers_json,
     )
-    result = await public_apply_service(db, data=command, documents=documents)
+    try:
+        result = await public_apply_service(db, data=command, documents=documents)
+        return StandardResponse.ok(
+            data=result, message="Application submitted successfully"
+        )
+    except (InvalidFileTypeException, FileTooLargeException) as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     return StandardResponse.ok(
         data=result, message="Application submitted successfully"
     )

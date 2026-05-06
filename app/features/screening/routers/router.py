@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database.base import get_db
 from app.core.exceptions import (
     ApplicationNotFoundException,
+    MissingDocumentsException,
     RuleNotFoundException,
 )
 from app.features.auth.dependencies.auth import require_hr
@@ -89,7 +90,9 @@ async def run_screening(
             db, current_user=current_user, application_id=application_id
         )
         background_tasks.add_task(
-            process_screening, application_id, current_user.company_id
+            process_screening_with_exception_handling,
+            application_id,
+            current_user.company_id,
         )
         return StandardResponse.ok(
             data=result, message="Screening started in background"

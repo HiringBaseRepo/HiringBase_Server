@@ -217,16 +217,12 @@ async def _store_uploaded_document(
     if ext not in ALLOWED_EXTENSIONS:
         if skip_invalid:
             return
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid file type"
-        )
+        raise InvalidFileTypeException()
     content = await upload.read()
     if len(content) > MAX_FILE_SIZE_MB * 1024 * 1024:
         if skip_invalid:
             return
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="File too large"
-        )
+        raise FileTooLargeException()
     prefix = "portfolios" if document_type == DocumentType.PORTFOLIO else "documents"
     key = generate_filename(upload.filename or "unknown", prefix)
     s3 = get_s3_client()

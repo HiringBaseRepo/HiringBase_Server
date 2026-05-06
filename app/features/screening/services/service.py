@@ -8,6 +8,7 @@ from app.ai.redflag.detector import detect_red_flags
 from app.core.exceptions import (
     ApplicationNotFoundException,
     JobNotFoundException,
+    MissingDocumentsException,
     RuleNotFoundException,
 )
 from app.features.applications.models import ApplicationStatusLog
@@ -100,6 +101,17 @@ async def queue_screening(
     return ScreeningQueuedResponse(message="Screening queued")
 
 
+async def process_screening_with_exception_handling(
+    application_id: int, company_id: int | None
+) -> None:
+    """Wrapper untuk process_screening yang menangani exception di BackgroundTasks."""
+    try:
+        await process_screening(application_id, company_id)
+    except MissingDocumentsException:
+        # Exception sudah ditangani di process_screening
+        pass
+
+
 async def process_screening(application_id: int, company_id: int | None) -> None:
     from app.core.database.session import get_session
 
@@ -111,12 +123,138 @@ async def process_screening(application_id: int, company_id: int | None) -> None
         if not job:
             return
 
-        docs = await get_documents_by_application_id(db, application_id)
-        doc_types = {doc.document_type for doc in docs}
-        required_docs = {DocumentType.KTP, DocumentType.IJAZAH}
-        missing = required_docs - doc_types
-        if missing:
-            raise MissingDocumentsException([doc.value for doc in missing])
+        try:
+            docs = await get_documents_by_application_id(db, application_id)
+            doc_types = {doc.document_type for doc in docs}
+            required_docs = {DocumentType.KTP, DocumentType.IJAZAH}
+            missing = required_docs - doc_types
+            if missing:
+                raise MissingDocumentsException([doc.value for doc in missing])
+
+            application.status = ApplicationStatus.DOC_CHECK
+            rules = await get_active_knockout_rules(db, job.id)
+            answers = await get_answers_by_application_id(db, application_id)
+            for rule in rules:
+                if not evaluate_knockout_rule(rule, application, docs, answers=answers):
+                    application.status = ApplicationStatus.KNOCKOUT
+                    await add_status_log(
+                        db,
+                        ApplicationStatusLog(
+                            application_id=application.id,
+                            to_status=ApplicationStatus.KNOCKOUT.value,
+                            reason=f"Knockout rule failed: {rule.rule_name}",
+                        ),
+                    )
+                    await db.commit()
+                    return
+
+            # Langkah 2 & 3: OCR JIT & Validasi Semantik Dokumen Berbasis LLM
+            doc_validation_flags = await run_document_semantic_check(
+                docs, application.applicant
+            )
+
+            answers = await get_answers_by_application_id(db, application_id)
+
+            # Build parsed_data from form answers
+            parsed_data = build_candidate_profile(application, answers)
+
+            # Combine all text answers into one 'text' for soft skill analysis
+            text_parts = []
+            for ans in answers:
+                if ans.value_text:
+                    text_parts.append(ans.value_text)
+            text = "\n".join(text_parts)
+
+            template = (
+                await get_scoring_template_by_job_id(db, job.id) or _default_template()
+            )
+            requirements = await get_requirements_by_job_id(db, job.id)
+            match_result = await match_candidate_to_job(
+                parsed_data, requirements, job.description
+            )
+            exp_score = _score_experience(
+                parsed_data.get("total_years_experience", 0),
+                next(
+                    (req.value for req in requirements if req.category == "experience"),
+                    "0",
+                ),
+            )
+            edu_score = _score_education(
+                parsed_data.get("education", []),
+                next(
+                    (req.value for req in requirements if req.category == "education"),
+                    "",
+                ),
+            )
+            portfolio_score = _score_portfolio(parsed_data)
+            soft_skill_score = _score_soft_skills(text)
+            admin_score = 100.0
+            final = (
+                match_result["match_percentage"] * template.skill_match_weight
+                + exp_score * template.experience_weight
+                + edu_score * template.education_weight
+                + portfolio_score * template.portfolio_weight
+                + soft_skill_score * template.soft_skill_weight
+                + admin_score * template.administrative_weight
+            ) / 100.0
+
+            red_flags = detect_red_flags(parsed_data, text)
+            # Tambahkan hasil validasi dokumen ke red flags
+            if doc_validation_flags:
+                red_flags["red_flags"].extend(doc_validation_flags)
+                red_flags["risk_level"] = "high"
+            explanation = generate_explanation(
+                match_result,
+                exp_score,
+                edu_score,
+                portfolio_score,
+                soft_skill_score,
+                admin_score,
+                final,
+                red_flags,
+            )
+            await save_candidate_score(
+                db,
+                CandidateScore(
+                    application_id=application.id,
+                    skill_match_score=match_result["match_percentage"],
+                    experience_score=exp_score,
+                    education_score=edu_score,
+                    portfolio_score=portfolio_score,
+                    soft_skill_score=soft_skill_score,
+                    administrative_score=admin_score,
+                    final_score=final,
+                    explanation=explanation,
+                    red_flags=red_flags.get("red_flags"),
+                    risk_level=red_flags.get("risk_level"),
+                ),
+            )
+            application.status = (
+                ApplicationStatus.AI_PASSED
+                if final >= MINIMUM_PASS_SCORE
+                else ApplicationStatus.UNDER_REVIEW
+            )
+            await add_status_log(
+                db,
+                ApplicationStatusLog(
+                    application_id=application.id,
+                    to_status=application.status.value,
+                    reason=f"AI screening complete. Final score: {final:.1f}",
+                ),
+            )
+            await db.commit()
+        except MissingDocumentsException as e:
+            application.status = ApplicationStatus.DOC_FAILED
+            await add_status_log(
+                db,
+                ApplicationStatusLog(
+                    application_id=application.id,
+                    from_status=ApplicationStatus.APPLIED.value,
+                    to_status=ApplicationStatus.DOC_FAILED.value,
+                    reason=str(e),
+                ),
+            )
+            await db.commit()
 
         application.status = ApplicationStatus.DOC_CHECK
         rules = await get_active_knockout_rules(db, job.id)
