@@ -1,4 +1,4 @@
-# AGENTS.md — AI Context for Smart Resume Screening System
+# AGENTS.md — AI Context for HiringBase
 
 ## System Overview
 
@@ -412,3 +412,4 @@ venv/bin/pytest --cov=app --cov-report=term-missing app/tests/
 - Response `InterviewScheduledResponse` menggunakan field `interview_id`, bukan `id`.
 - Screening dipicu via `POST /api/v1/screening/applications/{id}/run` — tidak ada GET endpoint untuk hasil screening langsung.
 - `pytest.ini` dikonfigurasi dengan `asyncio_default_test_loop_scope = function` untuk isolasi penuh antar test.
+ 

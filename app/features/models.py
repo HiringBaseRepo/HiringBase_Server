@@ -1,5 +1,5 @@
 """
-Database Models Aggregator — Smart Resume Screening System
+Database Models Aggregator — HiringBase
 This file serves as a central registry for all domain-specific models.
 It enables Alembic to discover all models through a single import point.
 """

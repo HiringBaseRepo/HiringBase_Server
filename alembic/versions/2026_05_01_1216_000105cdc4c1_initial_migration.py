@@ -1,4 +1,4 @@
-"""Initial migration — all tables for Smart Resume Screening System
+"""Initial migration — all tables for HiringBase
 
 Revision ID: 000105cdc4c1
 Revises:

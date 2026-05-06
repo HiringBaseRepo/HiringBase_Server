@@ -1,59 +1,64 @@
 # ============================================================
-# Smart Resume Screening System — Python Dependencies
+# HiringBase — Python Dependencies
+# Last updated: 2026-05-06 | Tested with Python 3.12+
+# Versi aktual: venv/bin/pip freeze
 # ============================================================
-# FastAPI + Async Server
+
+# ── FastAPI + Async Server ──────────────────────────────────
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 
-# Database
+# ── Database ────────────────────────────────────────────────
 sqlalchemy[asyncio]>=2.0.36
 asyncpg>=0.30.0
 alembic>=1.14.0
 
-# Validation & Serialization
+# ── Validation & Serialization ──────────────────────────────
 pydantic>=2.9.0
 pydantic-settings>=2.6.0
 email-validator>=2.2.0
 
-# Authentication & Security
+# ── Authentication & Security ───────────────────────────────
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
-bcrypt==3.2.0
+bcrypt==3.2.0          # Pinned: versi lebih baru inkompatibel dengan passlib
 python-multipart>=0.0.17
 
-# AI / NLP / ML
+# ── AI / NLP / ML ───────────────────────────────────────────
 sentence-transformers>=3.2.0
 scikit-learn>=1.5.0
 numpy>=2.1.0
 
-# OCR
+# ── OCR ─────────────────────────────────────────────────────
 easyocr>=1.7.0
 pdf2image>=1.17.0
 pdfplumber>=0.11.0
 pillow>=11.0.0
 
-# HTTP Client (for LLM APIs)
+# ── HTTP Client ─────────────────────────────────────────────
+# httpx digunakan untuk LLM API calls (Groq) dan test client
 httpx>=0.27.0
 aiohttp>=3.11.0
+anyio>=4.0.0            # Async I/O abstraction layer, digunakan FastAPI & pytest-asyncio
 
-# Cloud Storage (Cloudflare R2 compatible — S3 API)
+# ── Cloud Storage (Cloudflare R2 — S3-compatible) ───────────
 boto3>=1.35.0
 botocore>=1.35.0
 
-# Utilities
+# ── Utilities ───────────────────────────────────────────────
 python-dotenv>=1.0.0
 tenacity>=9.0.0
 structlog>=24.4.0
 orjson>=3.10.0
 
-# Testing
-pytest>=8.3.0
-pytest-asyncio>=0.24.0
+# ── Testing ─────────────────────────────────────────────────
+pytest>=9.0.0           # Major version bump dari 8.x; API berubah
+pytest-asyncio>=1.0.0  # Major version bump dari 0.x; asyncio_default_test_loop_scope tersedia di >=1.0
 pytest-cov>=6.0.0
 factory-boy>=3.3.0
 faker>=30.0.0
 
-# Development / Lint (optional)
+# ── Development / Lint (opsional, tidak wajib di production) ─
 black>=24.10.0
 ruff>=0.7.0
 mypy>=1.13.0

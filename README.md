@@ -1,10 +1,10 @@
-# HireBase — Smart Resume Screening System
+# HiringBase
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115.0-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Groq](https://img.shields.io/badge/AI-Groq%20Qwen3-orange?style=flat-square)](https://groq.com/)
 
-**HireBase** is an AI-powered recruitment assistant that streamlines the hiring process through automated document validation, semantic skill matching, and deterministic weighted scoring.
+**HiringBase** is an AI-powered recruitment assistant that streamlines the hiring process through automated document validation, semantic skill matching, and deterministic weighted scoring.
 
 ---
 
@@ -35,7 +35,7 @@ uvicorn app.main:app --reload
 
 ## 🏗️ Project Architecture
 
-HireBase follows a **Domain-Driven Design (DDD)** approach with a clean, layered architecture:
+HiringBase follows a **Domain-Driven Design (DDD)** approach with a clean, layered architecture:
 
 ```text
 app/

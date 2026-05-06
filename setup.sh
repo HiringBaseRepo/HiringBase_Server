@@ -1,9 +1,9 @@
 #!/bin/bash
-# Setup script for Smart Resume Screening System
+# Setup script for HiringBase
 
 set -e
 
-echo "🚀 Setting up Smart Resume Screening System..."
+echo "🚀 Setting up HiringBase..."
 
 # Create virtual environment
 python3 -m venv venv
