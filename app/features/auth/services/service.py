@@ -36,11 +36,11 @@ async def authenticate_user(
 ) -> Optional[User]:
     user = await get_user_by_email(db, email)
     if not user or not user.password_hash:
-        return None
+        raise InvalidCredentialsException()
     if not verify_password(password, user.password_hash):
-        return None
+        raise InvalidCredentialsException()
     if not user.is_active:
-        return None
+        raise UserInactiveException()
     return user
 
 
@@ -117,28 +117,30 @@ async def generate_token_pair(db: AsyncSession, user: User) -> TokenPair:
 async def refresh_access_token(
     db: AsyncSession, refresh_token: str
 ) -> Optional[TokenPair]:
-    from fastapi import HTTPException, status
+    from app.core.exceptions import (
+        InvalidCredentialsException,
+        InvalidRefreshTokenException,
+        RefreshTokenExpiredException,
+        SecurityAlertException,
+        UserInactiveException,
+        UserNotFoundException,
+    )
 
     payload = decode_token(refresh_token)
     if not payload or payload.get("type") != "refresh":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
-        )
+        raise InvalidRefreshTokenException()
 
     user_id = int(payload.get("sub"))
     jti = payload.get("jti")
 
     if not jti:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token structure"
-        )
+        raise InvalidRefreshTokenException("Invalid token structure")
 
     user = await get_user_by_id(db, user_id)
-    if not user or not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or inactive",
-        )
+    if not user:
+        raise UserNotFoundException()
+    if not user.is_active:
+        raise UserInactiveException()
 
     # Check DB for the refresh token
     token_record = await get_refresh_token_by_jti(db, jti)
@@ -149,24 +151,16 @@ async def refresh_access_token(
         user.token_version += 1
         await delete_all_refresh_tokens_by_user_id(db, user.id)
         await db.commit()
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Security Alert: Please login again",
-        )
+        raise SecurityAlertException()
 
     if token_record.is_revoked:
         user.token_version += 1
         await delete_all_refresh_tokens_by_user_id(db, user.id)
         await db.commit()
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Security Alert: Token was already used. Please login again",
-        )
+        raise SecurityAlertException("Token was already used. Please login again")
 
     if token_record.expires_at < datetime.now(timezone.utc):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired"
-        )
+        raise RefreshTokenExpiredException()
 
     # Rotate token
     # Using transaction to ensure atomic operation

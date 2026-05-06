@@ -2,10 +2,15 @@
 
 import json
 
-from fastapi import HTTPException, UploadFile, status
+from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.exceptions import (
+    ApplicationNotFoundException,
+    JobNotFoundException,
+    MissingDocumentsException,
+)
 from app.core.utils.pagination import PaginationParams
 from app.core.utils.ticket import generate_ticket_code
 from app.features.applications.models import (
@@ -92,11 +97,9 @@ async def list_public_jobs(
 async def get_public_job_detail(
     db: AsyncSession, job_id: int
 ) -> PublicJobDetailResponse:
-    job = await get_public_job_by_id(db, job_id)
+    job = await get_published_job_by_id(db, job_id)
     if not job:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Job not found"
-        )
+        raise JobNotFoundException()
     company = await get_company_by_id(db, job.company_id)
     form_fields = await get_form_fields_by_job_id(db, job_id)
     return PublicJobDetailResponse(
@@ -298,9 +301,7 @@ async def update_application_status(
         company_id=current_user.company_id,
     )
     if not application:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Application not found"
-        )
+        raise ApplicationNotFoundException()
     old_status = application.status
     application.status = new_status
     await add_status_log(

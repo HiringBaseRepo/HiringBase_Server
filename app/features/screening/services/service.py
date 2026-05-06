@@ -1,11 +1,15 @@
 """Screening business logic."""
 
-from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.explanation.generator import generate_explanation
 from app.ai.matcher.semantic_matcher import match_candidate_to_job
 from app.ai.redflag.detector import detect_red_flags
+from app.core.exceptions import (
+    ApplicationNotFoundException,
+    JobNotFoundException,
+    RuleNotFoundException,
+)
 from app.features.applications.models import ApplicationStatusLog
 from app.features.audit_logs.models import AuditLog
 from app.features.jobs.models import JobKnockoutRule, JobScoringTemplate
@@ -74,9 +78,7 @@ async def delete_knockout_rule(
 ) -> KnockoutRuleDeletedResponse:
     rule = await get_knockout_rule_by_id(db, rule_id)
     if not rule:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found"
-        )
+        raise RuleNotFoundException()
     await delete_knockout_rule_query(db, rule)
     await db.commit()
     return KnockoutRuleDeletedResponse(deleted=True)
@@ -94,9 +96,7 @@ async def queue_screening(
         company_id=current_user.company_id,
     )
     if not application:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Application not found"
-        )
+        raise ApplicationNotFoundException()
     return ScreeningQueuedResponse(message="Screening queued")
 
 
@@ -271,9 +271,7 @@ async def manual_override_score(
         company_id=current_user.company_id,
     )
     if not score:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Score not found"
-        )
+        raise ApplicationNotFoundException("Candidate score not found")
 
     old_final = score.final_score
     score.skill_match_score = _clamp_score(score.skill_match_score + skill_adjustment)
