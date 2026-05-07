@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.base import get_db
@@ -26,6 +26,7 @@ from app.features.screening.services.service import (
     queue_screening,
 )
 from app.shared.schemas.response import StandardResponse
+from app.shared.helpers.localization import get_label
 
 router = APIRouter(prefix="/screening", tags=["Screening Engine"])
 
@@ -72,13 +73,14 @@ async def delete_knockout_rule(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
+from app.features.screening.tasks import run_screening_task
+
 @router.post(
     "/applications/{application_id}/run",
     response_model=StandardResponse[ScreeningQueuedResponse],
 )
 async def run_screening(
     application_id: int,
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_hr),
 ):
@@ -86,13 +88,13 @@ async def run_screening(
         result = await queue_screening(
             db, current_user=current_user, application_id=application_id
         )
-        background_tasks.add_task(
-            process_screening_with_exception_handling,
-            application_id,
-            current_user.company_id,
+        # Panggil task eksternal via Taskiq
+        await run_screening_task.kiq(
+            application_id=application_id,
+            company_id=current_user.company_id,
         )
         return StandardResponse.ok(
-            data=result, message="Screening started in background"
+            data=result, message=get_label("Screening started in background")
         )
     except ApplicationNotFoundException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

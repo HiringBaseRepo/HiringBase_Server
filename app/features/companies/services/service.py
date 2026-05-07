@@ -1,5 +1,5 @@
 """Company management business logic."""
-from fastapi import HTTPException, status
+from app.core.exceptions import CompanyNotFoundException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.utils.pagination import PaginationParams
@@ -24,13 +24,11 @@ from app.features.companies.schemas.schema import (
     CompanySuspendResponse,
     CreateCompanyRequest,
 )
+from app.features.audit_logs.models import AuditLog
+from app.features.audit_logs.repositories.repository import create_audit_log
 from app.features.companies.models import Company
 from app.shared.enums.application_status import ApplicationStatus
 from app.shared.schemas.response import PaginatedResponse
-
-
-def _not_found() -> HTTPException:
-    return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
 
 
 async def create_company(db: AsyncSession, data: CreateCompanyRequest) -> CompanyCreatedResponse:
@@ -82,8 +80,19 @@ async def list_companies(
 async def suspend_company(db: AsyncSession, company_id: int) -> CompanySuspendResponse:
     company = await get_company_by_id(db, company_id)
     if not company:
-        raise _not_found()
+        raise CompanyNotFoundException()
     company.is_suspended = True
+    await create_audit_log(
+        db,
+        AuditLog(
+            company_id=company.id,
+            user_id=None,  # System or Admin (depends on current_user, but this service doesn't receive it yet)
+            action="COMPANY_SUSPEND",
+            entity_type="company",
+            entity_id=company.id,
+            new_values={"is_suspended": True},
+        ),
+    )
     await db.commit()
     return CompanySuspendResponse(id=company.id, is_suspended=True)
 
@@ -91,9 +100,20 @@ async def suspend_company(db: AsyncSession, company_id: int) -> CompanySuspendRe
 async def activate_company(db: AsyncSession, company_id: int) -> CompanyActivateResponse:
     company = await get_company_by_id(db, company_id)
     if not company:
-        raise _not_found()
+        raise CompanyNotFoundException()
     company.is_suspended = False
     company.is_active = True
+    await create_audit_log(
+        db,
+        AuditLog(
+            company_id=company.id,
+            user_id=None,
+            action="COMPANY_ACTIVATE",
+            entity_type="company",
+            entity_id=company.id,
+            new_values={"is_active": True, "is_suspended": False},
+        ),
+    )
     await db.commit()
     return CompanyActivateResponse(id=company.id, is_active=True, is_suspended=False)
 
@@ -101,7 +121,7 @@ async def activate_company(db: AsyncSession, company_id: int) -> CompanyActivate
 async def get_company_statistics(db: AsyncSession, company_id: int) -> CompanyStatisticsResponse:
     company = await get_company_by_id(db, company_id)
     if not company:
-        raise _not_found()
+        raise CompanyNotFoundException()
     return CompanyStatisticsResponse(
         company_id=company_id,
         company_name=company.name,

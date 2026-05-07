@@ -10,6 +10,9 @@ from app.features.jobs.schemas.schema import (
 )
 
 
+from app.shared.helpers.localization import get_label
+
+
 def map_job_to_list_item(job: Any) -> JobListItem:
     """Map job to list item.
 
@@ -24,7 +27,9 @@ def map_job_to_list_item(job: Any) -> JobListItem:
         title=job.title,
         department=job.department,
         employment_type=job.employment_type,
+        employment_type_label=get_label(job.employment_type),
         status=job.status,
+        status_label=get_label(job.status),
         location=job.location,
         apply_code=job.apply_code,
         published_at=job.published_at.isoformat() if job.published_at else None,

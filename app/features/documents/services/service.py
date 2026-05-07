@@ -1,9 +1,17 @@
 """Document upload business logic."""
-from fastapi import HTTPException, UploadFile, status
+from fastapi import UploadFile
+from app.core.exceptions import (
+    ApplicationNotFoundException,
+    FileTooLargeException,
+    InvalidFileTypeException,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.features.documents.repositories.repository import get_application_for_company, save_document
+from app.features.documents.repositories.repository import (
+    get_application_for_company,
+    save_document,
+)
 from app.features.documents.schemas.schema import DocumentUploadResponse
 from app.features.applications.models import ApplicationDocument
 from app.features.users.models import User
@@ -26,15 +34,15 @@ async def upload_document(
         company_id=current_user.company_id,
     )
     if not application:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found")
+        raise ApplicationNotFoundException()
 
-    ext = file.filename.split(".")[-1].lower()
+    ext = (file.filename or "").split(".")[-1].lower()
     if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid file type")
+        raise InvalidFileTypeException()
 
     content = await file.read()
     if len(content) > MAX_FILE_SIZE_MB * 1024 * 1024:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File too large")
+        raise FileTooLargeException()
 
     prefix = "portfolios" if document_type == DocumentType.PORTFOLIO else "documents"
     key = generate_filename(file.filename, prefix)

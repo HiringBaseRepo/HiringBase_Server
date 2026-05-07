@@ -8,6 +8,9 @@ from app.features.users.models import User
 from app.shared.schemas.response import PaginatedResponse
 
 
+from app.shared.helpers.localization import get_label
+
+
 async def list_audit_logs(
     db: AsyncSession,
     *,
@@ -30,6 +33,7 @@ async def list_audit_logs(
             AuditLogItem(
                 id=log.id,
                 action=log.action,
+                action_label=get_label(log.action),
                 entity_type=log.entity_type,
                 entity_id=log.entity_id,
                 old_values=log.old_values,

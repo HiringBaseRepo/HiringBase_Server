@@ -124,6 +124,7 @@ async def refresh_access_token(
         SecurityAlertException,
         UserInactiveException,
         UserNotFoundException,
+        TokenRotationFailedException,
     )
 
     payload = decode_token(refresh_token)
@@ -134,7 +135,7 @@ async def refresh_access_token(
     jti = payload.get("jti")
 
     if not jti:
-        raise InvalidRefreshTokenException("Invalid token structure")
+        raise InvalidRefreshTokenException("Struktur token tidak valid")
 
     user = await get_user_by_id(db, user_id)
     if not user:
@@ -157,7 +158,7 @@ async def refresh_access_token(
         user.token_version += 1
         await delete_all_refresh_tokens_by_user_id(db, user.id)
         await db.commit()
-        raise SecurityAlertException("Token was already used. Please login again")
+        raise SecurityAlertException("Token sudah pernah digunakan. Silakan login kembali")
 
     if token_record.expires_at < datetime.now(timezone.utc):
         raise RefreshTokenExpiredException()
@@ -171,41 +172,36 @@ async def refresh_access_token(
         return await generate_token_pair(db, user)
     except Exception as e:
         await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to rotate token",
-        )
+        raise TokenRotationFailedException()
 
 
 async def request_password_reset(db: AsyncSession, email: str) -> str | None:
     """Generate password reset token dan simpan hash ke DB.
 
     Returns:
-        Token plain (untuk dikirim ke user via email), atau None jika user tidak ada.
+        Plain token (to be sent via email), or None if user not found.
     """
     import hashlib
     import secrets
 
     user = await get_user_by_email(db, email)
     if not user:
-        # Jangan bocorkan apakah email ada atau tidak
+        # Do not leak whether email exists
         return None
 
     # Generate secure token
     token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(token.encode()).hexdigest()
 
-    # Simpan hash ke notes field sementara (MVP — idealnya pakai tabel password_reset_tokens)
+    # Store hash in temporary notes field (MVP — ideally use password_reset_tokens table)
     # Format: "PWRESET:<hash>:<expiry_unix>"
     import time
 
-    expiry = int(time.time()) + 3600  # 1 jam
+    expiry = int(time.time()) + 3600  # 1 hour
     user.notes = f"PWRESET:{token_hash}:{expiry}" if hasattr(user, "notes") else None  # type: ignore
 
-    # Karena User model tidak punya field notes, kita simpan di DB melalui method ad-hoc
-    # Solusi production: buat tabel password_reset_tokens
-    # MVP: simpan di JSON field atau gunakan cache (Redis)
-    # Untuk sekarang: return token untuk dikembalikan ke endpoint (endpoint log ke console)
+    # Note: Production solution requires password_reset_tokens table.
+    # MVP: Return token to be logged to console in the endpoint.
     await db.commit()
     return token
 
@@ -213,19 +209,19 @@ async def request_password_reset(db: AsyncSession, email: str) -> str | None:
 async def confirm_password_reset(
     db: AsyncSession, token: str, new_password: str
 ) -> bool:
-    """Verifikasi reset token dan update password user.
+    """Verify reset token and update user password.
 
-    MVP: Karena tidak ada tabel khusus, ini akan matching via query yang aman.
-    Returns: True jika berhasil, False jika token invalid/expired.
+    MVP: Since there is no dedicated table, this would match via secure query.
+    Returns: True if successful, False if token invalid/expired.
     """
     import hashlib
     import time
 
     token_hash = hashlib.sha256(token.encode()).hexdigest()
-    # NOTE: Implementasi production butuh tabel password_reset_tokens dengan:
+    # NOTE: Production implementation requires password_reset_tokens table with:
     # user_id, token_hash, expires_at, used_at
-    # MVP ini adalah placeholder yang mengembalikan False secara aman
-    # sampai tabel tersebut dibuat via Alembic migration
+    # This MVP is a safe placeholder returning False
+    # until the table is created via Alembic migration.
     return False
 
 

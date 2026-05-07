@@ -55,6 +55,10 @@ def _synonym_map() -> Dict[str, List[str]]:
         "komunikasi": ["communication", "presentasi", "presentation"],
         "kepemimpinan": ["leadership", "team lead", "pemimpin"],
         "teamwork": ["kerjasama tim", "kolaborasi", "collaboration"],
+        "akuntansi": ["accounting", "pajak", "tax", "finance", "keuangan"],
+        "desain grafis": ["graphic design", "adobe photoshop", "illustrator", "canva", "desain"],
+        "content creator": ["copywriting", "video editing", "konten kreator", "social media manager"],
+        "pemasaran": ["marketing", "digital marketing", "seo", "sem", "ads", "iklan"],
     }
 
 
@@ -121,6 +125,7 @@ async def match_candidate_to_job(
     candidate_data: Dict[str, Any],
     job_requirements: List[Any],
     job_description: str,
+    force_fallback: bool = False,
 ) -> Dict[str, Any]:
     """Match skill kandidat ke requirement lowongan dengan 3-layer matching.
 

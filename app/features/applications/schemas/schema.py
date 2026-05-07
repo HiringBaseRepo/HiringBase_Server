@@ -14,6 +14,7 @@ class PublicJobItem(BaseModel):
     apply_code: str | None
     company_name: str | None
     published_at: str | None
+    employment_type_label: str | None = None
 
 
 class PublicJobFormField(BaseModel):
@@ -32,6 +33,7 @@ class PublicJobDetailResponse(BaseModel):
     employment_type: str
     location: str | None
     company_name: str | None
+    employment_type_label: str | None = None
     form_fields: list[PublicJobFormField]
 
 
@@ -47,6 +49,7 @@ class PublicApplyResponse(BaseModel):
     application_id: int
     ticket_code: str
     status: str
+    status_label: str | None = None
 
 
 class ApplicationListItem(BaseModel):
@@ -54,6 +57,7 @@ class ApplicationListItem(BaseModel):
     job_id: int
     applicant_id: int
     status: str
+    status_label: str | None = None
     created_at: str | None
 
     model_config = {"from_attributes": True}
@@ -63,3 +67,4 @@ class ApplicationStatusUpdateResponse(BaseModel):
     application_id: int
     old_status: str | None
     new_status: str
+    new_status_label: str | None = None

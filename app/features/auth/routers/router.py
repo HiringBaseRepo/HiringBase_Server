@@ -41,6 +41,7 @@ from app.features.auth.services.service import (
 )
 from app.shared.enums.user_roles import UserRole
 from app.shared.schemas.response import StandardResponse
+from app.shared.helpers.localization import get_label
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -51,7 +52,7 @@ async def register_super_admin(
 ):
     user = await create_user(db, data, role=UserRole.SUPER_ADMIN)
     return StandardResponse.ok(
-        data=UserResponse.model_validate(user), message="Super admin registered"
+        data=UserResponse.model_validate(user), message=get_label("Super admin registered")
     )
 
 
@@ -68,7 +69,7 @@ async def register_hr(data: RegisterRequest, db: AsyncSession = Depends(get_db))
             "user": UserResponse.model_validate(hr),
             "company": {"id": company.id, "name": company.name, "slug": company.slug},
         },
-        message="HR and company registered",
+        message=get_label("HR and company registered"),
     )
 
 
@@ -76,10 +77,7 @@ async def register_hr(data: RegisterRequest, db: AsyncSession = Depends(get_db))
 async def login(
     data: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)
 ):
-    try:
-        user = await authenticate_user(db, data.email, data.password)
-    except (InvalidCredentialsException, UserInactiveException) as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+    user = await authenticate_user(db, data.email, data.password)
     tokens = await generate_token_pair(db, user)
 
     response.set_cookie(
@@ -93,7 +91,7 @@ async def login(
     response_data = AccessTokenResponse(
         access_token=tokens.access_token, expires_in=tokens.expires_in
     )
-    return StandardResponse.ok(data=response_data, message="Login successful")
+    return StandardResponse.ok(data=response_data, message=get_label("Login successful"))
 
 
 @router.post("/refresh", response_model=StandardResponse[AccessTokenResponse])
@@ -107,16 +105,7 @@ async def refresh(
             detail="Refresh token missing from cookies",
         )
 
-    try:
-        tokens = await refresh_access_token(db, refresh_token)
-    except (
-        InvalidRefreshTokenException,
-        RefreshTokenExpiredException,
-        SecurityAlertException,
-        UserNotFoundException,
-        UserInactiveException,
-    ) as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+    tokens = await refresh_access_token(db, refresh_token)
 
     response.set_cookie(
         key="refresh_token",
@@ -129,7 +118,7 @@ async def refresh(
     response_data = AccessTokenResponse(
         access_token=tokens.access_token, expires_in=tokens.expires_in
     )
-    return StandardResponse.ok(data=response_data, message="Token refreshed")
+    return StandardResponse.ok(data=response_data, message=get_label("Token refreshed"))
 
 
 @router.post("/logout", response_model=StandardResponse[dict])
@@ -148,7 +137,7 @@ async def logout(
 
     response.delete_cookie(key="refresh_token")
     return StandardResponse.ok(
-        data={"message": "Logout successful"}, message="Logged out"
+        data={"message": get_label("Logout successful")}, message=get_label("Logged out")
     )
 
 

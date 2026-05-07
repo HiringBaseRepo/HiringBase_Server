@@ -1,5 +1,5 @@
 """Scoring template business logic."""
-from fastapi import HTTPException, status
+from app.core.exceptions import TemplateNotFoundException, WeightTotalInvalidException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.features.jobs.models import JobScoringTemplate
@@ -28,10 +28,7 @@ def _validate_weight_total(data: CreateScoringTemplateRequest) -> None:
         + data.administrative_weight
     )
     if total != 100:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Weights must sum to 100, got {total}",
-        )
+        raise WeightTotalInvalidException(total=total)
 
 
 async def create_scoring_template(
@@ -66,7 +63,7 @@ async def update_scoring_template(
 ) -> ScoringTemplateUpdateResponse:
     template = await get_template_by_id(db, template_id)
     if not template:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+        raise TemplateNotFoundException()
     for key, value in updates.items():
         if hasattr(template, key):
             setattr(template, key, value)
@@ -77,7 +74,7 @@ async def update_scoring_template(
 async def get_scoring_template(db: AsyncSession, job_id: int) -> ScoringTemplateResponse:
     template = await get_template_by_job_id(db, job_id)
     if not template:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+        raise TemplateNotFoundException()
     return ScoringTemplateResponse(
         template_id=template.id,
         weights=ScoringWeightsResponse(

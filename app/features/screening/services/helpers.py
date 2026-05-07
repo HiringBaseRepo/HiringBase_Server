@@ -93,7 +93,7 @@ def find_answer_value(field_key: Optional[str], answers: list):
     if not field_key or not answers:
         return None
     for answer in answers:
-        fk = None
+        fk = Noneprocess_screening
         if hasattr(answer, "form_field") and answer.form_field:
             fk = answer.form_field.field_key
         elif hasattr(answer, "field_key"):

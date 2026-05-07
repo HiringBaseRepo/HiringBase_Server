@@ -28,6 +28,7 @@ from app.features.jobs.services.service import (
 from app.shared.schemas.response import StandardResponse, PaginatedResponse
 from app.core.utils.pagination import PaginationParams
 from app.shared.enums.job_status import JobStatus
+from app.shared.helpers.localization import get_label
 
 router = APIRouter(prefix="/jobs", tags=["Jobs / Vacancies"])
 
@@ -43,7 +44,7 @@ async def create_job_step1(
         current_user=current_user,
         data=data,
     )
-    return StandardResponse.ok(data=result, message="Step 1 saved")
+    return StandardResponse.ok(data=result, message=get_label("Step 1 saved"))
 
 
 @router.post("/{job_id}/step2-requirements", response_model=StandardResponse[JobStepResponse])

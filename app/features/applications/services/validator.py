@@ -1,9 +1,14 @@
 """Validation logic for applications service."""
 
 import json
+from fastapi import UploadFile
 
-from fastapi import HTTPException, UploadFile, status
-
+from app.core.exceptions import (
+    BaseDomainException,
+    DuplicateApplicationException,
+    JobNotFoundException,
+    MissingDocumentsException,
+)
 from app.features.applications.repositories.repository import (
     get_application_by_job_and_applicant,
     get_form_fields_by_job_id,
@@ -27,25 +32,19 @@ async def validate_public_apply_requirements(
         documents: List of uploaded documents
 
     Raises:
-        HTTPException: If validation fails
+        BaseDomainException: If validation fails
     """
     # Validate job exists and is published
     job = await get_published_job_by_id(db, data.job_id)
     if not job:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Job not found or not published",
-        )
+        raise JobNotFoundException("Lowongan tidak ditemukan atau belum dipublikasikan")
 
     # VALIDATION 1: Mandatory Form Fields
     form_fields = await get_form_fields_by_job_id(db, job_id=data.job_id)
     answers = json.loads(data.answers_json) if data.answers_json else {}
     for field in form_fields:
         if field.is_required and not answers.get(field.field_key):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Field '{field.label}' is required",
-            )
+            raise BaseDomainException(f"Field '{field.label}' wajib diisi")
 
     # VALIDATION 2: Required Documents
     knockout_rules = await get_knockout_rules_by_job_id(db, job_id=data.job_id)
@@ -61,10 +60,7 @@ async def validate_public_apply_requirements(
     for req_doc in required_docs:
         found = any(req_doc in fname for fname in uploaded_filenames)
         if not found:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Required document '{req_doc}' is missing",
-            )
+            raise MissingDocumentsException([req_doc])
 
     # VALIDATION 3: Duplicate application check
     applicant = await get_user_by_email(db, data.email)
@@ -75,6 +71,4 @@ async def validate_public_apply_requirements(
             applicant_id=applicant.id,
         )
         if duplicate and not job.allow_multiple_apply:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail=ERR_DUPLICATE_APPLICATION
-            )
+            raise DuplicateApplicationException()

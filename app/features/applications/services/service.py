@@ -6,8 +6,12 @@ from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.features.audit_logs.models import AuditLog
+from app.features.audit_logs.repositories.repository import create_audit_log
 from app.core.exceptions import (
     ApplicationNotFoundException,
+    FileTooLargeException,
+    InvalidFileTypeException,
     JobNotFoundException,
     MissingDocumentsException,
 )
@@ -45,6 +49,7 @@ from app.features.applications.schemas.schema import (
     PublicJobFormField,
     PublicJobItem,
 )
+from app.shared.helpers.localization import get_label
 from app.features.applications.services.mapper import map_job_to_public_item
 from app.features.applications.services.validator import (
     validate_public_apply_requirements,
@@ -106,6 +111,7 @@ async def get_public_job_detail(
         employment_type=job.employment_type.value,
         location=job.location,
         company_name=company.name if company else None,
+        employment_type_label=get_label(job.employment_type),
         form_fields=[
             PublicJobFormField(
                 field_key=field.field_key,
@@ -173,7 +179,7 @@ async def public_apply(
                 document_type=DocumentType.LAINNYA,
                 skip_invalid=True,
             )
-        except HTTPException:
+        except (InvalidFileTypeException, FileTooLargeException):
             continue
 
     ticket = await save_ticket(
@@ -182,7 +188,7 @@ async def public_apply(
             application_id=application.id,
             code=generate_ticket_code(),
             status=TicketStatus.OPEN,
-            subject=f"Application for {job.title if job else 'Unknown Position'}",
+            subject=f"Lamaran untuk {job.title if job else 'Posisi Tidak Diketahui'}",
         ),
     )
     await add_status_log(
@@ -197,6 +203,7 @@ async def public_apply(
         application_id=application.id,
         ticket_code=ticket.code,
         status=ApplicationStatus.APPLIED.value,
+        status_label=get_label(ApplicationStatus.APPLIED),
     )
 
 
@@ -265,6 +272,7 @@ async def list_applications(
             "job_id": app.job_id,
             "applicant_id": app.applicant_id,
             "status": app.status.value,
+            "status_label": get_label(app.status),
             "created_at": app.created_at.isoformat() if app.created_at else None
         }
         items.append(ApplicationListItem.model_validate(item_data))
@@ -307,9 +315,22 @@ async def update_application_status(
             reason=reason,
         ),
     )
+    await create_audit_log(
+        db,
+        AuditLog(
+            company_id=current_user.company_id,
+            user_id=current_user.id,
+            action="APPLICATION_STATUS_UPDATE",
+            entity_type="application",
+            entity_id=application.id,
+            old_values={"status": old_status.value if old_status else None},
+            new_values={"status": new_status.value, "reason": reason},
+        ),
+    )
     await db.commit()
     return ApplicationStatusUpdateResponse(
         application_id=application.id,
         old_status=old_status.value if old_status else None,
         new_status=new_status.value,
+        new_status_label=get_label(new_status),
     )

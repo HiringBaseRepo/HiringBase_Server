@@ -55,6 +55,7 @@ class PublishJobRequest(BaseModel):
 class JobStepResponse(BaseModel):
     job_id: int
     status: JobStatus | None = None
+    status_label: str | None = None
     requirements_added: int | None = None
     form_fields_added: int | None = None
 
@@ -62,6 +63,7 @@ class JobStepResponse(BaseModel):
 class JobPublishResponse(BaseModel):
     job_id: int
     status: JobStatus
+    status_label: str | None = None
     apply_code: str | None
     is_public: bool
 
@@ -71,7 +73,9 @@ class JobListItem(BaseModel):
     title: str
     department: str | None
     employment_type: EmploymentType
+    employment_type_label: str | None = None
     status: JobStatus
+    status_label: str | None = None
     location: str | None
     apply_code: str | None
     published_at: str | None

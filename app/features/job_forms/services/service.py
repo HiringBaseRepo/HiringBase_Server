@@ -1,5 +1,5 @@
 """Job form business logic."""
-from fastapi import HTTPException, status
+from app.core.exceptions import FieldNotFoundException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.features.job_forms.repositories.repository import (
@@ -51,7 +51,7 @@ async def update_form_field(
 ) -> FormFieldUpdatedResponse:
     field = await get_form_field(db, job_id=job_id, field_id=field_id)
     if not field:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Field not found")
+        raise FieldNotFoundException()
     for key, value in updates.items():
         if hasattr(field, key):
             setattr(field, key, value)
@@ -67,7 +67,7 @@ async def delete_form_field(
 ) -> FormFieldDeletedResponse:
     field = await get_form_field(db, job_id=job_id, field_id=field_id)
     if not field:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Field not found")
+        raise FieldNotFoundException()
     await delete_form_field_query(db, field)
     await db.commit()
     return FormFieldDeletedResponse(deleted=True)

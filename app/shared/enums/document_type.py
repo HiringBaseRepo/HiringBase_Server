@@ -3,10 +3,10 @@ from enum import Enum
 
 
 class DocumentType(str, Enum):
-    IJAZAH = "ijazah"
-    KTP = "ktp"
-    SKCK = "skck"
-    SURAT_SEHAT = "surat_sehat"
-    SERTIFIKAT = "sertifikat"
+    DEGREE = "degree"
+    IDENTITY_CARD = "identity_card"
+    CRIMINAL_RECORD = "criminal_record"
+    HEALTH_CERTIFICATE = "health_certificate"
+    CERTIFICATE = "certificate"
     PORTFOLIO = "portfolio"
-    LAINNYA = "lainnya"
+    OTHERS = "others"

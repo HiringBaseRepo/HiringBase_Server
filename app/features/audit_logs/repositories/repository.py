@@ -30,3 +30,8 @@ async def list_audit_logs(
         stmt.order_by(AuditLog.created_at.desc()).offset(pagination.offset).limit(pagination.limit)
     )
     return list(result.scalars().all()), total
+
+
+async def create_audit_log(db: AsyncSession, audit: AuditLog) -> None:
+    """Save an audit log entry."""
+    db.add(audit)

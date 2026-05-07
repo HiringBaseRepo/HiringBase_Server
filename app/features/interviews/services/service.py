@@ -1,5 +1,5 @@
 """Interview business logic."""
-from fastapi import HTTPException, status
+from app.core.exceptions import ApplicationNotFoundException, InterviewNotFoundException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.features.interviews.repositories.repository import (
@@ -28,7 +28,7 @@ async def schedule_interview(
         company_id=current_user.company_id,
     )
     if not application:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found")
+        raise ApplicationNotFoundException()
 
     interview = Interview(
         application_id=data.application_id,
@@ -50,7 +50,7 @@ async def schedule_interview(
 async def get_interview(db: AsyncSession, application_id: int) -> InterviewDetailResponse:
     interview = await get_interview_by_application_id(db, application_id)
     if not interview:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interview not found")
+        raise InterviewNotFoundException()
     return InterviewDetailResponse(
         id=interview.id,
         scheduled_at=interview.scheduled_at.isoformat() if interview.scheduled_at else None,

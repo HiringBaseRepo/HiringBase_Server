@@ -16,8 +16,12 @@ from app.core.exceptions.handlers import (
     integrity_error_handler,
     sqlalchemy_exception_handler,
     validation_exception_handler,
+    domain_exception_handler,
 )
+from app.core.exceptions.custom_exceptions import BaseDomainException
+from app.core.logging import setup_logging
 from app.core.middleware.rate_limit import RateLimitMiddleware
+from app.core.middleware.logging import LoggingMiddleware
 from app.features.applications.routers.router import router as applications_router
 from app.features.audit_logs.routers.router import router as audit_logs_router
 
@@ -39,16 +43,26 @@ from app.features.tickets.routers.router import router as tickets_router
 from app.features.users.routers.router import router as users_router
 from app.shared.schemas.response import StandardResponse
 
+# Initialize Logging
+setup_logging()
+
+from app.core.tkq import broker
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
-    # Startup
+    # Startup Taskiq Broker
+    if not broker.is_worker_process:
+        await broker.startup()
+        
     if settings.APP_ENV == "development":
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
     yield
     # Shutdown
+    if not broker.is_worker_process:
+        await broker.shutdown()
+        
     if settings.APP_ENV != "testing":
         await engine.dispose()
 
@@ -79,7 +93,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Rate limiting
+# Logging & Rate limiting
+app.add_middleware(LoggingMiddleware)
 app.add_middleware(RateLimitMiddleware)
 
 # Exception handlers
@@ -87,6 +102,7 @@ app.add_exception_handler(Exception, generic_exception_handler)  # type: ignore[
 app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)  # type: ignore[misc]
 app.add_exception_handler(IntegrityError, integrity_error_handler)  # type: ignore[misc]
 app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore[misc]
+app.add_exception_handler(BaseDomainException, domain_exception_handler)  # type: ignore[misc]
 
 # API Routers
 app.include_router(auth_router, prefix=settings.API_V1_PREFIX)

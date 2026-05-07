@@ -2,7 +2,12 @@
 
 from app.core.exceptions.custom_exceptions import (
     ApplicationNotFoundException,
+    BaseDomainException,
+    CompanyNotFoundException,
+    DuplicateApplicationException,
+    FieldNotFoundException,
     FileTooLargeException,
+    InterviewNotFoundException,
     InvalidCredentialsException,
     InvalidFileTypeException,
     InvalidRefreshTokenException,
@@ -12,12 +17,17 @@ from app.core.exceptions.custom_exceptions import (
     RefreshTokenExpiredException,
     RuleNotFoundException,
     SecurityAlertException,
+    TemplateNotFoundException,
+    TicketNotFoundException,
+    TokenRotationFailedException,
     TokenRevokedException,
     UserInactiveException,
     UserNotFoundException,
+    WeightTotalInvalidException,
 )
 
 __all__ = [
+    "BaseDomainException",
     "RuleNotFoundException",
     "ApplicationNotFoundException",
     "JobNotFoundException",
@@ -32,4 +42,12 @@ __all__ = [
     "FileTooLargeException",
     "PasswordResetTokenInvalidException",
     "MissingDocumentsException",
+    "TokenRotationFailedException",
+    "DuplicateApplicationException",
+    "TicketNotFoundException",
+    "TemplateNotFoundException",
+    "InterviewNotFoundException",
+    "CompanyNotFoundException",
+    "FieldNotFoundException",
+    "WeightTotalInvalidException",
 ]

@@ -38,6 +38,7 @@ from app.features.applications.services.service import (
 )
 from app.features.auth.dependencies.auth import require_hr
 from app.shared.enums.application_status import ApplicationStatus
+from app.shared.helpers.localization import get_label
 from app.shared.schemas.response import PaginatedResponse, StandardResponse
 
 router = APIRouter(prefix="/applications", tags=["Applications"])
@@ -86,15 +87,9 @@ async def public_apply(
         phone=phone,
         answers_json=answers_json,
     )
-    try:
-        result = await public_apply_service(db, data=command, documents=documents)
-        return StandardResponse.ok(
-            data=result, message="Application submitted successfully"
-        )
-    except (InvalidFileTypeException, FileTooLargeException) as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    result = await public_apply_service(db, data=command, documents=documents)
     return StandardResponse.ok(
-        data=result, message="Application submitted successfully"
+        data=result, message=get_label("Application submitted successfully")
     )
 
 
@@ -129,14 +124,11 @@ async def update_application_status(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_hr),
 ):
-    try:
-        result = await update_application_status_service(
-            db,
-            current_user=current_user,
-            application_id=application_id,
-            new_status=new_status,
-            reason=reason,
-        )
-        return StandardResponse.ok(data=result)
-    except ApplicationNotFoundException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    result = await update_application_status_service(
+        db,
+        current_user=current_user,
+        application_id=application_id,
+        new_status=new_status,
+        reason=reason,
+    )
+    return StandardResponse.ok(data=result)

@@ -2,9 +2,9 @@
 
 from datetime import datetime
 
-from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import JobNotFoundException
 from app.core.utils.pagination import PaginationParams
 from app.core.utils.ticket import generate_apply_code
 from app.features.jobs.models import Job, JobFormField, JobRequirement
@@ -17,6 +17,8 @@ from app.features.jobs.repositories.repository import (
     save_job,
     save_requirements,
 )
+from app.features.audit_logs.models import AuditLog
+from app.features.audit_logs.repositories.repository import create_audit_log
 from app.features.jobs.repositories.repository import (
     list_jobs as list_jobs_query,
 )
@@ -40,12 +42,8 @@ from app.features.jobs.services.mapper import (
 )
 from app.features.users.models import User
 from app.shared.enums.job_status import JobStatus
+from app.shared.helpers.localization import get_label
 from app.shared.schemas.response import PaginatedResponse
-
-
-def _job_not_found() -> HTTPException:
-    return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
-
 
 async def create_job_step1(
     db: AsyncSession,
@@ -68,8 +66,22 @@ async def create_job_step1(
         status=JobStatus.DRAFT,
     )
     job = await save_job(db, job)
+    await db.flush()
+    await create_audit_log(
+        db,
+        AuditLog(
+            company_id=current_user.company_id,
+            user_id=current_user.id,
+            action="JOB_CREATE",
+            entity_type="job",
+            entity_id=job.id,
+            new_values={"title": job.title, "status": job.status},
+        ),
+    )
     await db.commit()
-    return JobStepResponse(job_id=job.id, status=job.status)
+    return JobStepResponse(
+        job_id=job.id, status=job.status, status_label=get_label(job.status)
+    )
 
 
 async def add_job_requirements(
@@ -81,7 +93,7 @@ async def add_job_requirements(
 ) -> JobStepResponse:
     job = await get_job_for_company(db, job_id, current_user.company_id)
     if not job:
-        raise _job_not_found()
+        raise JobNotFoundException()
 
     requirements = [
         JobRequirement(
@@ -108,7 +120,7 @@ async def setup_job_form(
 ) -> JobStepResponse:
     job = await get_job_for_company(db, job_id, current_user.company_id)
     if not job:
-        raise _job_not_found()
+        raise JobNotFoundException()
 
     fields = [_build_form_field(job_id, item) for item in data.fields]
     await save_form_fields(db, fields)
@@ -140,7 +152,7 @@ async def publish_job(
 ) -> JobPublishResponse:
     job = await get_job_for_company(db, job_id, current_user.company_id)
     if not job:
-        raise _job_not_found()
+        raise JobNotFoundException()
 
     job.apply_code = generate_apply_code()
     if data.mode == "public":
@@ -154,14 +166,27 @@ async def publish_job(
         job.status = JobStatus.SCHEDULED
         job.scheduled_publish_at = data.scheduled_at
 
+    await create_audit_log(
+        db,
+        AuditLog(
+            company_id=current_user.company_id,
+            user_id=current_user.id,
+            action="JOB_PUBLISH",
+            entity_type="job",
+            entity_id=job.id,
+            new_values={"status": job.status, "mode": data.mode},
+        ),
+    )
     await db.commit()
     await db.refresh(job)
-    return JobPublishResponse(
+    response = JobPublishResponse(
         job_id=job.id,
         status=job.status,
+        status_label=get_label(job.status),
         apply_code=job.apply_code,
         is_public=job.is_public,
     )
+    return response
 
 
 async def list_jobs(
@@ -199,7 +224,7 @@ async def get_job_detail(
 ) -> JobDetailResponse:
     job = await get_job_for_company(db, job_id, current_user.company_id)
     if not job:
-        raise _job_not_found()
+        raise JobNotFoundException()
 
     requirements = await get_requirements_by_job_id(db, job_id)
     form_fields = await get_form_fields_by_job_id(db, job_id)
@@ -222,9 +247,23 @@ async def close_job(
 ) -> JobCloseResponse:
     job = await get_job_for_company(db, job_id, current_user.company_id)
     if not job:
-        raise _job_not_found()
+        raise JobNotFoundException()
 
     job.status = JobStatus.CLOSED
     job.closed_at = datetime.utcnow()
+    await create_audit_log(
+        db,
+        AuditLog(
+            company_id=current_user.company_id,
+            user_id=current_user.id,
+            action="JOB_CLOSE",
+            entity_type="job",
+            entity_id=job.id,
+            new_values={"status": job.status},
+        ),
+    )
     await db.commit()
-    return JobCloseResponse(job_id=job.id, status=job.status)
+    response = JobCloseResponse(
+        job_id=job.id, status=job.status, status_label=get_label(job.status)
+    )
+    return response

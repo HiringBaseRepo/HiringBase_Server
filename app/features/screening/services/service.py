@@ -60,6 +60,7 @@ from app.shared.constants.scoring import (
 )
 from app.shared.enums.application_status import ApplicationStatus
 from app.shared.enums.document_type import DocumentType
+from app.shared.helpers.localization import get_label
 
 
 async def create_knockout_rule(
@@ -104,21 +105,23 @@ async def queue_screening(
     )
     if not application:
         raise ApplicationNotFoundException()
-    return ScreeningQueuedResponse(message="Screening queued")
+    return ScreeningQueuedResponse(message=get_label("Proses screening telah dimasukkan dalam antrean"))
 
 
 async def process_screening_with_exception_handling(
-    application_id: int, company_id: int | None
+    application_id: int, company_id: int | None, force_fallback: bool = False
 ) -> None:
     """Wrapper for process_screening that handles exceptions in BackgroundTasks."""
     try:
-        await process_screening(application_id, company_id)
+        await process_screening(application_id, company_id, force_fallback=force_fallback)
     except MissingDocumentsException:
         # Exception already handled in process_screening
         pass
 
 
-async def process_screening(application_id: int, company_id: int | None) -> None:
+async def process_screening(
+    application_id: int, company_id: int | None, force_fallback: bool = False
+) -> None:
     from app.core.database.session import get_session
 
     async with get_session() as db:
@@ -133,13 +136,13 @@ async def process_screening(application_id: int, company_id: int | None) -> None
             application.status = ApplicationStatus.DOC_CHECK
             rules = await get_active_knockout_rules(db, job.id)
             
-            # Langkah 1: Validasi kelengkapan dokumen wajib (Dynamic dari Knockout Rules)
+            # Step 1: Validate mandatory document completeness (Dynamic from Knockout Rules)
             docs = await get_documents_by_application_id(db, application_id)
             doc_types = {doc.document_type for doc in docs}
             required_doc_rules = [r for r in rules if r.rule_type == "document"]
             
             for rule in required_doc_rules:
-                # Target value berisi DocumentType enum value (misal: "KTP", "IJAZAH")
+                # Target value contains DocumentType enum value (e.g., "identity_card", "degree")
                 if rule.target_value not in [d.value for d in doc_types]:
                     raise MissingDocumentsException([rule.target_value])
             
@@ -152,7 +155,7 @@ async def process_screening(application_id: int, company_id: int | None) -> None
                         ApplicationStatusLog(
                             application_id=application.id,
                             to_status=ApplicationStatus.KNOCKOUT.value,
-                            reason=f"Knockout rule failed: {rule.rule_name}",
+                            reason=f"Gagal kualifikasi (Knockout): {rule.rule_name}",
                         ),
                     )
                     await db.commit()
@@ -160,7 +163,7 @@ async def process_screening(application_id: int, company_id: int | None) -> None
 
             # Langkah 2 & 3: OCR JIT & Validasi Semantik Dokumen Berbasis LLM
             doc_validation_flags = await run_document_semantic_check(
-                docs, application.applicant
+                docs, application.applicant, force_fallback=force_fallback
             )
 
             answers = await get_answers_by_application_id(db, application_id)
@@ -180,7 +183,7 @@ async def process_screening(application_id: int, company_id: int | None) -> None
             ) or JobScoringTemplate(**get_default_scoring_template())
             requirements = await get_requirements_by_job_id(db, job.id)
             match_result = await match_candidate_to_job(
-                parsed_data, requirements, job.description
+                parsed_data, requirements, job.description, force_fallback=force_fallback
             )
             exp_score = score_experience(
                 parsed_data.get("total_years_experience", 0),
@@ -214,8 +217,10 @@ async def process_screening(application_id: int, company_id: int | None) -> None
                 administrative_weight=template.administrative_weight,
             )
 
-            red_flags = detect_red_flags(parsed_data, text)
-            # Tambahkan hasil validasi dokumen ke red flags
+            red_flags = await detect_red_flags(
+                parsed_data, text, force_fallback=force_fallback
+            )
+            # Append document validation flags to red flags
             if doc_validation_flags:
                 red_flags["red_flags"].extend(doc_validation_flags)
                 red_flags["risk_level"] = "high"
@@ -251,7 +256,7 @@ async def process_screening(application_id: int, company_id: int | None) -> None
                 ApplicationStatusLog(
                     application_id=application.id,
                     to_status=application.status.value,
-                    reason=f"AI screening complete. Final score: {final:.1f}",
+                    reason=f"Screening AI selesai. Skor akhir: {final:.1f}",
                 ),
             )
             await db.commit()
@@ -288,7 +293,7 @@ async def manual_override_score(
         company_id=current_user.company_id,
     )
     if not score:
-        raise ApplicationNotFoundException("Candidate score not found")
+        raise ApplicationNotFoundException("Skor kandidat tidak ditemukan")
 
     old_final = score.final_score
     score.skill_match_score = _clamp_score(score.skill_match_score + skill_adjustment)

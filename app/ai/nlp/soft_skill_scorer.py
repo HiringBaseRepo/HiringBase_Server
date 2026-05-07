@@ -1,14 +1,14 @@
 """Soft Skill NLP Scorer — Layer 2 NLP Engine.
 
-Menganalisis teks CV untuk mengekstrak sinyal soft skill:
-- Communication (komunikasi)
-- Leadership (kepemimpinan)
-- Teamwork (kerjasama tim)
+Analyzes text to extract soft skill signals:
+- Communication
+- Leadership
+- Teamwork
 - Problem Solving
-- Initiative / Proaktif
+- Initiative / Proactive
 
-Pendekatan: Rule-based keyword classifier yang ringan.
-TIDAK memerlukan LLM. Output: skor 0-100 per dimensi.
+Approach: Lightweight rule-based keyword classifier.
+Does NOT require LLM. Output: score 0-100 per dimension.
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ import structlog
 
 log = structlog.get_logger(__name__)
 
-# --- Keyword dictionaries per dimensi ---
+# --- Keyword dictionaries per dimension ---
 
 _COMMUNICATION_KEYWORDS: List[str] = [
     "komunikasi", "communication", "presentasi", "presentation",
@@ -61,11 +61,11 @@ _INITIATIVE_KEYWORDS: List[str] = [
 
 
 def _count_keyword_matches(text: str, keywords: List[str]) -> int:
-    """Hitung berapa keyword yang ditemukan dalam teks."""
+    """Count how many keywords are found in the text."""
     text_lower = text.lower()
     count = 0
     for kw in keywords:
-        # Gunakan word boundary jika memungkinkan
+        # Use word boundary if possible
         try:
             if re.search(r"\b" + re.escape(kw) + r"\b", text_lower):
                 count += 1
@@ -76,25 +76,25 @@ def _count_keyword_matches(text: str, keywords: List[str]) -> int:
 
 
 def _keyword_count_to_score(count: int, max_keywords: int = 5) -> float:
-    """Konversi jumlah keyword match ke skor 0-100."""
+    """Convert keyword match count to score 0-100."""
     if count <= 0:
-        return 20.0  # skor minimum — tidak bisa 0 hanya dari keyword
+        return 20.0  # minimum score — cannot be 0 only from keywords
     ratio = min(count / max_keywords, 1.0)
-    # Scale ke 40-100 range (keyword saja tidak cukup untuk skor penuh)
+    # Scale to 40-100 range (keywords alone are not enough for full score)
     return round(40.0 + ratio * 60.0, 1)
 
 
 def score_soft_skills(text: str) -> Dict[str, float]:
-    """Analisis teks CV dan kembalikan skor soft skill per dimensi.
+    """Analyze text and return soft skill scores per dimension.
 
     Args:
-        text: Teks mentah dari CV (hasil OCR atau parsing)
+        text: Raw text (from OCR or parsing)
 
     Returns:
-        Dict dengan skor per dimensi (0-100) dan composite_score
+        Dict with scores per dimension (0-100) and composite_score
     """
     if not text or len(text.strip()) < 50:
-        log.warning("Soft skill scoring: teks terlalu pendek atau kosong")
+        log.warning("Soft skill scoring: text too short or empty")
         return {
             "communication": 30.0,
             "leadership": 30.0,
@@ -118,7 +118,7 @@ def score_soft_skills(text: str) -> Dict[str, float]:
         "initiative": _keyword_count_to_score(init_count),
     }
 
-    # Composite: rata-rata semua dimensi
+    # Composite: average of all dimensions
     scores["composite_score"] = round(
         sum(scores[k] for k in ["communication", "leadership", "teamwork", "problem_solving", "initiative"]) / 5,
         1,

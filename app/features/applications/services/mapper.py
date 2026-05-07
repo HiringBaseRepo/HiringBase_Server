@@ -1,8 +1,8 @@
 """Mapping logic for applications service."""
 
 from typing import Any
-
 from app.features.applications.schemas.schema import PublicJobItem
+from app.shared.helpers.localization import get_label
 
 
 def map_job_to_public_item(job: Any, company: Any) -> PublicJobItem:
@@ -20,6 +20,7 @@ def map_job_to_public_item(job: Any, company: Any) -> PublicJobItem:
         title=job.title,
         department=job.department,
         employment_type=job.employment_type.value,
+        employment_type_label=get_label(job.employment_type),
         location=job.location,
         salary_min=job.salary_min,
         salary_max=job.salary_max,

@@ -1,7 +1,7 @@
 """Ranking business logic."""
-from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import JobNotFoundException
 from app.core.utils.pagination import PaginationParams
 from app.features.users.models import User
 from app.features.ranking.repositories.repository import (
@@ -26,7 +26,7 @@ async def rank_applicants(
 ) -> PaginatedResponse[RankingItem]:
     job = await get_job_for_company(db, job_id=job_id, company_id=current_user.company_id)
     if not job:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+        raise JobNotFoundException()
 
     rows, total = await list_ranked_applications(
         db,
