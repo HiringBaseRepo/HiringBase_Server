@@ -1,11 +1,11 @@
 """Unit tests for validator_step.run_document_semantic_check.
 
-Menguji logika orchestrasi dokumen:
-- OCR dipanggil untuk setiap dokumen KTP/Ijazah
-- Hasil OCR dikirim ke LLM validator
-- Flag dikembalikan jika dokumen tidak valid
-- Dokumen non-KTP/IJAZAH dilewati
-- OCR error tidak memblokir pipeline
+Tests document orchestration logic:
+- OCR is called for each IDENTITY_CARD/DEGREE document
+- OCR results are sent to the LLM validator
+- Flags are returned if documents are invalid
+- Non-IDENTITY_CARD/DEGREE documents are skipped
+- OCR errors do not block the pipeline
 """
 
 import pytest
@@ -33,21 +33,21 @@ def _make_applicant(name: str = "John Doe", email: str = "john@example.com"):
 
 
 # =============================================================================
-# Test: dokumen valid → tidak ada flag
+# Test: valid documents → no flags
 # =============================================================================
 
 @pytest.mark.asyncio
 async def test_valid_documents_return_empty_flags():
-    """Jika semua dokumen valid, hasilnya list kosong."""
-    docs = [_make_doc(DocumentType.KTP), _make_doc(DocumentType.IJAZAH)]
+    """If all documents are valid, result is an empty list."""
+    docs = [_make_doc(DocumentType.IDENTITY_CARD), _make_doc(DocumentType.DEGREE)]
     applicant = _make_applicant()
 
     with patch(
         "app.features.screening.services.validator_step.extract_text_from_document",
-        AsyncMock(return_value="John Doe NIK 3273012345678901 berlaku seumur hidup"),
+        AsyncMock(return_value="John Doe NIK 3273012345678901 valid for life"),
     ), patch(
         "app.features.screening.services.validator_step.validate_document_content",
-        AsyncMock(return_value={"valid": True, "reason": "Dokumen valid", "confidence": 0.95}),
+        AsyncMock(return_value={"valid": True, "reason": "Document valid", "confidence": 0.95}),
     ):
         from app.features.screening.services.validator_step import run_document_semantic_check
         flags = await run_document_semantic_check(docs, applicant)
@@ -56,23 +56,23 @@ async def test_valid_documents_return_empty_flags():
 
 
 # =============================================================================
-# Test: dokumen invalid → flag ditambahkan
+# Test: invalid document → flag added
 # =============================================================================
 
 @pytest.mark.asyncio
-async def test_invalid_ktp_adds_flag():
-    """Jika KTP tidak valid, flag berisi peringatan KTP."""
-    docs = [_make_doc(DocumentType.KTP)]
+async def test_invalid_identity_card_adds_flag():
+    """If IDENTITY_CARD is invalid, flag contains identity_card warning."""
+    docs = [_make_doc(DocumentType.IDENTITY_CARD)]
     applicant = _make_applicant(name="John Doe")
 
     with patch(
         "app.features.screening.services.validator_step.extract_text_from_document",
-        AsyncMock(return_value="Ahmad Budi NIK 1234567890 berlaku seumur hidup"),
+        AsyncMock(return_value="Ahmad Budi NIK 1234567890 valid for life"),
     ), patch(
         "app.features.screening.services.validator_step.validate_document_content",
         AsyncMock(return_value={
             "valid": False,
-            "reason": "Nama pada KTP tidak cocok dengan data pelamar",
+            "reason": "Name on card does not match applicant data",
             "confidence": 0.9,
         }),
     ):
@@ -80,24 +80,24 @@ async def test_invalid_ktp_adds_flag():
         flags = await run_document_semantic_check(docs, applicant)
 
     assert len(flags) == 1
-    assert "KTP" in flags[0]
-    assert "Nama pada KTP tidak cocok" in flags[0]
+    assert "identity_card" in flags[0].lower()
+    assert "Name on card does not match" in flags[0]
 
 
 @pytest.mark.asyncio
-async def test_invalid_ijazah_adds_flag():
-    """Jika Ijazah tidak valid, flag berisi peringatan Ijazah."""
-    docs = [_make_doc(DocumentType.IJAZAH)]
+async def test_invalid_degree_adds_flag():
+    """If DEGREE is invalid, flag contains degree warning."""
+    docs = [_make_doc(DocumentType.DEGREE)]
     applicant = _make_applicant()
 
     with patch(
         "app.features.screening.services.validator_step.extract_text_from_document",
-        AsyncMock(return_value="Sertifikat Kompetensi - bukan ijazah"),
+        AsyncMock(return_value="Competency Certificate - not a degree"),
     ), patch(
         "app.features.screening.services.validator_step.validate_document_content",
         AsyncMock(return_value={
             "valid": False,
-            "reason": "Dokumen bukan merupakan Ijazah",
+            "reason": "Document is not a degree",
             "confidence": 0.85,
         }),
     ):
@@ -105,45 +105,45 @@ async def test_invalid_ijazah_adds_flag():
         flags = await run_document_semantic_check(docs, applicant)
 
     assert len(flags) == 1
-    assert "ijazah" in flags[0].lower()
+    assert "degree" in flags[0].lower()
 
 
 @pytest.mark.asyncio
 async def test_multiple_invalid_docs_each_add_flag():
-    """Setiap dokumen yang invalid menambahkan flag tersendiri."""
-    docs = [_make_doc(DocumentType.KTP), _make_doc(DocumentType.IJAZAH)]
+    """Each invalid document adds its own flag."""
+    docs = [_make_doc(DocumentType.IDENTITY_CARD), _make_doc(DocumentType.DEGREE)]
     applicant = _make_applicant()
 
     with patch(
         "app.features.screening.services.validator_step.extract_text_from_document",
-        AsyncMock(return_value="teks dokumen palsu"),
+        AsyncMock(return_value="fake document text"),
     ), patch(
         "app.features.screening.services.validator_step.validate_document_content",
         AsyncMock(return_value={
             "valid": False,
-            "reason": "Dokumen terindikasi tidak autentik",
+            "reason": "Document indicates non-authentic content",
             "confidence": 0.8,
         }),
     ):
         from app.features.screening.services.validator_step import run_document_semantic_check
         flags = await run_document_semantic_check(docs, applicant)
 
-    # Dua dokumen → dua flag
+    # Two documents → two flags
     assert len(flags) == 2
 
 
 # =============================================================================
-# Test: OCR dipanggil dengan URL yang benar
+# Test: OCR called with correct URL
 # =============================================================================
 
 @pytest.mark.asyncio
 async def test_ocr_called_with_document_url():
-    """OCR harus dipanggil menggunakan URL dari dokumen."""
-    doc_url = "https://r2.example.com/documents/ktp-abc123.pdf"
-    docs = [_make_doc(DocumentType.KTP, url=doc_url)]
+    """OCR must be called using the document's URL."""
+    doc_url = "https://r2.example.com/documents/identity-abc123.pdf"
+    docs = [_make_doc(DocumentType.IDENTITY_CARD, url=doc_url)]
     applicant = _make_applicant()
 
-    mock_ocr = AsyncMock(return_value="John Doe NIK 327301 berlaku seumur hidup")
+    mock_ocr = AsyncMock(return_value="John Doe NIK 327301 valid for life")
     mock_validate = AsyncMock(return_value={"valid": True, "reason": "OK", "confidence": 0.99})
 
     with patch(
@@ -158,15 +158,15 @@ async def test_ocr_called_with_document_url():
 
 
 # =============================================================================
-# Test: LLM dipanggil dengan data yang benar
+# Test: LLM called with correct data
 # =============================================================================
 
 @pytest.mark.asyncio
 async def test_validator_called_with_correct_applicant_data():
-    """LLM validator harus menerima nama dan email pelamar yang benar."""
-    docs = [_make_doc(DocumentType.KTP)]
-    applicant = _make_applicant(name="Budi Santoso", email="budi@example.com")
-    ocr_text = "Budi Santoso NIK 317201 Berlaku Seumur Hidup"
+    """LLM validator must receive the correct applicant name and email."""
+    docs = [_make_doc(DocumentType.IDENTITY_CARD)]
+    applicant = _make_applicant(name="John Doe", email="john@example.com")
+    ocr_text = "John Doe NIK 317201 Valid for life"
 
     mock_validate = AsyncMock(return_value={"valid": True, "reason": "OK", "confidence": 1.0})
 
@@ -179,26 +179,23 @@ async def test_validator_called_with_correct_applicant_data():
         from app.features.screening.services.validator_step import run_document_semantic_check
         await run_document_semantic_check(docs, applicant)
 
-    # validator_step mengirim doc_type.value → enum value (lowercase)
+    # validator_step sends doc_type.value → enum value (lowercase)
     mock_validate.assert_called_once_with(
-        "ktp",
+        "identity_card",
         ocr_text,
-        {"name": "Budi Santoso", "email": "budi@example.com"},
+        {"name": "John Doe", "email": "john@example.com"},
     )
 
 
 # =============================================================================
-# Test: Dokumen non-KTP/IJAZAH dilewati
+# Test: Non-IDENTITY_CARD/DEGREE documents are skipped
 # =============================================================================
 
 @pytest.mark.asyncio
 async def test_non_required_doc_types_are_skipped():
-    """Dokumen selain KTP dan IJAZAH tidak diproses OCR/LLM."""
-    # Gunakan tipe dokumen lain jika ada, atau buat mock yang tidak cocok
+    """Documents other than IDENTITY_CARD and DEGREE are not processed by OCR/LLM."""
     other_doc = MagicMock()
-    other_doc.document_type = MagicMock()
-    # Buat agar dokumen ini tidak ada di [DocumentType.KTP, DocumentType.IJAZAH]
-    other_doc.document_type.__eq__ = lambda self, other: False
+    other_doc.document_type = DocumentType.OTHERS
 
     applicant = _make_applicant()
 
@@ -213,19 +210,19 @@ async def test_non_required_doc_types_are_skipped():
         from app.features.screening.services.validator_step import run_document_semantic_check
         flags = await run_document_semantic_check([other_doc], applicant)
 
-    # OCR dan LLM tidak dipanggil
+    # OCR and LLM are not called
     mock_ocr.assert_not_called()
     mock_validate.assert_not_called()
     assert flags == []
 
 
 # =============================================================================
-# Test: Daftar dokumen kosong
+# Test: Empty document list
 # =============================================================================
 
 @pytest.mark.asyncio
 async def test_empty_document_list_returns_empty_flags():
-    """Jika tidak ada dokumen, hasilnya list kosong tanpa error."""
+    """If no documents are provided, result is an empty list without error."""
     applicant = _make_applicant()
 
     from app.features.screening.services.validator_step import run_document_semantic_check

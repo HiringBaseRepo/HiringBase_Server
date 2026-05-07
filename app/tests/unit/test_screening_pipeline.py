@@ -91,15 +91,15 @@ async def test_process_screening_doc_failed_when_missing_ijazah():
     """Screening harus set DOC_FAILED jika Ijazah tidak ada."""
     app = _make_application()
     job = _make_job()
-    docs = [_make_doc(DocumentType.KTP)]  # Hanya KTP
+    docs = [_make_doc(DocumentType.IDENTITY_CARD)]  # Hanya KTP
 
     mock_db = AsyncMock()
     ktp_rule = MagicMock()
     ktp_rule.rule_type = "document"
-    ktp_rule.target_value = "KTP"
+    ktp_rule.target_value = "IDENTITY_CARD"
     ijazah_rule = MagicMock()
     ijazah_rule.rule_type = "document"
-    ijazah_rule.target_value = "IJAZAH"
+    ijazah_rule.target_value = "DEGREE"
 
     with patch("app.core.database.session.get_session", _mock_session_ctx(mock_db)), \
          patch("app.features.screening.services.service.get_application_by_id", AsyncMock(return_value=app)), \
@@ -119,12 +119,12 @@ async def test_process_screening_doc_failed_when_missing_ktp():
     """Screening harus set DOC_FAILED jika KTP tidak ada."""
     app = _make_application()
     job = _make_job()
-    docs = [_make_doc(DocumentType.IJAZAH)]  # Hanya Ijazah
+    docs = [_make_doc(DocumentType.DEGREE)]  # Hanya Ijazah
 
     mock_db = AsyncMock()
     ktp_rule = MagicMock()
     ktp_rule.rule_type = "document"
-    ktp_rule.target_value = "KTP"
+    ktp_rule.target_value = "IDENTITY_CARD"
 
     with patch("app.core.database.session.get_session", _mock_session_ctx(mock_db)), \
          patch("app.features.screening.services.service.get_application_by_id", AsyncMock(return_value=app)), \
@@ -148,7 +148,7 @@ async def test_process_screening_doc_failed_no_documents():
 
     ktp_rule = MagicMock()
     ktp_rule.rule_type = "document"
-    ktp_rule.target_value = "KTP"
+    ktp_rule.target_value = "IDENTITY_CARD"
 
     with patch("app.core.database.session.get_session", _mock_session_ctx(mock_db)), \
          patch("app.features.screening.services.service.get_application_by_id", AsyncMock(return_value=app)), \
@@ -203,7 +203,7 @@ async def test_process_screening_knockout_when_rule_fails():
     """Screening harus set KNOCKOUT jika ada knockout rule yang gagal."""
     app = _make_application()
     job = _make_job()
-    docs = [_make_doc(DocumentType.KTP), _make_doc(DocumentType.IJAZAH)]
+    docs = [_make_doc(DocumentType.IDENTITY_CARD), _make_doc(DocumentType.DEGREE)]
     rule = MagicMock()
     rule.rule_name = "Min Experience 3 Years"
     answers = [_make_answer("experience_years", value_text="1")]
@@ -230,7 +230,7 @@ async def test_process_screening_passes_knockout_when_all_rules_pass():
     """Screening melanjutkan ke scoring jika semua knockout rules lulus."""
     app = _make_application()
     job = _make_job()
-    docs = [_make_doc(DocumentType.KTP), _make_doc(DocumentType.IJAZAH)]
+    docs = [_make_doc(DocumentType.IDENTITY_CARD), _make_doc(DocumentType.DEGREE)]
     rule = MagicMock()
     rule.rule_name = "Min Experience"
     answers = [
@@ -275,7 +275,7 @@ async def test_process_screening_ai_passed_when_score_above_threshold():
     """Status harus AI_PASSED jika final_score >= MINIMUM_PASS_SCORE."""
     app = _make_application()
     job = _make_job()
-    docs = [_make_doc(DocumentType.KTP), _make_doc(DocumentType.IJAZAH)]
+    docs = [_make_doc(DocumentType.IDENTITY_CARD), _make_doc(DocumentType.DEGREE)]
     answers = [
         _make_answer("skills", value_text="Python, FastAPI, SQL, Docker"),
         _make_answer("experience_years", value_text="10"),
@@ -313,7 +313,7 @@ async def test_process_screening_under_review_when_score_below_threshold():
     """Status harus UNDER_REVIEW jika final_score < MINIMUM_PASS_SCORE."""
     app = _make_application()
     job = _make_job()
-    docs = [_make_doc(DocumentType.KTP), _make_doc(DocumentType.IJAZAH)]
+    docs = [_make_doc(DocumentType.IDENTITY_CARD), _make_doc(DocumentType.DEGREE)]
     answers = [_make_answer("skills", value_text="Basic Excel")]
     template = _make_template(skill=100, exp=0, edu=0, portfolio=0, soft=0, admin=0)
     mock_db = AsyncMock()
@@ -347,7 +347,7 @@ async def test_process_screening_doc_anomaly_sets_high_risk():
     """Jika dokumen mengandung anomali, risk_level harus 'high' dan red_flags berisi peringatan."""
     app = _make_application()
     job = _make_job()
-    docs = [_make_doc(DocumentType.KTP), _make_doc(DocumentType.IJAZAH)]
+    docs = [_make_doc(DocumentType.IDENTITY_CARD), _make_doc(DocumentType.DEGREE)]
     answers = [_make_answer("skills", value_text="Python")]
     template = _make_template()
     mock_db = AsyncMock()
@@ -390,7 +390,7 @@ async def test_process_screening_score_uses_custom_weights():
     """Final score harus dihitung menggunakan bobot kustom dari template."""
     app = _make_application()
     job = _make_job()
-    docs = [_make_doc(DocumentType.KTP), _make_doc(DocumentType.IJAZAH)]
+    docs = [_make_doc(DocumentType.IDENTITY_CARD), _make_doc(DocumentType.DEGREE)]
     answers = [
         _make_answer("skills", value_text="Python"),
         _make_answer("experience_years", value_text="0"),
