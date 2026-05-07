@@ -90,15 +90,17 @@ def test_parse_resume_empty_text():
 # =====================================================
 
 
-def test_redflag_no_flags_clean_cv():
+@pytest.mark.asyncio
+async def test_redflag_no_flags_clean_cv():
     parsed = {
         "experiences": [{"start": 2019, "end": 2022, "years": 3}],
     }
-    result = detect_red_flags(parsed, "Professional resume text without issues")
+    result = await detect_red_flags(parsed, "Professional resume text without issues")
     assert result["risk_level"] in ("low", "medium")
 
 
-def test_redflag_detects_job_hopping():
+@pytest.mark.asyncio
+async def test_redflag_detects_job_hopping():
     parsed = {
         "experiences": [
             {"start": 2019, "end": 2019, "years": 0},
@@ -107,24 +109,26 @@ def test_redflag_detects_job_hopping():
             {"start": 2020, "end": 2021, "years": 1},
         ],
     }
-    result = detect_red_flags(parsed, "sample text " * 10)
+    result = await detect_red_flags(parsed, "sample text " * 10)
     flags = result["red_flags"]
     assert any("hopping" in f.lower() for f in flags)
 
 
-def test_redflag_detects_employment_gap():
+@pytest.mark.asyncio
+async def test_redflag_detects_employment_gap():
     parsed = {
         "experiences": [
             {"start": 2015, "end": 2017, "years": 2},
             {"start": 2020, "end": 2022, "years": 2},  # 3 year gap
         ],
     }
-    result = detect_red_flags(parsed, "sample text " * 10)
+    result = await detect_red_flags(parsed, "sample text " * 10)
     flags = result["red_flags"]
     assert any("gap" in f.lower() for f in flags)
 
 
-def test_redflag_high_risk_multiple_flags():
+@pytest.mark.asyncio
+async def test_redflag_high_risk_multiple_flags():
     parsed = {
         "experiences": [
             {"start": 2019, "end": 2019, "years": 0},
@@ -134,7 +138,7 @@ def test_redflag_high_risk_multiple_flags():
         ],
     }
     text = "teh adn hte recieve seperate " * 5 + "100 juta salary expected " * 3
-    result = detect_red_flags(parsed, text)
+    result = await detect_red_flags(parsed, text)
     assert result["risk_level"] in ("medium", "high")
 
 

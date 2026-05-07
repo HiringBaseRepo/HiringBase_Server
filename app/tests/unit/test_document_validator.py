@@ -42,7 +42,9 @@ async def test_validate_document_no_api_key_returns_valid():
         validator_module.settings = original_settings  # restore
 
     assert result["valid"] is True
-    assert "skip" in result["reason"].lower() or "no api" in result["reason"].lower()
+    # Localized check: "dilewati" (skipped) or "api key"
+    reason = result["reason"].lower()
+    assert "skip" in reason or "dilewati" in reason or "api key" in reason
 
 
 @pytest.mark.asyncio
