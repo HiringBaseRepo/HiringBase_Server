@@ -11,17 +11,17 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.core.config import settings
 from app.core.database.base import Base, engine
+from app.core.exceptions.custom_exceptions import BaseDomainException
 from app.core.exceptions.handlers import (
+    domain_exception_handler,
     generic_exception_handler,
     integrity_error_handler,
     sqlalchemy_exception_handler,
     validation_exception_handler,
-    domain_exception_handler,
 )
-from app.core.exceptions.custom_exceptions import BaseDomainException
 from app.core.logging import setup_logging
-from app.core.middleware.rate_limit import RateLimitMiddleware
 from app.core.middleware.logging import LoggingMiddleware
+from app.core.middleware.rate_limit import RateLimitMiddleware
 from app.features.applications.routers.router import router as applications_router
 from app.features.audit_logs.routers.router import router as audit_logs_router
 
@@ -48,13 +48,14 @@ setup_logging()
 
 from app.core.tkq import broker
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
     # Startup Taskiq Broker
     if not broker.is_worker_process:
         await broker.startup()
-        
+
     if settings.APP_ENV == "development":
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
@@ -62,7 +63,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     if not broker.is_worker_process:
         await broker.shutdown()
-        
+
     if settings.APP_ENV != "testing":
         await engine.dispose()
 
