@@ -105,7 +105,7 @@ async def test_screening_requires_all_documents(
     # Add only KTP (missing Ijazah)
     ktp_document = ApplicationDocument(
         application_id=application.id,
-        document_type=DocumentType.KTP,
+        document_type=DocumentType.IDENTITY_CARD,
         file_url=f"https://mock-r2.example.com/documents/ktp_{unique_id}.pdf",
         file_name="ktp.pdf",
         mime_type="application/pdf",
@@ -203,14 +203,14 @@ async def test_screening_with_all_required_documents(
     documents = [
         ApplicationDocument(
             application_id=application.id,
-            document_type=DocumentType.KTP,
+            document_type=DocumentType.IDENTITY_CARD,
             file_url=f"https://mock-r2.example.com/documents/ktp_{unique_id}.pdf",
             file_name="ktp.pdf",
             mime_type="application/pdf",
         ),
         ApplicationDocument(
             application_id=application.id,
-            document_type=DocumentType.IJAZAH,
+            document_type=DocumentType.DEGREE,
             file_url=f"https://mock-r2.example.com/documents/ijazah_{unique_id}.pdf",
             file_name="ijazah.pdf",
             mime_type="application/pdf",
