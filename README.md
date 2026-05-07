@@ -104,4 +104,39 @@ We use a 3-layer intelligence strategy to ensure both accuracy and explainabilit
 ```bash
 pytest app/tests -v
 ```
-Currently, there are **59+ unit tests** covering Auth, AI Scoring, and Knockout Rules.
+
+Currently, there are **107+ unit and integration tests** covering:
+- Auth (JWT, password hashing, refresh token rotation)
+- AI Scoring (semantic matcher, soft skill scorer, red flag detector)
+- Knockout Rules (all rule types with mocks)
+- Screening Pipeline (DOC_FAILED, KNOCKOUT, AI_PASSED, UNDER_REVIEW)
+- Document Validation (OCR + LLM pipeline)
+- HR Workflows (vacancy lifecycle, screening, tenant isolation)
+- Public Application Flow (ticket tracking, duplicate detection)
+
+---
+
+## 🔒 Security Features
+
+- **Password Hashing**: Bcrypt via Passlib
+- **JWT Security**: Stateful tokens with rotation, reuse detection, and kill-switch
+- **Rate Limiting**: 60 requests per minute per IP
+- **File Validation**: Type and size checks for uploads
+- **SQL Injection Protection**: SQLAlchemy ORM
+
+---
+
+## 📦 Dependencies
+
+- **FastAPI**: 0.115.0
+- **Pydantic**: v2
+- **SQLAlchemy**: 2.0 (Async)
+- **Alembic**: Latest
+- **Groq**: For LLM-based document validation
+- **Sentence-Transformers**: For semantic skill matching
+
+---
+
+## 📄 License
+
+MIT License. See [LICENSE](LICENSE) for more information.
