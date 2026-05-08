@@ -1,5 +1,6 @@
 """Audit log data access helpers."""
 from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.utils.pagination import PaginationParams
@@ -16,7 +17,7 @@ async def list_audit_logs(
     entity_type: str | None = None,
     entity_id: int | None = None,
 ) -> tuple[list[AuditLog], int]:
-    stmt = select(AuditLog)
+    stmt = select(AuditLog).options(selectinload(AuditLog.user))
     if current_user_role == UserRole.HR:
         stmt = stmt.where(AuditLog.company_id == current_user_company_id)
     if entity_type:

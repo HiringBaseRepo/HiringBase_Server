@@ -102,19 +102,26 @@ async def domain_exception_handler(request: Request, exc: Exception) -> JSONResp
         status_code = status.HTTP_401_UNAUTHORIZED
     elif isinstance(exc, cex.DuplicateApplicationException):
         status_code = status.HTTP_409_CONFLICT
-    elif isinstance(exc, (cex.InvalidFileTypeException, cex.FileTooLargeException)):
+    elif isinstance(
+        exc,
+        (
+            cex.InvalidFileTypeException,
+            cex.FileTooLargeException,
+            cex.WeightTotalInvalidException,
+            cex.PasswordResetTokenInvalidException,
+        ),
+    ):
         status_code = status.HTTP_400_BAD_REQUEST
     elif isinstance(exc, cex.UserInactiveException):
         status_code = status.HTTP_403_FORBIDDEN
-    elif isinstance(exc, cex.MissingDocumentsException):
+    elif isinstance(exc, (cex.MissingDocumentsException, cex.AIAPIException)):
         status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
 
     logger.info("Domain exception", status_code=status_code, message=message)
     return JSONResponse(
         status_code=status_code,
-        content={
-            "success": False,
-            "message": message,
-            "detail": message,  # for compatibility
-        },
+        content=StandardResponse.error(
+            message=message,
+            status_code=status_code
+        ).model_dump(),
     )

@@ -2,7 +2,7 @@
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.base import get_db
@@ -63,11 +63,8 @@ async def public_list_jobs(
     "/public/jobs/{job_id}", response_model=StandardResponse[PublicJobDetailResponse]
 )
 async def public_job_detail(job_id: int, db: AsyncSession = Depends(get_db)):
-    try:
-        result = await get_public_job_detail_service(db, job_id)
-        return StandardResponse.ok(data=result)
-    except JobNotFoundException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    result = await get_public_job_detail_service(db, job_id)
+    return StandardResponse.ok(data=result)
 
 
 @router.post("/public/apply", response_model=StandardResponse[PublicApplyResponse])

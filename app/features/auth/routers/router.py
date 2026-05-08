@@ -3,7 +3,6 @@
 from fastapi import (
     APIRouter,
     Depends,
-    HTTPException,
     Request,
     Response,
     status,
@@ -59,9 +58,9 @@ async def register_super_admin(
 @router.post("/register/hr", response_model=StandardResponse[dict])
 async def register_hr(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
     if not data.company_name:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="company_name is required for HR",
+        return StandardResponse.error(
+            message="company_name is required for HR",
+            status_code=status.HTTP_400_BAD_REQUEST
         )
     hr, company = await create_company_and_hr(db, data)
     return StandardResponse.ok(
@@ -100,9 +99,9 @@ async def refresh(
 ):
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token missing from cookies",
+        return StandardResponse.error(
+            message="Refresh token missing from cookies",
+            status_code=status.HTTP_401_UNAUTHORIZED
         )
 
     tokens = await refresh_access_token(db, refresh_token)
@@ -180,9 +179,9 @@ async def password_reset_confirm(
     """
     success = await confirm_password_reset(db, data.token, data.new_password)
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Token tidak valid, sudah digunakan, atau sudah kedaluwarsa",
+        return StandardResponse.error(
+            message="Token tidak valid, sudah digunakan, atau sudah kedaluwarsa",
+            status_code=status.HTTP_400_BAD_REQUEST
         )
     return StandardResponse.ok(
         data={"message": "Password berhasil direset, silahkan login kembali"}

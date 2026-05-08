@@ -24,6 +24,7 @@ from app.core.middleware.logging import LoggingMiddleware
 from app.core.middleware.rate_limit import RateLimitMiddleware
 from app.features.applications.routers.router import router as applications_router
 from app.features.audit_logs.routers.router import router as audit_logs_router
+from app.features.dashboard.routers.router import router as dashboard_router
 
 # Routers
 from app.features.auth.routers.router import router as auth_router
@@ -33,6 +34,7 @@ from app.features.interviews.routers.router import router as interviews_router
 from app.features.job_forms.routers.router import router as job_forms_router
 from app.features.jobs.routers.router import router as jobs_router
 from app.features.notifications.routers.router import router as notifications_router
+from app.features.reports.routers.router import router as reports_router
 from app.features.ranking.routers.router import router as ranking_router
 from app.features.scoring.routers.router import router as scoring_router
 from app.features.screening.routers.manual_override import (
@@ -107,6 +109,7 @@ app.add_exception_handler(BaseDomainException, domain_exception_handler)  # type
 
 # API Routers
 app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
+app.include_router(dashboard_router, prefix=settings.API_V1_PREFIX)
 app.include_router(companies_router, prefix=settings.API_V1_PREFIX)
 app.include_router(users_router, prefix=settings.API_V1_PREFIX)
 app.include_router(jobs_router, prefix=settings.API_V1_PREFIX)
@@ -118,6 +121,7 @@ app.include_router(screening_router, prefix=settings.API_V1_PREFIX)
 app.include_router(ranking_router, prefix=settings.API_V1_PREFIX)
 app.include_router(tickets_router, prefix=settings.API_V1_PREFIX)
 app.include_router(notifications_router, prefix=settings.API_V1_PREFIX)
+app.include_router(reports_router, prefix=settings.API_V1_PREFIX)
 app.include_router(interviews_router, prefix=settings.API_V1_PREFIX)
 app.include_router(audit_logs_router, prefix=settings.API_V1_PREFIX)
 app.include_router(manual_override_router, prefix=settings.API_V1_PREFIX)
