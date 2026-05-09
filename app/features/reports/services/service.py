@@ -52,8 +52,6 @@ async def get_report_stats(
     return ReportStats(
         total_processed=summary["total_processed"],
         avg_match_rate=summary["avg_match_rate"],
-        screening_efficiency=summary["screening_efficiency"],
-        total_savings=summary["total_savings"],
         screening_data=screening_data,
         match_distribution=match_distribution,
         company_activity=company_activity

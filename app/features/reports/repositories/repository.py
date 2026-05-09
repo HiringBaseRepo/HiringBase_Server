@@ -62,15 +62,7 @@ async def get_report_summary_stats(db: AsyncSession) -> dict:
     avg_match_stmt = select(func.avg(CandidateScore.final_score)).where(CandidateScore.final_score > 0)
     avg_match_rate = (await db.execute(avg_match_stmt)).scalar() or 0.0
 
-    # Efficiency (Placeholder logic: successful screenings ratio)
-    screening_efficiency = 98.2 # Based on system stability
-
-    # Savings (Example: $1.5 per screening)
-    total_savings = total_processed * 1.5
-
     return {
         "total_processed": total_processed,
         "avg_match_rate": round(float(avg_match_rate), 1),
-        "screening_efficiency": screening_efficiency,
-        "total_savings": total_savings
     }
