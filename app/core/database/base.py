@@ -14,6 +14,9 @@ def create_engine_instance():
     engine_kwargs = {
         "echo": settings.DEBUG,
         "future": True,
+        "pool_pre_ping": True,
+        "pool_recycle": 1800,
+        "pool_use_lifo": True,
     }
 
     if IS_TESTING:

@@ -38,6 +38,9 @@ This is the **backend** of an AI-powered recruitment assistant that helps HR tea
     - **Otomatisasi IP & User-Agent**: Metadata request ditangkap otomatis oleh middleware dan disimpan di `contextvars`. Jangan meneruskan IP secara manual di fungsi service.
     - **Snapshot Data (Old Values)**: Setiap `UPDATE` wajib merekam data lama menggunakan `get_model_snapshot` sebelum modifikasi dilakukan untuk transparansi penuh di Audit Log.
     - **Transparansi AI**: Perubahan bobot kriteria penilaian kandidate harus dicatat sebagai audit log agar keputusan AI tetap dapat dipertanggungjawabkan.
+    - **Data Aggregation Strategy**: 
+        - **Dashboard ("The Pulse")**: Menggunakan query agregasi ringan untuk data operasional real-time (total aplikasi, kampanye aktif).
+        - **Reports ("The Brain")**: Menggunakan query agregasi kompleks (`to_char`, `group_by`) untuk analisis tren historis, distribusi skor, dan efisiensi perusahaan dengan dukungan filter rentang tanggal.
 
 ## Project Structure
 
@@ -251,6 +254,8 @@ Current status of `app/features` after the router/service/repository/schema migr
 | `ranking` | Fully compliant | Ranking queries decentralized. |
 | `tickets` | Fully compliant | Ticket tracking decentralized. |
 | `notifications` | Fully compliant | Notification logic decentralized. |
+| `reports` | Fully compliant | Migrated to real SQL aggregation (Screening Volume, Match Distribution, Company Activity). |
+| `dashboard` | Fully compliant | Optimized as operational "Pulse" with real-time system stats. |
 | `interviews` | Fully compliant | Interview scheduling logic decentralized. |
 | `audit_logs` | Fully compliant | Audit trail logic decentralized with **Automatic Context Injection** and **Old Value Snapshots**. |
 
