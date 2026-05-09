@@ -18,6 +18,9 @@ async def list_audit_logs(
     pagination: PaginationParams,
     entity_type: str | None = None,
     entity_id: int | None = None,
+    search: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
 ) -> PaginatedResponse[AuditLogItem]:
     logs, total = await list_audit_logs_query(
         db,
@@ -26,6 +29,9 @@ async def list_audit_logs(
         current_user_company_id=current_user.company_id,
         entity_type=entity_type,
         entity_id=entity_id,
+        search=search,
+        start_date=start_date,
+        end_date=end_date,
     )
     pages = (total + pagination.per_page - 1) // pagination.per_page
     return PaginatedResponse(

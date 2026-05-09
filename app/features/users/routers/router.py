@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.base import get_db
 from app.features.auth.dependencies.auth import require_super_admin, get_current_user
+from app.features.users.models import User
 from app.features.users.schemas.schema import CreateHRAccountRequest, UserCreatedResponse, UserListItem, UpdateUserRequest
 from app.features.users.services.service import create_hr_account as create_hr_account_service, get_users_stats as get_users_stats_service, update_user as update_user_service, delete_user as delete_user_service, get_user as get_user_service
 from app.features.users.services.service import list_users as list_users_service
@@ -28,9 +29,9 @@ async def get_users_stats(
 async def create_hr_account(
     data: CreateHRAccountRequest,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin),
 ):
-    user = await create_hr_account_service(db, data)
+    user = await create_hr_account_service(db, data, current_user=current_user)
     return StandardResponse.ok(data=user)
 
 
@@ -71,9 +72,9 @@ async def update_user(
     user_id: int,
     data: UpdateUserRequest,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin),
 ):
-    user = await update_user_service(db, user_id, data)
+    user = await update_user_service(db, user_id, data, current_user=current_user)
     return StandardResponse.ok(data=user, message="User updated successfully")
 
 
@@ -81,9 +82,9 @@ async def update_user(
 async def delete_user(
     user_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin),
 ):
-    await delete_user_service(db, user_id)
+    await delete_user_service(db, user_id, current_user=current_user)
     return StandardResponse.ok(data={"id": user_id}, message="User deleted successfully")
 
 

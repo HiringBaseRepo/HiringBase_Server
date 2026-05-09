@@ -17,6 +17,9 @@ router = APIRouter(prefix="/audit-logs", tags=["Audit Logs"])
 async def list_audit_logs(
     entity_type: Optional[str] = None,
     entity_id: Optional[int] = None,
+    search: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     pagination: PaginationParams = Depends(),
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -27,5 +30,8 @@ async def list_audit_logs(
         pagination=pagination,
         entity_type=entity_type,
         entity_id=entity_id,
+        search=search,
+        start_date=start_date,
+        end_date=end_date,
     )
     return StandardResponse.ok(data=result)

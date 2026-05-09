@@ -9,9 +9,16 @@ from app.features.users.repositories.repository import save_user, update_user_re
 from app.features.users.schemas.schema import CreateHRAccountRequest, UserCreatedResponse, UserListItem, UpdateUserRequest
 from app.shared.enums.user_roles import UserRole
 from app.shared.schemas.response import PaginatedResponse
+from app.features.audit_logs.models import AuditLog
+from app.features.audit_logs.repositories.repository import create_audit_log
 
 
-async def create_hr_account(db: AsyncSession, data: CreateHRAccountRequest) -> UserCreatedResponse:
+async def create_hr_account(
+    db: AsyncSession, 
+    data: CreateHRAccountRequest,
+    *,
+    current_user: User
+) -> UserCreatedResponse:
     user = User(
         email=data.email,
         password_hash=get_password_hash(data.password),
@@ -21,6 +28,20 @@ async def create_hr_account(db: AsyncSession, data: CreateHRAccountRequest) -> U
         role=UserRole.HR,
     )
     user = await save_user(db, user)
+    
+    # Audit Log
+    await create_audit_log(
+        db,
+        AuditLog(
+            company_id=current_user.company_id,
+            user_id=current_user.id,
+            action="CREATE_HR_ACCOUNT",
+            entity_type="user",
+            entity_id=user.id,
+            new_values=data.model_dump(exclude={"password"}),
+        )
+    )
+    
     await db.commit()
     return UserCreatedResponse.model_validate(user)
 
@@ -81,11 +102,24 @@ async def get_user(db: AsyncSession, user_id: int) -> UserListItem:
     return item
 
 
-async def update_user(db: AsyncSession, user_id: int, data: UpdateUserRequest) -> UserListItem:
+async def update_user(
+    db: AsyncSession, 
+    user_id: int, 
+    data: UpdateUserRequest,
+    *,
+    current_user: User
+) -> UserListItem:
     user = await get_user_by_id(db, user_id)
     if not user:
         from app.core.exceptions import UserNotFoundException
         raise UserNotFoundException()
+    
+    old_values = {
+        "full_name": user.full_name,
+        "is_active": user.is_active,
+        "company_id": user.company_id,
+        "avatar_url": user.avatar_url,
+    }
     
     if data.full_name is not None:
         user.full_name = data.full_name
@@ -97,15 +131,49 @@ async def update_user(db: AsyncSession, user_id: int, data: UpdateUserRequest) -
         user.avatar_url = data.avatar_url
 
     await update_user_repo(db, user)
+    
+    # Audit Log
+    await create_audit_log(
+        db,
+        AuditLog(
+            company_id=current_user.company_id,
+            user_id=current_user.id,
+            action="UPDATE_USER",
+            entity_type="user",
+            entity_id=user.id,
+            old_values=old_values,
+            new_values=data.model_dump(exclude_unset=True),
+        )
+    )
+    
     await db.commit()
     return UserListItem.model_validate(user)
 
 
-async def delete_user(db: AsyncSession, user_id: int) -> None:
+async def delete_user(
+    db: AsyncSession, 
+    user_id: int,
+    *,
+    current_user: User
+) -> None:
     user = await get_user_by_id(db, user_id)
     if not user:
         from app.core.exceptions import UserNotFoundException
         raise UserNotFoundException()
     
     await delete_user_repo(db, user)
+    
+    # Audit Log
+    await create_audit_log(
+        db,
+        AuditLog(
+            company_id=current_user.company_id,
+            user_id=current_user.id,
+            action="DELETE_USER",
+            entity_type="user",
+            entity_id=user_id,
+            old_values={"email": user.email, "full_name": user.full_name},
+        )
+    )
+    
     await db.commit()
