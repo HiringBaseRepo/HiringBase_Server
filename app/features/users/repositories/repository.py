@@ -11,6 +11,8 @@ from app.shared.enums.user_roles import UserRole
 async def save_user(db: AsyncSession, user: User) -> User:
     db.add(user)
     await db.flush()
+    # Eager load company for schema validation
+    await db.execute(select(User).options(selectinload(User.company)).where(User.id == user.id))
     await db.refresh(user)
     return user
 
@@ -22,7 +24,11 @@ async def update_user_repo(db: AsyncSession, user: User) -> User:
 
 
 async def get_user_by_id(db: AsyncSession, user_id: int) -> User | None:
-    result = await db.execute(select(User).where(User.id == user_id, User.deleted_at.is_(None)))
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.company))
+        .where(User.id == user_id, User.deleted_at.is_(None))
+    )
     return result.scalar_one_or_none()
 
 

@@ -1,6 +1,6 @@
 """User management API."""
 from typing import Optional
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.base import get_db
@@ -85,3 +85,15 @@ async def delete_user(
 ):
     await delete_user_service(db, user_id)
     return StandardResponse.ok(data={"id": user_id}, message="User deleted successfully")
+
+
+@router.post("/upload-avatar", response_model=StandardResponse[dict])
+async def upload_user_avatar(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_super_admin),
+):
+    """Upload user avatar to Cloudflare R2."""
+    from app.features.companies.services.service import upload_logo as upload_to_r2
+    url = await upload_to_r2(db, file)
+    return StandardResponse.ok(data={"avatar_url": url})

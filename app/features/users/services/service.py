@@ -17,6 +17,7 @@ async def create_hr_account(db: AsyncSession, data: CreateHRAccountRequest) -> U
         password_hash=get_password_hash(data.password),
         full_name=data.full_name,
         company_id=data.company_id,
+        avatar_url=data.avatar_url,
         role=UserRole.HR,
     )
     user = await save_user(db, user)
@@ -92,6 +93,8 @@ async def update_user(db: AsyncSession, user_id: int, data: UpdateUserRequest) -
         user.is_active = data.is_active
     if data.company_id is not None:
         user.company_id = data.company_id
+    if data.avatar_url is not None:
+        user.avatar_url = data.avatar_url
 
     await update_user_repo(db, user)
     await db.commit()

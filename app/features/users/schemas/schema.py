@@ -10,12 +10,14 @@ class CreateHRAccountRequest(BaseModel):
     password: str = Field(min_length=8, max_length=128)
     full_name: str = Field(min_length=2, max_length=255)
     company_id: int
+    avatar_url: Optional[str] = None
 
 
 class UpdateUserRequest(BaseModel):
     full_name: Optional[str] = None
     is_active: Optional[bool] = None
     company_id: Optional[int] = None
+    avatar_url: Optional[str] = None
 
 
 class UserListItem(BaseModel):
@@ -40,3 +42,4 @@ class UserCreatedResponse(BaseModel):
     full_name: str
     role: UserRole
     company_id: int | None
+    avatar_url: Optional[str] = None
