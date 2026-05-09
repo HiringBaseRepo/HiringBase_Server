@@ -1,5 +1,7 @@
 from typing import List
 import random
+import time
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.features.dashboard.schemas.schema import DashboardOverview, RecentCampaign
 from app.features.dashboard.repositories.repository import (
@@ -10,20 +12,41 @@ from app.features.dashboard.repositories.repository import (
 from app.shared.enums.job_status import JobStatus
 
 async def get_dashboard_overview(db: AsyncSession) -> DashboardOverview:
-    """Orchestrates dashboard overview data."""
-    stats = await get_dashboard_stats(db)
+    """Orchestrates dashboard overview data with real health checks."""
+    # Start timer for latency measurement
+    start_time = time.perf_counter()
+    
+    try:
+        # Core stats from DB
+        stats = await get_dashboard_stats(db)
+        
+        # Real DB health check (Ping)
+        await db.execute(text("SELECT 1"))
+        system_health = 100.0
+    except Exception:
+        # If DB connection or stats fetch fails
+        stats = {
+            "total_companies": 0,
+            "total_hr_users": 0,
+            "active_jobs": 0,
+            "total_applicants": 0
+        }
+        system_health = 0.0
+    
+    # Calculate execution latency in ms
+    execution_time_ms = int((time.perf_counter() - start_time) * 1000)
     
     return DashboardOverview(
         total_companies=stats["total_companies"],
         total_hr_users=stats["total_hr_users"],
         active_jobs=stats["active_jobs"],
-        system_health=99.8, # Mocked health percentage
-        api_latency=random.randint(35, 55), # Mocked latency in ms
-        company_growth="+12.5%", 
-        hr_growth="+4.2%",      
-        job_status="Stable",
+        system_health=system_health,
+        api_latency=execution_time_ms,
+        company_growth="", # Cleared until real logic implemented
+        hr_growth="",      
+        job_status="Healthy" if system_health > 0 else "Down",
         total_applicants=stats["total_applicants"],
-        applicant_change="+8.1%"
+        applicant_change=""
     )
 
 async def get_recent_campaigns(db: AsyncSession) -> List[RecentCampaign]:

@@ -12,6 +12,7 @@ from app.features.companies.repositories.repository import (
     save_company,
     update_company_repo,
     get_hr_contact,
+    get_hr_previews,
     list_companies as list_companies_query,
 )
 from app.features.users.models import User as DBUser
@@ -32,6 +33,7 @@ from app.features.companies.schemas.schema import (
     CompanyStatisticsResponse,
     CompanySuspendResponse,
     CreateCompanyRequest,
+    HRPreview,
 )
 from app.features.audit_logs.models import AuditLog
 from app.features.audit_logs.repositories.repository import create_audit_log
@@ -226,9 +228,11 @@ async def list_companies(
         industry=industry,
         is_active=is_active,
     )
-    pages = (total + pagination.per_page - 1) // pagination.per_page
-    return PaginatedResponse(
-        data=[
+    
+    data = []
+    for company in companies:
+        hrs = await get_hr_previews(db, company.id)
+        data.append(
             CompanyListItem(
                 id=company.id,
                 name=company.name,
@@ -237,11 +241,21 @@ async def list_companies(
                 is_suspended=company.is_suspended,
                 industry=company.industry,
                 hr_count=await count_hr_users(db, company.id),
+                hrs=[
+                    HRPreview(
+                        id=hr.id,
+                        full_name=hr.full_name,
+                        avatar_url=hr.avatar_url
+                    ) for hr in hrs
+                ],
                 logo_url=company.logo_url,
                 created_at=company.created_at.isoformat() if company.created_at else None,
             )
-            for company in companies
-        ],
+        )
+
+    pages = (total + pagination.per_page - 1) // pagination.per_page
+    return PaginatedResponse(
+        data=data,
         total=total,
         page=pagination.page,
         per_page=pagination.per_page,

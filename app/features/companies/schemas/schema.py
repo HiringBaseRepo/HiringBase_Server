@@ -39,6 +39,12 @@ class CompanyCreatedResponse(BaseModel):
     is_active: bool
 
 
+class HRPreview(BaseModel):
+    id: int
+    full_name: str
+    avatar_url: str | None = None
+
+
 class CompanyListItem(BaseModel):
     id: int
     name: str
@@ -47,6 +53,7 @@ class CompanyListItem(BaseModel):
     is_suspended: bool
     industry: str | None = None
     hr_count: int = 0
+    hrs: list[HRPreview] = []
     logo_url: str | None = None
     created_at: str | None
 

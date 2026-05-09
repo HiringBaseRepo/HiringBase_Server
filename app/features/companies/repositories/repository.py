@@ -99,6 +99,17 @@ async def get_hr_contact(db: AsyncSession, company_id: int) -> User | None:
     return result.scalar_one_or_none()
 
 
+async def get_hr_previews(db: AsyncSession, company_id: int, limit: int = 3) -> list[User]:
+    result = await db.execute(
+        select(User).where(
+            User.company_id == company_id,
+            User.role == UserRole.HR,
+            User.deleted_at.is_(None),
+        ).limit(limit)
+    )
+    return list(result.scalars().all())
+
+
 async def list_all_companies(db: AsyncSession) -> list[Company]:
     result = await db.execute(
         select(Company).where(Company.deleted_at.is_(None)).order_by(Company.created_at.desc())
