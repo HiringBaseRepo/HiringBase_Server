@@ -110,8 +110,8 @@ def _generate_template_explanation(
         parts.append("Memerlukan tinjauan manual HR sebelum diputuskan.")
 
     if red_flags and red_flags.get("red_flags"):
-        has_anomalies = any("anomaly" in f.lower() or "warning" in f.lower() or "anomali" in f.lower() for f in red_flags["red_flags"])
+        has_anomalies = any("anomaly" in f.lower() or "warning" in f.lower() or "anomali" in f.lower() or "inkonsistensi" in f.lower() for f in red_flags["red_flags"])
         if has_anomalies:
-            parts.append("Perhatian: Ditemukan anomali pada verifikasi dokumen administrasi.")
+            parts.append("Perhatian: Ditemukan anomali atau inkonsistensi data pada verifikasi dokumen.")
 
     return " ".join(parts)

@@ -17,8 +17,7 @@ async def create_hr_account(
     db: AsyncSession, 
     data: CreateHRAccountRequest,
     *,
-    current_user: User,
-    ip_address: str | None = None
+    current_user: User
 ) -> UserCreatedResponse:
     user = User(
         email=data.email,
@@ -40,7 +39,6 @@ async def create_hr_account(
             entity_type="user",
             entity_id=user.id,
             new_values=data.model_dump(exclude={"password"}),
-            ip_address=ip_address,
         )
     )
     
@@ -109,20 +107,15 @@ async def update_user(
     user_id: int, 
     data: UpdateUserRequest,
     *,
-    current_user: User,
-    ip_address: str | None = None
+    current_user: User
 ) -> UserListItem:
     user = await get_user_by_id(db, user_id)
     if not user:
         from app.core.exceptions import UserNotFoundException
         raise UserNotFoundException()
     
-    old_values = {
-        "full_name": user.full_name,
-        "is_active": user.is_active,
-        "company_id": user.company_id,
-        "avatar_url": user.avatar_url,
-    }
+    from app.core.utils.audit import get_model_snapshot
+    old_values = get_model_snapshot(user)
     
     if data.full_name is not None:
         user.full_name = data.full_name
@@ -146,7 +139,6 @@ async def update_user(
             entity_id=user.id,
             old_values=old_values,
             new_values=data.model_dump(exclude_unset=True),
-            ip_address=ip_address,
         )
     )
     
@@ -158,8 +150,7 @@ async def delete_user(
     db: AsyncSession, 
     user_id: int,
     *,
-    current_user: User,
-    ip_address: str | None = None
+    current_user: User
 ) -> None:
     user = await get_user_by_id(db, user_id)
     if not user:
@@ -178,7 +169,6 @@ async def delete_user(
             entity_type="user",
             entity_id=user_id,
             old_values={"email": user.email, "full_name": user.full_name},
-            ip_address=ip_address,
         )
     )
     

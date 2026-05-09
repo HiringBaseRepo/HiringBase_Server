@@ -55,11 +55,9 @@ from app.features.screening.services.parser import (
 from app.features.screening.services.validator_step import run_document_semantic_check
 from app.features.users.models import User
 from app.shared.constants.scoring import (
-    MINIMUM_PASS_SCORE,
     get_default_scoring_template,
 )
 from app.shared.enums.application_status import ApplicationStatus
-from app.shared.enums.document_type import DocumentType
 from app.shared.helpers.localization import get_label
 
 
@@ -162,7 +160,7 @@ async def process_screening(
                     return
 
             # Langkah 2 & 3: OCR JIT & Validasi Semantik Dokumen Berbasis LLM
-            doc_validation_flags = await run_document_semantic_check(
+            doc_validation_flags, ocr_results = await run_document_semantic_check(
                 docs, application.applicant, force_fallback=force_fallback
             )
 
@@ -200,7 +198,7 @@ async def process_screening(
                 ),
             )
             portfolio_score = score_portfolio(parsed_data)
-            soft_skill_score = _score_soft_skills(text)
+            soft_skill_score = await _score_soft_skills(text, force_fallback=force_fallback)
             admin_score = 100.0
             final = calculate_final_score(
                 skill_match_score=match_result["match_percentage"],
@@ -218,7 +216,7 @@ async def process_screening(
             )
 
             red_flags = await detect_red_flags(
-                parsed_data, text, force_fallback=force_fallback
+                parsed_data, text, doc_ocr_results=ocr_results, force_fallback=force_fallback
             )
             # Append document validation flags to red flags
             if doc_validation_flags:
@@ -295,7 +293,8 @@ async def manual_override_score(
     if not score:
         raise ApplicationNotFoundException("Skor kandidat tidak ditemukan")
 
-    old_final = score.final_score
+    from app.core.utils.audit import get_model_snapshot
+    old_values = get_model_snapshot(score)
     score.skill_match_score = _clamp_score(score.skill_match_score + skill_adjustment)
     score.experience_score = _clamp_score(
         score.experience_score + experience_adjustment
@@ -334,7 +333,7 @@ async def manual_override_score(
             action="manual_override_score",
             entity_type="candidate_score",
             entity_id=score.id,
-            old_values={"final_score": old_final},
+            old_values=old_values,
             new_values={"final_score": score.final_score, "reason": reason},
         ),
     )

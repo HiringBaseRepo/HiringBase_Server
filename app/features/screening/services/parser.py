@@ -52,11 +52,12 @@ def build_candidate_profile(application: Any, answers: list[Any]) -> dict[str, A
     return parsed_data
 
 
-def _score_soft_skills(text: str) -> float:
+async def _score_soft_skills(text: str, force_fallback: bool = False) -> float:
     """Score soft skills based on text analysis.
 
     Args:
         text: Combined text from all form answers
+        force_fallback: If True, uses keyword-based scoring only.
 
     Returns:
         Soft skill score (0-100)
@@ -64,7 +65,8 @@ def _score_soft_skills(text: str) -> float:
     try:
         from app.ai.nlp.soft_skill_scorer import score_soft_skills
 
-        return score_soft_skills(text).get("composite_score", 60.0)
+        res = await score_soft_skills(text, force_fallback=force_fallback)
+        return res.get("composite_score", 60.0)
     except Exception:
         return 60.0
 

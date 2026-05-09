@@ -84,11 +84,12 @@ def _keyword_count_to_score(count: int, max_keywords: int = 5) -> float:
     return round(40.0 + ratio * 60.0, 1)
 
 
-def score_soft_skills(text: str) -> Dict[str, float]:
-    """Analyze text and return soft skill scores per dimension.
+async def score_soft_skills(text: str, force_fallback: bool = False) -> Dict[str, float]:
+    """Analyze text and return soft skill scores per dimension using LLM with keyword fallback.
 
     Args:
         text: Raw text (from OCR or parsing)
+        force_fallback: If True, uses keyword-based scoring only.
 
     Returns:
         Dict with scores per dimension (0-100) and composite_score
@@ -104,13 +105,14 @@ def score_soft_skills(text: str) -> Dict[str, float]:
             "composite_score": 30.0,
         }
 
+    # Keyword-based baseline
     comm_count = _count_keyword_matches(text, _COMMUNICATION_KEYWORDS)
     lead_count = _count_keyword_matches(text, _LEADERSHIP_KEYWORDS)
     team_count = _count_keyword_matches(text, _TEAMWORK_KEYWORDS)
     prob_count = _count_keyword_matches(text, _PROBLEM_SOLVING_KEYWORDS)
     init_count = _count_keyword_matches(text, _INITIATIVE_KEYWORDS)
 
-    scores = {
+    baseline_scores = {
         "communication": _keyword_count_to_score(comm_count),
         "leadership": _keyword_count_to_score(lead_count),
         "teamwork": _keyword_count_to_score(team_count),
@@ -118,11 +120,48 @@ def score_soft_skills(text: str) -> Dict[str, float]:
         "initiative": _keyword_count_to_score(init_count),
     }
 
+    # LLM Enhancement
+    from app.ai.llm.client import call_llm
+    import json
+
+    if not force_fallback and len(text.strip()) > 200:
+        prompt = f"""Analisis soft skill kandidat berdasarkan teks berikut:
+---
+{text[:3000]}
+---
+
+Berikan skor 0-100 untuk dimensi berikut:
+1. communication
+2. leadership
+3. teamwork
+4. problem_solving
+5. initiative
+
+Kembalikan HANYA objek JSON dengan kunci tersebut.
+Contoh: {{"communication": 85, "leadership": 70, ...}}
+"""
+        try:
+            llm_res = await call_llm(prompt, max_tokens=150)
+            if llm_res:
+                # Find JSON block if LLM added fluff
+                start = llm_res.find("{")
+                end = llm_res.rfind("}") + 1
+                if start != -1 and end != -1:
+                    llm_scores = json.loads(llm_res[start:end])
+                    # Blend with baseline (LLM 70%, Keywords 30%)
+                    for k in baseline_scores:
+                        if k in llm_scores:
+                            baseline_scores[k] = round(
+                                (float(llm_scores[k]) * 0.7) + (baseline_scores[k] * 0.3), 1
+                            )
+        except Exception as exc:
+            log.warning("LLM soft skill scoring failed, using keyword baseline", error=str(exc))
+
     # Composite: average of all dimensions
-    scores["composite_score"] = round(
-        sum(scores[k] for k in ["communication", "leadership", "teamwork", "problem_solving", "initiative"]) / 5,
+    baseline_scores["composite_score"] = round(
+        sum(baseline_scores[k] for k in ["communication", "leadership", "teamwork", "problem_solving", "initiative"]) / 5,
         1,
     )
 
-    log.debug("Soft skill scores computed", **scores)
-    return scores
+    log.debug("Soft skill scores computed", **baseline_scores)
+    return baseline_scores

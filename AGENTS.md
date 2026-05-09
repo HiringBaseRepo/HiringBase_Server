@@ -273,6 +273,11 @@ Current status of `app/features` after the router/service/repository/schema migr
 ### Distributed Screening Pipeline
 Workloads are processed asynchronously using **Taskiq**. When screening is triggered, the API server queues a task in Redis, which is then picked up by a separate worker process. 
 
+**Manual vs Auto Trigger**:
+- **Manual Trigger (Default)**: HR users can manually trigger screening for specific applications via the "Run Screening" button in the Dashboard. This is the standard behavior to optimize external AI API costs (Mistral/Groq).
+- **Auto Trigger**: Jobs can be configured to automatically trigger screening upon application submission if the `auto_screening` flag is enabled (to be implemented).
+- **Batch Screening**: A scheduled background task runs periodically to process pending applications in bulk (implemented).
+
 **Retry Mechanism**:
 - **SmartRetryMiddleware**: Implemented with exponential backoff and jitter.
 - **Max Retries**: 3 attempts for transient failures (Connection, Timeout, 5xx).
@@ -301,14 +306,16 @@ The system no longer parses CV files. Data for scoring is taken from `Applicatio
 - Layer 1: Exact match, Layer 2: Synonym map, Layer 3: Sentence Transformer.
 
 ### Soft Skill Scorer (`app/ai/nlp/soft_skill_scorer.py`)
-- Analyzes the **combined text from all form answers** of the applicant.
-- Keyword-based (regex word boundary), no LLM needed.
+- Analyzes **combined text from all form answers**.
+- Hybrid Engine: Blends keyword baseline (30%) with deep LLM analysis (70%).
+- Fallback: Reverts to pure keyword-based if LLM fails.
 - Output range: 20–100 per dimension.
 
 ### Semantic Red Flag Detector (`app/ai/redflag/detector.py`)
-- **Asynchronous LLM-powered**: Analyzes parsed candidate data and raw document text to identify professional risks.
-- **Deterministic Fallback**: Automatically reverts to regex-based detection if LLM API is unavailable.
-- **Language Standard**: Core logic and internal analysis are in English, but **all human-readable explanations, AI summaries, and document validation reasons are generated in Indonesian** for HR users.
+- **LLM-powered**: Analyzes parsed data + raw document text for professional risks.
+- **Logical Cross-Check**: Detects mismatches between form data (e.g., Exp Years) vs OCR results (e.g., Degree Grad Year).
+- **Deterministic Fallback**: Reverts to regex-based detection if LLM API unavailable.
+- **Language Standard**: Logic in English. Human-readable flags + AI summaries in Indonesian.
 
 ### AI Fallback Strategy
 
@@ -317,8 +324,9 @@ The system follows a **Retry-then-Fallback** strategy for external API dependenc
 1. **Phase 1: Automatic Retry**: If a transient error occurs (Connection Timeout, Network Error, HTTP 5xx), Taskiq retries the task up to 3 times with increasing delays.
 2. **Phase 2: Forced Fallback**: On the final attempt, if the API still fails:
     - **OCR**: Returns empty string (flags for manual review).
-    - **LLM Validation**: Returns "Fallback Pass" with a warning flag.
-    - **Red Flag Detector**: Automatically reverts to deterministic regex-based detection.
+    - **LLM Validation**: Returns "Fallback Pass" with warning flag.
+    - **Red Flag Detector**: Reverts to deterministic regex-based detection.
+    - **Soft Skill Scorer**: Reverts to pure keyword-based scoring.
     - **Explanation Generator**: Reverts to template-based logic.
 3. **Audit**: All AI API failures and fallback triggers are logged for observability.
 
@@ -491,7 +499,10 @@ venv/bin/pytest --cov=app --cov-report=term-missing app/tests/
 - **AI Reliability & Retry (COMPLETED)**:
     - **Taskiq SmartRetry**: Integrated exponential backoff for all external AI API calls.
     - **Transient Error Handling**: Implemented specific `AIAPIException` hierarchy to distinguish between retryable and non-retryable failures.
-    - **Last-Chance Fallback**: Guaranteed screening completion by forcing deterministic fallbacks on the final retry attempt.
+    - **Last-Chance Fallback**: Guaranteed screening completion by forcing deterministic fallbacks on final retry attempt.
+- **Batch Screening (COMPLETED)**:
+    - **Hourly Automation**: Implemented `run_batch_screening` task via Taskiq periodic scheduler.
+    - **Bulk Processing**: Automatically enqueues screening for all applications in `APPLIED` status every hour.
 
 ### Current Limitations
 1. **Password Reset Table**: Needs `password_reset_tokens` table via Alembic migration for full persistent implementation.

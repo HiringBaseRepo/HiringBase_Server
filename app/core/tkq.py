@@ -1,7 +1,8 @@
-"""Taskiq Broker Configuration."""
 import taskiq_fastapi
 from taskiq_redis import ListQueueBroker
 from taskiq.middlewares import SmartRetryMiddleware
+from taskiq import TaskiqScheduler
+from taskiq.schedule_sources import LabelScheduleSource
 from app.core.config import settings
 
 # Inisialisasi Broker dengan Redis URL menggunakan ListQueueBroker
@@ -17,5 +18,7 @@ broker = ListQueueBroker(url=settings.REDIS_URL).with_middlewares(
 )
 
 # Integrasi dengan FastAPI agar task dapat menggunakan dependency injection
-# 'app.main:app' adalah path ke instance FastAPI Anda
 taskiq_fastapi.init(broker, "app.main:app")
+
+# Inisialisasi Scheduler untuk task periodik
+scheduler = TaskiqScheduler(broker, [LabelScheduleSource(broker)])

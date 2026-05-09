@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "caveman": {
+      "source": "JuliusBrussee/caveman",
+      "sourceType": "github",
+      "skillPath": "caveman/SKILL.md",
+      "computedHash": "259cb6ef69b4e9eeb07155c925ce9895ed509b0feb6a7e29cbc9e70d3c7bcfb2"
+    },
+    "fastapi-expert": {
+      "source": "jeffallan/claude-skills",
+      "sourceType": "github",
+      "skillPath": "skills/fastapi-expert/SKILL.md",
+      "computedHash": "eb70cfcb3a06badfbdf51262ecb31b868a983963b9d6654e02856752828b312f"
+    }
+  }
+}

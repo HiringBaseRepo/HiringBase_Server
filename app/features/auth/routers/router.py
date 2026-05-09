@@ -90,19 +90,8 @@ async def login(
         if not user:
             raise InvalidCredentialsException()
     except InvalidCredentialsException as e:
-        # Audit Log: Login Failure
-        from app.features.audit_logs.models import AuditLog
-        from app.features.audit_logs.repositories.repository import create_audit_log
-        await create_audit_log(
-            db,
-            AuditLog(
-                action="LOGIN_FAILURE",
-                entity_type="auth",
-                entity_id=0,
-                new_values={"email": data.email}
-            )
-        )
-        await db.commit()
+        from app.features.auth.services.service import log_login_failure
+        await log_login_failure(db, data.email)
         raise e
     tokens = await generate_token_pair(db, user)
 

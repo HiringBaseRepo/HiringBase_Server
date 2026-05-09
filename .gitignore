@@ -122,6 +122,7 @@ documents_temp/
 ocr_cache/
 outputs/
 .ruff_cache/
+.agents/
 .zed/
 .python-version
 .idea/

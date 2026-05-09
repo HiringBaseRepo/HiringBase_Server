@@ -48,15 +48,26 @@ def _detect_red_flags_regex(parsed_data: Dict, raw_text: str) -> List[str]:
     return flags
 
 
-async def detect_red_flags(parsed_data: Dict, raw_text: str, force_fallback: bool = False) -> Dict[str, Any]:
+async def detect_red_flags(
+    parsed_data: Dict, 
+    raw_text: str, 
+    doc_ocr_results: Dict[str, str] = None,
+    force_fallback: bool = False
+) -> Dict[str, Any]:
     """Detect risk indicators in candidate profile using semantic LLM analysis with regex fallback."""
     flags = []
     risk_level = "low"
+
+    # 1. Check for data inconsistencies if OCR results are provided
+    if doc_ocr_results:
+        inconsistency_flags = await _detect_data_inconsistencies(parsed_data, doc_ocr_results, force_fallback)
+        flags.extend(inconsistency_flags)
 
     # LLM Prompt for Red Flag Analysis in Indonesian
     prompt = f"""Identifikasi potensi red flag atau risiko profesional untuk kandidat ini dalam Bahasa Indonesia.
 Data Kandidat: {json.dumps(parsed_data, default=str)}
 Potongan teks dokumen: {raw_text[:1000]}
+{"OCR Dokumen: " + json.dumps({k: v[:500] for k, v in doc_ocr_results.items()}) if doc_ocr_results else ""}
 
 Fokus pada:
 1. Celah karir (employment gaps) atau inkonsistensi yang signifikan.
@@ -68,18 +79,20 @@ Kembalikan HANYA daftar poin (bullet-point) red flag yang terdeteksi. Jika tidak
 """
     try:
         llm_response = await call_llm(prompt, max_tokens=256)
-        if llm_response and "None" not in llm_response:
+        if llm_response and "None" not in llm_response and "Tidak ada" not in llm_response:
             # Simple bullet point parsing
             llm_flags = [
                 line.strip("- ").strip()
                 for line in llm_response.split("\n")
                 if line.strip() and (line.startswith("-") or line.strip()[0].isdigit())
             ]
-            flags.extend(llm_flags)
+            for f in llm_flags:
+                if f not in flags:
+                    flags.append(f)
     except Exception as exc:
         log.warning("LLM red flag detection failed", error=str(exc))
         if not force_fallback:
-            # Raise exception to trigger Taskiq retry if not on last attempt
+            from app.core.exceptions.custom_exceptions import AIAPIException
             raise AIAPIException(f"LLM red flag detection failed: {str(exc)}")
 
     # Always include regex flags as baseline or fallback
@@ -89,7 +102,9 @@ Kembalikan HANYA daftar poin (bullet-point) red flag yang terdeteksi. Jika tidak
             flags.append(rf)
 
     # Determine risk
-    if len(flags) >= 3:
+    if any("inkonsistensi" in f.lower() or "palsu" in f.lower() for f in flags):
+        risk_level = "high"
+    elif len(flags) >= 3:
         risk_level = "high"
     elif len(flags) >= 1:
         risk_level = "medium"
@@ -98,3 +113,37 @@ Kembalikan HANYA daftar poin (bullet-point) red flag yang terdeteksi. Jika tidak
         "red_flags": flags,
         "risk_level": risk_level,
     }
+
+
+async def _detect_data_inconsistencies(parsed_data: Dict, doc_ocr_results: Dict[str, str], force_fallback: bool = False) -> List[str]:
+    """Detect inconsistencies between form data and OCR results using LLM."""
+    inconsistencies = []
+    
+    # Focus on Degree vs Experience
+    degree_text = doc_ocr_results.get("degree", "")
+    if not degree_text:
+        return []
+        
+    prompt = f"""Analisis konsistensi antara data form dan dokumen ijazah.
+Data Form:
+- Tahun Pengalaman: {parsed_data.get('total_years_experience')} tahun
+- Pendidikan Terakhir: {parsed_data.get('education')}
+
+Teks Ijazah (OCR):
+{degree_text[:2000]}
+
+Tugas:
+Cek apakah tahun lulus di ijazah logis dengan jumlah pengalaman kerja yang diklaim. 
+Misal: Jika lulus 2024 tapi klaim pengalaman 5 tahun, itu inkonsisten.
+
+Kembalikan daftar inkonsistensi dalam Bahasa Indonesia poin demi poin. Jika konsisten, kembalikan 'KONSISTEN'.
+"""
+    try:
+        res = await call_llm(prompt, max_tokens=150)
+        if res and "KONSISTEN" not in res.upper():
+            lines = [line.strip("- ").strip() for line in res.split("\n") if line.strip() and (line.startswith("-") or line.strip()[0].isdigit())]
+            inconsistencies.extend(lines)
+    except Exception:
+        pass
+        
+    return inconsistencies

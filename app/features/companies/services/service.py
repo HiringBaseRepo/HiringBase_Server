@@ -46,8 +46,7 @@ async def create_company(
     db: AsyncSession, 
     data: CreateCompanyRequest,
     *,
-    current_user: DBUser,
-    ip_address: str | None = None
+    current_user: DBUser
 ) -> CompanyCreatedResponse:
     slug = data.slug
     if not slug:
@@ -88,7 +87,6 @@ async def create_company(
             entity_type="company",
             entity_id=company.id,
             new_values=data.model_dump(),
-            ip_address=ip_address,
         )
     )
     
@@ -142,8 +140,7 @@ async def update_company(
     company_id: int, 
     data: CreateCompanyRequest,
     *,
-    current_user: DBUser,
-    ip_address: str | None = None
+    current_user: DBUser
 ) -> CompanyDetailResponse:
     company = await get_company_repository_id(db, company_id)
     if not company:
@@ -204,7 +201,6 @@ async def update_company(
             entity_id=company.id,
             old_values=old_values,
             new_values=data.model_dump(exclude_unset=True),
-            ip_address=ip_address,
         )
     )
 
@@ -269,8 +265,7 @@ async def suspend_company(
     db: AsyncSession, 
     company_id: int,
     *,
-    current_user: DBUser,
-    ip_address: str | None = None
+    current_user: DBUser
 ) -> CompanySuspendResponse:
     company = await get_company_by_id(db, company_id)
     if not company:
@@ -285,7 +280,6 @@ async def suspend_company(
             entity_type="company",
             entity_id=company_id,
             new_values={"is_suspended": True},
-            ip_address=ip_address,
         ),
     )
     await db.commit()
@@ -296,8 +290,7 @@ async def activate_company(
     db: AsyncSession, 
     company_id: int,
     *,
-    current_user: DBUser,
-    ip_address: str | None = None
+    current_user: DBUser
 ) -> CompanyActivateResponse:
     company = await get_company_by_id(db, company_id)
     if not company:
@@ -313,7 +306,6 @@ async def activate_company(
             entity_type="company",
             entity_id=company_id,
             new_values={"is_active": True, "is_suspended": False},
-            ip_address=ip_address,
         ),
     )
     await db.commit()

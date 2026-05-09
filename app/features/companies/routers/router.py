@@ -1,6 +1,6 @@
 """Super Admin Company Management API."""
 from typing import Optional
-from fastapi import APIRouter, Depends, File, UploadFile, Request
+from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.base import get_db
@@ -36,12 +36,11 @@ router = APIRouter(prefix="/companies", tags=["Companies — Super Admin"])
 @router.post("", response_model=StandardResponse[CompanyCreatedResponse])
 async def create_company(
     data: CreateCompanyRequest,
-    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_super_admin),
 ):
     result = await create_company_service(
-        db, data, current_user=current_user, ip_address=request.client.host
+        db, data, current_user=current_user
     )
     return StandardResponse.ok(data=result)
 
@@ -62,12 +61,11 @@ async def list_companies(
 @router.patch("/{company_id}/suspend", response_model=StandardResponse[CompanySuspendResponse])
 async def suspend_company(
     company_id: int, 
-    request: Request,
     db: AsyncSession = Depends(get_db), 
     current_user: User = Depends(require_super_admin)
 ):
     result = await suspend_company_service(
-        db, company_id, current_user=current_user, ip_address=request.client.host
+        db, company_id, current_user=current_user
     )
     return StandardResponse.ok(data=result)
 
@@ -75,41 +73,14 @@ async def suspend_company(
 @router.patch("/{company_id}/activate", response_model=StandardResponse[CompanyActivateResponse])
 async def activate_company(
     company_id: int, 
-    request: Request,
     db: AsyncSession = Depends(get_db), 
     current_user: User = Depends(require_super_admin)
 ):
     result = await activate_company_service(
-        db, company_id, current_user=current_user, ip_address=request.client.host
+        db, company_id, current_user=current_user
     )
     return StandardResponse.ok(data=result)
 
-
-@router.get("/{company_id}", response_model=StandardResponse[CompanyDetailResponse])
-async def get_company(company_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_super_admin)):
-    result = await get_company_service(db, company_id)
-    return StandardResponse.ok(data=result)
-
-
-@router.patch("/{company_id}", response_model=StandardResponse[CompanyDetailResponse])
-async def update_company(
-    company_id: int,
-    data: CreateCompanyRequest,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_super_admin),
-):
-    result = await update_company_service(
-        db, company_id, data, current_user=current_user, ip_address=request.client.host
-    )
-    return StandardResponse.ok(data=result)
-
-
-@router.get("/{company_id}/statistics", response_model=StandardResponse[CompanyStatisticsResponse])
-async def company_statistics(company_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_super_admin)):
-    """Statistik lengkap satu perusahaan untuk Super Admin."""
-    result = await get_company_statistics(db, company_id)
-    return StandardResponse.ok(data=result)
 
 
 @router.get("/overview", response_model=StandardResponse[CompanyOverviewResponse])
@@ -128,3 +99,32 @@ async def upload_company_logo(
     """Upload logo perusahaan ke Cloudflare R2."""
     url = await upload_logo_service(db, file)
     return StandardResponse.ok(data={"logo_url": url})
+
+
+@router.get("/{company_id}", response_model=StandardResponse[CompanyDetailResponse])
+async def get_company(company_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_super_admin)):
+    result = await get_company_service(db, company_id)
+    return StandardResponse.ok(data=result)
+
+
+@router.patch("/{company_id}", response_model=StandardResponse[CompanyDetailResponse])
+async def update_company(
+    company_id: int,
+    data: CreateCompanyRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    result = await update_company_service(
+        db, company_id, data, current_user=current_user
+    )
+    return StandardResponse.ok(data=result)
+
+
+@router.get("/{company_id}/statistics", response_model=StandardResponse[CompanyStatisticsResponse])
+async def company_statistics(company_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_super_admin)):
+    """Statistik lengkap satu perusahaan untuk Super Admin."""
+    result = await get_company_statistics(db, company_id)
+    return StandardResponse.ok(data=result)
+
+
+

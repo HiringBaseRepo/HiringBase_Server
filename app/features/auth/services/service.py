@@ -38,6 +38,18 @@ from app.features.audit_logs.repositories.repository import create_audit_log
 
 # Moved RefreshToken to top
 
+async def log_login_failure(db: AsyncSession, email: str) -> None:
+    await create_audit_log(
+        db,
+        AuditLog(
+            action="LOGIN_FAILURE",
+            entity_type="auth",
+            entity_id=0,
+            new_values={"email": email}
+        )
+    )
+    await db.commit()
+
 
 async def authenticate_user(
     db: AsyncSession, email: str, password: str
