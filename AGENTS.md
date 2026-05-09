@@ -21,7 +21,8 @@ This is the **backend** of an AI-powered recruitment assistant that helps HR tea
 - **OCR**: Mistral Document AI (PDF & Image via URL)
 - **Background Tasks**: [Taskiq](https://taskiq-python.github.io/) with Redis Broker & **SmartRetryMiddleware**
 - **Logging**: [Structlog](https://www.structlog.org/) with JSON & Request Context
-- **Middleware**: Custom Logging Middleware with UUID Request-ID
+- **Middleware**: Custom Logging Middleware with UUID Request-ID and **Audit Context Extraction**
+- **Context Management**: Python `contextvars` for async-safe request metadata (IP, User-Agent)
 - **Storage**: Cloudflare R2 (S3-compatible via Boto3)
 - **Message Broker**: [Upstash Redis](https://upstash.com/) (Serverless)
 
@@ -33,6 +34,10 @@ This is the **backend** of an AI-powered recruitment assistant that helps HR tea
 4. **Exception Handling**: Centrally managed via `BaseDomainException`. Service layers raise domain exceptions which are mapped to HTTP responses by a global exception handler.
 5. **Distributed Processing — Taskiq**: Heavy AI workloads (OCR, LLM Validation, Semantic Matching) are offloaded to background workers using Taskiq and Redis to maintain API responsiveness.
 6. **Localization Strategy — English Core, Localized Presentation**: The backend logic, database enums, and API identifiers use English to ensure stability and AI compatibility. Presentation for end-users (Labels, Status, AI Explanations, Error Messages, and API Success Messages) is mapped to Indonesian via display labels in API schemas, centralized exception handlers, and a specialized localization helper for all user-facing strings.
+7. **Security & Audit Logging Standard**: 
+    - **Otomatisasi IP & User-Agent**: Metadata request ditangkap otomatis oleh middleware dan disimpan di `contextvars`. Jangan meneruskan IP secara manual di fungsi service.
+    - **Snapshot Data (Old Values)**: Setiap `UPDATE` wajib merekam data lama menggunakan `get_model_snapshot` sebelum modifikasi dilakukan untuk transparansi penuh di Audit Log.
+    - **Transparansi AI**: Perubahan bobot kriteria penilaian kandidate harus dicatat sebagai audit log agar keputusan AI tetap dapat dipertanggungjawabkan.
 
 ## Project Structure
 
@@ -247,7 +252,7 @@ Current status of `app/features` after the router/service/repository/schema migr
 | `tickets` | Fully compliant | Ticket tracking decentralized. |
 | `notifications` | Fully compliant | Notification logic decentralized. |
 | `interviews` | Fully compliant | Interview scheduling logic decentralized. |
-| `audit_logs` | Fully compliant | Audit trail logic decentralized. |
+| `audit_logs` | Fully compliant | Audit trail logic decentralized with **Automatic Context Injection** and **Old Value Snapshots**. |
 
 ## File Storage
 

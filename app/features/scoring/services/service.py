@@ -16,6 +16,8 @@ from app.features.scoring.schemas.schema import (
     ScoringTemplateUpdateResponse,
     ScoringWeightsResponse,
 )
+from app.features.audit_logs.models import AuditLog
+from app.features.audit_logs.repositories.repository import create_audit_log
 
 
 def _validate_weight_total(data: CreateScoringTemplateRequest) -> None:
@@ -51,6 +53,18 @@ async def create_scoring_template(
         custom_rules=data.custom_rules,
     )
     template = await save_template(db, template)
+    
+    # Audit Log: AI Scoring Template Created
+    await create_audit_log(
+        db,
+        AuditLog(
+            action="SCORING_TEMPLATE_CREATE",
+            entity_type="scoring_template",
+            entity_id=template.id,
+            new_values=data.model_dump()
+        )
+    )
+    
     await db.commit()
     return ScoringTemplateCreatedResponse(template_id=template.id, job_id=data.job_id)
 
@@ -67,6 +81,18 @@ async def update_scoring_template(
     for key, value in updates.items():
         if hasattr(template, key):
             setattr(template, key, value)
+    
+    # Audit Log: AI Scoring Template Updated
+    await create_audit_log(
+        db,
+        AuditLog(
+            action="SCORING_TEMPLATE_UPDATE",
+            entity_type="scoring_template",
+            entity_id=template.id,
+            new_values=updates
+        )
+    )
+    
     await db.commit()
     return ScoringTemplateUpdateResponse(template_id=template.id, updated=True)
 

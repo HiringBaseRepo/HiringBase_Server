@@ -107,6 +107,20 @@ async def add_job_requirements(
         for item in data.requirements
     ]
     await save_requirements(db, requirements)
+    
+    # Audit Log
+    await create_audit_log(
+        db,
+        AuditLog(
+            company_id=current_user.company_id,
+            user_id=current_user.id,
+            action="JOB_REQUIREMENTS_UPDATE",
+            entity_type="job",
+            entity_id=job_id,
+            new_values={"count": len(requirements)}
+        )
+    )
+    
     await db.commit()
     return JobStepResponse(job_id=job_id, requirements_added=len(requirements))
 
@@ -124,6 +138,20 @@ async def setup_job_form(
 
     fields = [_build_form_field(job_id, item) for item in data.fields]
     await save_form_fields(db, fields)
+    
+    # Audit Log
+    await create_audit_log(
+        db,
+        AuditLog(
+            company_id=current_user.company_id,
+            user_id=current_user.id,
+            action="JOB_FORM_UPDATE",
+            entity_type="job",
+            entity_id=job_id,
+            new_values={"count": len(fields)}
+        )
+    )
+    
     await db.commit()
     return JobStepResponse(job_id=job_id, form_fields_added=len(fields))
 

@@ -1,6 +1,6 @@
 """User management API."""
 from typing import Optional
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.base import get_db
@@ -28,10 +28,13 @@ async def get_users_stats(
 @router.post("/hr", response_model=StandardResponse[UserCreatedResponse])
 async def create_hr_account(
     data: CreateHRAccountRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_super_admin),
 ):
-    user = await create_hr_account_service(db, data, current_user=current_user)
+    user = await create_hr_account_service(
+        db, data, current_user=current_user, ip_address=request.client.host
+    )
     return StandardResponse.ok(data=user)
 
 
@@ -71,20 +74,26 @@ async def get_user(
 async def update_user(
     user_id: int,
     data: UpdateUserRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_super_admin),
 ):
-    user = await update_user_service(db, user_id, data, current_user=current_user)
+    user = await update_user_service(
+        db, user_id, data, current_user=current_user, ip_address=request.client.host
+    )
     return StandardResponse.ok(data=user, message="User updated successfully")
 
 
 @router.delete("/{user_id}", response_model=StandardResponse[dict])
 async def delete_user(
     user_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_super_admin),
 ):
-    await delete_user_service(db, user_id, current_user=current_user)
+    await delete_user_service(
+        db, user_id, current_user=current_user, ip_address=request.client.host
+    )
     return StandardResponse.ok(data={"id": user_id}, message="User deleted successfully")
 
 

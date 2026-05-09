@@ -1,40 +1,59 @@
-from typing import List
+from typing import Optional
+from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.features.reports.schemas.schema import ReportStats, ChartDataItem
-from app.features.reports.repositories.repository import get_active_companies
+from app.features.reports.repositories.repository import (
+    get_screening_volume_stats,
+    get_match_distribution_stats,
+    get_company_activity_stats,
+    get_report_summary_stats
+)
 
-async def get_report_stats(db: AsyncSession) -> ReportStats:
-    """Orchestrates report statistics data."""
-    # Screening Volume
-    # TODO: Implement real trend calculation in repository
-    screening_data = [
-        ChartDataItem(name="Mon", value=450),
-        ChartDataItem(name="Tue", value=520),
-        ChartDataItem(name="Wed", value=480),
-        ChartDataItem(name="Thu", value=610),
-        ChartDataItem(name="Fri", value=580),
-        ChartDataItem(name="Sat", value=200),
-        ChartDataItem(name="Sun", value=150),
-    ]
+async def get_report_stats(
+    db: AsyncSession, 
+    start_date: Optional[str] = None, 
+    end_date: Optional[str] = None
+) -> ReportStats:
+    """Orchestrates report statistics data using real database values."""
+    # Summary stats
+    summary = await get_report_summary_stats(db)
+
+    # Screening Volume Trend
+    volume_raw = await get_screening_volume_stats(db)
+    screening_data = [ChartDataItem(name=row[0], value=float(row[1])) for row in volume_raw]
+    
+    if not screening_data:
+        for i in range(6, -1, -1):
+            date_label = (datetime.now() - timedelta(days=i)).strftime('%b %d')
+            screening_data.append(ChartDataItem(name=date_label, value=0.0))
 
     # Match Distribution
-    # TODO: Implement real score distribution in repository
-    match_distribution = [
-        ChartDataItem(name="90-100%", value=35),
-        ChartDataItem(name="70-89%", value=45),
-        ChartDataItem(name="50-69%", value=15),
-        ChartDataItem(name="Below 50%", value=5),
-    ]
+    distribution_raw = await get_match_distribution_stats(db)
+    match_distribution = [ChartDataItem(name=row[0], value=float(row[1])) for row in distribution_raw]
+    
+    if not match_distribution:
+        # Using 0.1 as a very small value so the PieChart segments at least exist in the DOM 
+        # but look empty (or just use 0 if the chart handles it). 
+        # Actually, let's stick to 0 but ensure all ranges are present.
+        match_distribution = [
+            ChartDataItem(name="90-100%", value=0.0),
+            ChartDataItem(name="70-89%", value=0.0),
+            ChartDataItem(name="50-69%", value=0.0),
+            ChartDataItem(name="Below 50%", value=0.0),
+        ]
 
     # Company Activity
-    companies = await get_active_companies(db)
+    activity_raw = await get_company_activity_stats(db)
+    company_activity = [ChartDataItem(name=row[0], value=float(row[1])) for row in activity_raw]
     
-    company_activity = []
-    for company in companies:
-        # TODO: Implement real activity volume calculation in repository
-        company_activity.append(ChartDataItem(name=company.name[:10], value=100 + (company.id % 50)))
-        
+    if not company_activity:
+        company_activity = [ChartDataItem(name="No Activity", value=0.0)]
+
     return ReportStats(
+        total_processed=summary["total_processed"],
+        avg_match_rate=summary["avg_match_rate"],
+        screening_efficiency=summary["screening_efficiency"],
+        total_savings=summary["total_savings"],
         screening_data=screening_data,
         match_distribution=match_distribution,
         company_activity=company_activity

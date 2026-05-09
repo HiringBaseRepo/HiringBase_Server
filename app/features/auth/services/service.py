@@ -33,6 +33,8 @@ from app.core.exceptions import (
     UserInactiveException,
     UserNotFoundException,
 )
+from app.features.audit_logs.models import AuditLog
+from app.features.audit_logs.repositories.repository import create_audit_log
 
 # Moved RefreshToken to top
 
@@ -47,6 +49,20 @@ async def authenticate_user(
         raise InvalidCredentialsException()
     if not user.is_active:
         raise UserInactiveException()
+    
+    # Audit Log: Login Success
+    await create_audit_log(
+        db,
+        AuditLog(
+            company_id=user.company_id,
+            user_id=user.id,
+            action="LOGIN_SUCCESS",
+            entity_type="auth",
+            entity_id=user.id,
+            new_values={"email": email}
+        )
+    )
+    
     return user
 
 
@@ -137,7 +153,15 @@ async def refresh_access_token(
     if not payload or payload.get("type") != "refresh" or not payload.get("jti"):
         raise InvalidRefreshTokenException("Struktur token tidak valid")
 
-    user_id = int(payload.get("sub"))
+    sub = payload.get("sub")
+    if not sub:
+        raise InvalidRefreshTokenException("Token tidak memiliki identitas pengguna")
+        
+    try:
+        user_id = int(sub)
+    except (ValueError, TypeError):
+        raise InvalidRefreshTokenException("Identitas pengguna tidak valid")
+        
     jti = payload.get("jti")
 
     user = await get_user_by_id(db, user_id)
@@ -179,9 +203,15 @@ async def refresh_access_token(
         # Use soft revoke instead of delete to support grace period
         await soft_revoke_refresh_token(db, token_record)
         # We don't commit yet, generate_token_pair will add the new one and commit
-        return await generate_token_pair(db, user)
+        tokens = await generate_token_pair(db, user)
+        if not tokens:
+             raise TokenRotationFailedException("Gagal menghasilkan pasangan token baru")
+        return tokens
     except Exception as e:
         await db.rollback()
+        import structlog
+        logger = structlog.get_logger("auth.service")
+        logger.error("token_rotation_failed", error=str(e), user_id=user.id)
         raise TokenRotationFailedException()
 
 
@@ -212,6 +242,20 @@ async def request_password_reset(db: AsyncSession, email: str) -> str | None:
 
     # Note: Production solution requires password_reset_tokens table.
     # MVP: Return token to be logged to console in the endpoint.
+    
+    # Audit Log
+    await create_audit_log(
+        db,
+        AuditLog(
+            company_id=user.company_id,
+            user_id=user.id,
+            action="PASSWORD_RESET_REQUESTED",
+            entity_type="auth",
+            entity_id=user.id,
+            new_values={"email": email}
+        )
+    )
+    
     await db.commit()
     return token
 
@@ -244,9 +288,24 @@ async def revoke_all_sessions(db: AsyncSession, user_id: int) -> bool:
     return True
 
 
-async def logout(db: AsyncSession, jti: str) -> None:
-    """Revoke a refresh token by its JTI."""
-    from app.features.auth.repositories.repository import revoke_refresh_token
+async def logout(db: AsyncSession, user_id: int, jti: str) -> None:
+    """Revoke a refresh token by its JTI with audit logging."""
+    from app.features.auth.repositories.repository import revoke_refresh_token, get_user_by_id
 
     await revoke_refresh_token(db, jti)
+    
+    user = await get_user_by_id(db, user_id)
+    
+    # Audit Log
+    await create_audit_log(
+        db,
+        AuditLog(
+            company_id=user.company_id if user else None,
+            user_id=user_id,
+            action="LOGOUT",
+            entity_type="auth",
+            entity_id=user_id,
+        )
+    )
+    
     await db.commit()

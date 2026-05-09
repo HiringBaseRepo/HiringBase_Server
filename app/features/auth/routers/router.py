@@ -85,7 +85,25 @@ async def register_hr(data: RegisterRequest, db: AsyncSession = Depends(get_db))
 async def login(
     data: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)
 ):
-    user = await authenticate_user(db, data.email, data.password)
+    try:
+        user = await authenticate_user(db, data.email, data.password)
+        if not user:
+            raise InvalidCredentialsException()
+    except InvalidCredentialsException as e:
+        # Audit Log: Login Failure
+        from app.features.audit_logs.models import AuditLog
+        from app.features.audit_logs.repositories.repository import create_audit_log
+        await create_audit_log(
+            db,
+            AuditLog(
+                action="LOGIN_FAILURE",
+                entity_type="auth",
+                entity_id=0,
+                new_values={"email": data.email}
+            )
+        )
+        await db.commit()
+        raise e
     tokens = await generate_token_pair(db, user)
 
     response.set_cookie(
@@ -111,6 +129,8 @@ async def refresh(
         raise InvalidRefreshTokenException("Refresh token tidak ditemukan di cookies")
 
     tokens = await refresh_access_token(db, refresh_token)
+    if not tokens:
+        raise InvalidRefreshTokenException("Gagal memperbarui sesi, silakan login kembali")
 
     response.set_cookie(
         key="refresh_token",
@@ -137,7 +157,7 @@ async def logout(
         payload = decode_token(refresh_token)
         if payload and payload.get("jti"):
             jti = payload.get("jti")
-            await logout_service(db, jti)
+            await logout_service(db, current_user.id, jti)
 
     response.delete_cookie(key="refresh_token")
     return StandardResponse.ok(

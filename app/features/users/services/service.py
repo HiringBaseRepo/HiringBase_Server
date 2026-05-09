@@ -17,7 +17,8 @@ async def create_hr_account(
     db: AsyncSession, 
     data: CreateHRAccountRequest,
     *,
-    current_user: User
+    current_user: User,
+    ip_address: str | None = None
 ) -> UserCreatedResponse:
     user = User(
         email=data.email,
@@ -39,6 +40,7 @@ async def create_hr_account(
             entity_type="user",
             entity_id=user.id,
             new_values=data.model_dump(exclude={"password"}),
+            ip_address=ip_address,
         )
     )
     
@@ -107,7 +109,8 @@ async def update_user(
     user_id: int, 
     data: UpdateUserRequest,
     *,
-    current_user: User
+    current_user: User,
+    ip_address: str | None = None
 ) -> UserListItem:
     user = await get_user_by_id(db, user_id)
     if not user:
@@ -143,6 +146,7 @@ async def update_user(
             entity_id=user.id,
             old_values=old_values,
             new_values=data.model_dump(exclude_unset=True),
+            ip_address=ip_address,
         )
     )
     
@@ -154,7 +158,8 @@ async def delete_user(
     db: AsyncSession, 
     user_id: int,
     *,
-    current_user: User
+    current_user: User,
+    ip_address: str | None = None
 ) -> None:
     user = await get_user_by_id(db, user_id)
     if not user:
@@ -173,6 +178,7 @@ async def delete_user(
             entity_type="user",
             entity_id=user_id,
             old_values={"email": user.email, "full_name": user.full_name},
+            ip_address=ip_address,
         )
     )
     

@@ -12,11 +12,21 @@ class LoggingMiddleware(BaseHTTPMiddleware):
     
     async def dispatch(self, request: Request, call_next) -> Response:
         request_id = str(uuid.uuid4())
+        
+        # Set Audit Context
+        from app.core.context.audit import set_audit_context
+        ip_address = request.headers.get("X-Forwarded-For", request.client.host if request.client else None)
+        if ip_address and "," in ip_address:
+            ip_address = ip_address.split(",")[0].strip()
+        
+        set_audit_context(ip_address, request.headers.get("User-Agent"))
+
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(
             request_id=request_id,
             method=request.method,
             path=request.url.path,
+            ip=ip_address,
         )
 
         start_time = time.time()

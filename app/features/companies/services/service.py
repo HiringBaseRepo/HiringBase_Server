@@ -40,7 +40,13 @@ from app.shared.enums.application_status import ApplicationStatus
 from app.shared.schemas.response import PaginatedResponse
 
 
-async def create_company(db: AsyncSession, data: CreateCompanyRequest) -> CompanyCreatedResponse:
+async def create_company(
+    db: AsyncSession, 
+    data: CreateCompanyRequest,
+    *,
+    current_user: DBUser,
+    ip_address: str | None = None
+) -> CompanyCreatedResponse:
     slug = data.slug
     if not slug:
         # Simple slugify
@@ -69,6 +75,20 @@ async def create_company(db: AsyncSession, data: CreateCompanyRequest) -> Compan
         is_active=True,
     )
     await save_user(db, hr_user)
+    
+    # Audit Log
+    await create_audit_log(
+        db,
+        AuditLog(
+            company_id=company.id,
+            user_id=current_user.id,
+            action="CREATE_COMPANY",
+            entity_type="company",
+            entity_id=company.id,
+            new_values=data.model_dump(),
+            ip_address=ip_address,
+        )
+    )
     
     await db.commit()
     return CompanyCreatedResponse(
@@ -116,11 +136,30 @@ async def upload_logo(db: AsyncSession, file: UploadFile) -> str:
 
 
 async def update_company(
-    db: AsyncSession, company_id: int, data: CreateCompanyRequest
+    db: AsyncSession, 
+    company_id: int, 
+    data: CreateCompanyRequest,
+    *,
+    current_user: DBUser,
+    ip_address: str | None = None
 ) -> CompanyDetailResponse:
     company = await get_company_repository_id(db, company_id)
     if not company:
         raise CompanyNotFoundException()
+
+    # Capture old state for audit (Company + HR Contact)
+    from app.core.utils.audit import get_model_snapshot
+    old_values = get_model_snapshot(company)
+    
+    hr_contact = await get_hr_contact(db, company_id)
+    if hr_contact:
+        old_values["contact_name"] = hr_contact.full_name
+        old_values["contact_email"] = hr_contact.email
+        old_values["contact_phone"] = hr_contact.phone
+    else:
+        old_values["contact_name"] = None
+        old_values["contact_email"] = None
+        old_values["contact_phone"] = None
 
     if data.name is not None:
         company.name = data.name
@@ -134,7 +173,6 @@ async def update_company(
     await update_company_repo(db, company)
 
     # Update HR Contact User
-    hr_contact = await get_hr_contact(db, company_id)
     if hr_contact:
         if data.contact_name:
             hr_contact.full_name = data.contact_name
@@ -153,7 +191,20 @@ async def update_company(
             role=UserRole.HR,
             is_active=True,
         )
-        await save_user(db, new_hr)
+    # Audit Log
+    await create_audit_log(
+        db,
+        AuditLog(
+            company_id=company.id,
+            user_id=current_user.id,
+            action="UPDATE_COMPANY",
+            entity_type="company",
+            entity_id=company.id,
+            old_values=old_values,
+            new_values=data.model_dump(exclude_unset=True),
+            ip_address=ip_address,
+        )
+    )
 
     await db.commit()
 
@@ -200,7 +251,13 @@ async def list_companies(
     )
 
 
-async def suspend_company(db: AsyncSession, company_id: int) -> CompanySuspendResponse:
+async def suspend_company(
+    db: AsyncSession, 
+    company_id: int,
+    *,
+    current_user: DBUser,
+    ip_address: str | None = None
+) -> CompanySuspendResponse:
     company = await get_company_by_id(db, company_id)
     if not company:
         raise CompanyNotFoundException()
@@ -208,19 +265,26 @@ async def suspend_company(db: AsyncSession, company_id: int) -> CompanySuspendRe
     await create_audit_log(
         db,
         AuditLog(
-            company_id=company.id,
-            user_id=None,  # System or Admin (depends on current_user, but this service doesn't receive it yet)
+            company_id=company_id,
+            user_id=current_user.id,
             action="COMPANY_SUSPEND",
             entity_type="company",
-            entity_id=company.id,
+            entity_id=company_id,
             new_values={"is_suspended": True},
+            ip_address=ip_address,
         ),
     )
     await db.commit()
     return CompanySuspendResponse(id=company.id, is_suspended=True)
 
 
-async def activate_company(db: AsyncSession, company_id: int) -> CompanyActivateResponse:
+async def activate_company(
+    db: AsyncSession, 
+    company_id: int,
+    *,
+    current_user: DBUser,
+    ip_address: str | None = None
+) -> CompanyActivateResponse:
     company = await get_company_by_id(db, company_id)
     if not company:
         raise CompanyNotFoundException()
@@ -229,12 +293,13 @@ async def activate_company(db: AsyncSession, company_id: int) -> CompanyActivate
     await create_audit_log(
         db,
         AuditLog(
-            company_id=company.id,
-            user_id=None,
+            company_id=company_id,
+            user_id=current_user.id,
             action="COMPANY_ACTIVATE",
             entity_type="company",
-            entity_id=company.id,
+            entity_id=company_id,
             new_values={"is_active": True, "is_suspended": False},
+            ip_address=ip_address,
         ),
     )
     await db.commit()

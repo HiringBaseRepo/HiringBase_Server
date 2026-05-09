@@ -1,10 +1,11 @@
 """Super Admin Company Management API."""
 from typing import Optional
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.base import get_db
 from app.features.auth.dependencies.auth import require_super_admin
+from app.features.users.models import User
 from app.features.companies.schemas.schema import (
     CompanyActivateResponse,
     CompanyCreatedResponse,
@@ -35,10 +36,13 @@ router = APIRouter(prefix="/companies", tags=["Companies — Super Admin"])
 @router.post("", response_model=StandardResponse[CompanyCreatedResponse])
 async def create_company(
     data: CreateCompanyRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin),
 ):
-    result = await create_company_service(db, data)
+    result = await create_company_service(
+        db, data, current_user=current_user, ip_address=request.client.host
+    )
     return StandardResponse.ok(data=result)
 
 
@@ -56,14 +60,28 @@ async def list_companies(
 
 
 @router.patch("/{company_id}/suspend", response_model=StandardResponse[CompanySuspendResponse])
-async def suspend_company(company_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_super_admin)):
-    result = await suspend_company_service(db, company_id)
+async def suspend_company(
+    company_id: int, 
+    request: Request,
+    db: AsyncSession = Depends(get_db), 
+    current_user: User = Depends(require_super_admin)
+):
+    result = await suspend_company_service(
+        db, company_id, current_user=current_user, ip_address=request.client.host
+    )
     return StandardResponse.ok(data=result)
 
 
 @router.patch("/{company_id}/activate", response_model=StandardResponse[CompanyActivateResponse])
-async def activate_company(company_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_super_admin)):
-    result = await activate_company_service(db, company_id)
+async def activate_company(
+    company_id: int, 
+    request: Request,
+    db: AsyncSession = Depends(get_db), 
+    current_user: User = Depends(require_super_admin)
+):
+    result = await activate_company_service(
+        db, company_id, current_user=current_user, ip_address=request.client.host
+    )
     return StandardResponse.ok(data=result)
 
 
@@ -77,10 +95,13 @@ async def get_company(company_id: int, db: AsyncSession = Depends(get_db), _=Dep
 async def update_company(
     company_id: int,
     data: CreateCompanyRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin),
 ):
-    result = await update_company_service(db, company_id, data)
+    result = await update_company_service(
+        db, company_id, data, current_user=current_user, ip_address=request.client.host
+    )
     return StandardResponse.ok(data=result)
 
 

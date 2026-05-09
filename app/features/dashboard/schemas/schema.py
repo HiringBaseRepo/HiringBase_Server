@@ -5,10 +5,12 @@ class DashboardOverview(BaseModel):
     total_companies: int
     total_hr_users: int
     active_jobs: int
-    total_applicants: str
+    system_health: float
+    api_latency: int
     company_growth: str
     hr_growth: str
     job_status: str
+    total_applicants: int
     applicant_change: str
 
 class RecentCampaign(BaseModel):
