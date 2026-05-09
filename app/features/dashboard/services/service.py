@@ -34,10 +34,13 @@ async def get_recent_campaigns(db: AsyncSession) -> List[RecentCampaign]:
     for job in jobs:
         screened = await get_application_count_by_job(db, job.id)
         
+        company_name = job.company.name if job.company and job.company.name else "Unknown"
+        company_initials = "".join([n[0].upper() for n in company_name.split() if n])[:2] if company_name != "Unknown" else "UN"
+
         campaigns.append(RecentCampaign(
             id=job.id,
-            company_name=job.company.name if job.company else "Unknown",
-            company_initials="".join([n[0] for n in job.company.name.split()]) if job.company and job.company.name else "UN",
+            company_name=company_name,
+            company_initials=company_initials,
             job_title=job.title,
             screened=screened,
             # TODO: Implement real match rate calculation based on application scores

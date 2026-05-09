@@ -35,8 +35,10 @@ async def get_dashboard_stats(db: AsyncSession) -> dict:
 
 async def get_recent_jobs_with_counts(db: AsyncSession, limit: int = 5) -> List[Job]:
     """Fetch recent jobs with their basic relations."""
+    from sqlalchemy.orm import selectinload
     stmt = (
         select(Job)
+        .options(selectinload(Job.company))
         .where(Job.deleted_at.is_(None))
         .order_by(Job.created_at.desc())
         .limit(limit)

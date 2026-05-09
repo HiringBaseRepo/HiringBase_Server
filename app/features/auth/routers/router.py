@@ -9,6 +9,7 @@ from fastapi import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database.base import get_db
 from app.core.exceptions import (
     InvalidCredentialsException,
@@ -37,6 +38,7 @@ from app.features.auth.services.service import (
     generate_token_pair,
     refresh_access_token,
     request_password_reset,
+    logout as logout_service,
 )
 from app.shared.enums.user_roles import UserRole
 from app.shared.schemas.response import StandardResponse
@@ -47,8 +49,18 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post("/register/super-admin", response_model=StandardResponse[UserResponse])
 async def register_super_admin(
-    data: RegisterRequest, db: AsyncSession = Depends(get_db)
+    data: RegisterRequest, 
+    request: Request,
+    db: AsyncSession = Depends(get_db)
 ):
+    """
+    Register initial super admin.
+    Requires 'X-Setup-Token' header matching SETUP_TOKEN in .env.
+    """
+    setup_token = request.headers.get("X-Setup-Token")
+    if not settings.SETUP_TOKEN or setup_token != settings.SETUP_TOKEN:
+        raise BaseDomainException("Setup token tidak valid atau belum diatur di .env")
+        
     user = await create_user(db, data, role=UserRole.SUPER_ADMIN)
     return StandardResponse.ok(
         data=UserResponse.model_validate(user), message=get_label("Super admin registered")
@@ -58,10 +70,7 @@ async def register_super_admin(
 @router.post("/register/hr", response_model=StandardResponse[dict])
 async def register_hr(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
     if not data.company_name:
-        return StandardResponse.error(
-            message="company_name is required for HR",
-            status_code=status.HTTP_400_BAD_REQUEST
-        )
+        raise BaseDomainException("Nama perusahaan wajib diisi untuk HR")
     hr, company = await create_company_and_hr(db, data)
     return StandardResponse.ok(
         data={
@@ -83,7 +92,7 @@ async def login(
         key="refresh_token",
         value=tokens.refresh_token,
         httponly=True,
-        secure=True,  # Set to True for production (HTTPS)
+        secure=settings.APP_ENV == "production",
         samesite="lax",
     )
 
@@ -99,10 +108,7 @@ async def refresh(
 ):
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
-        return StandardResponse.error(
-            message="Refresh token missing from cookies",
-            status_code=status.HTTP_401_UNAUTHORIZED
-        )
+        raise InvalidRefreshTokenException("Refresh token tidak ditemukan di cookies")
 
     tokens = await refresh_access_token(db, refresh_token)
 
@@ -110,7 +116,7 @@ async def refresh(
         key="refresh_token",
         value=tokens.refresh_token,
         httponly=True,
-        secure=True,
+        secure=settings.APP_ENV == "production",
         samesite="lax",
     )
 
@@ -127,7 +133,6 @@ async def logout(
     refresh_token = request.cookies.get("refresh_token")
     if refresh_token:
         from app.core.security.jwt import decode_token
-        from app.features.auth.services.service import logout as logout_service
 
         payload = decode_token(refresh_token)
         if payload and payload.get("jti"):
@@ -149,19 +154,11 @@ async def me(current_user=Depends(get_current_user)):
 async def password_reset_request(
     data: PasswordResetRequest, db: AsyncSession = Depends(get_db)
 ):
-    """Request password reset token.
-
-    Token di-generate aman dan idealnya dikirim via email.
-    NOTE: Email delivery belum aktif (perlu konfigurasi SMTP/SendGrid).
-    """
+    """Request password reset token."""
     token = await request_password_reset(db, data.email)
-    # Selalu kembalikan response yang sama untuk mencegah user enumeration
     response_data: dict = {"message": "Jika email terdaftar, link reset akan dikirim"}
-    # TODO: Kirim token via email ke data.email
-    # Untuk development: log token ke console (jangan di production!)
     if token:
         import structlog
-
         log = structlog.get_logger("auth.password_reset")
         log.info(
             "Password reset token generated (dev only)", email=data.email, token=token
@@ -173,16 +170,10 @@ async def password_reset_request(
 async def password_reset_confirm(
     data: PasswordResetConfirm, db: AsyncSession = Depends(get_db)
 ):
-    """Konfirmasi reset password menggunakan token.
-
-    NOTE: Implementasi penuh butuh tabel password_reset_tokens via Alembic migration.
-    """
+    """Konfirmasi reset password menggunakan token."""
     success = await confirm_password_reset(db, data.token, data.new_password)
     if not success:
-        return StandardResponse.error(
-            message="Token tidak valid, sudah digunakan, atau sudah kedaluwarsa",
-            status_code=status.HTTP_400_BAD_REQUEST
-        )
+        raise PasswordResetTokenInvalidException()
     return StandardResponse.ok(
         data={"message": "Password berhasil direset, silahkan login kembali"}
     )

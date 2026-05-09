@@ -56,6 +56,15 @@ async def delete_refresh_token(db: AsyncSession, refresh_token: RefreshToken) ->
     await db.flush()
 
 
+async def soft_revoke_refresh_token(db: AsyncSession, refresh_token: RefreshToken) -> None:
+    """Soft revoke a refresh token object by setting is_revoked and revoked_at."""
+    from datetime import datetime, timezone
+    refresh_token.is_revoked = True
+    refresh_token.revoked_at = datetime.now(timezone.utc)
+    db.add(refresh_token)
+    await db.flush()
+
+
 async def delete_all_refresh_tokens_by_user_id(db: AsyncSession, user_id: int) -> None:
     from sqlalchemy import delete
 
@@ -64,8 +73,13 @@ async def delete_all_refresh_tokens_by_user_id(db: AsyncSession, user_id: int) -
 
 
 async def revoke_refresh_token(db: AsyncSession, jti: str) -> None:
-    """Revoke a refresh token by its JTI."""
-    from sqlalchemy import delete
+    """Revoke a refresh token by its JTI by setting is_revoked and revoked_at."""
+    from sqlalchemy import update
+    from datetime import datetime, timezone
 
-    await db.execute(delete(RefreshToken).where(RefreshToken.jti == jti))
+    await db.execute(
+        update(RefreshToken)
+        .where(RefreshToken.jti == jti)
+        .values(is_revoked=True, revoked_at=datetime.now(timezone.utc))
+    )
     await db.flush()

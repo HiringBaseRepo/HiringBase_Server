@@ -1,6 +1,6 @@
 """Super Admin Company Management API."""
 from typing import Optional
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.base import get_db
@@ -8,6 +8,7 @@ from app.features.auth.dependencies.auth import require_super_admin
 from app.features.companies.schemas.schema import (
     CompanyActivateResponse,
     CompanyCreatedResponse,
+    CompanyDetailResponse,
     CompanyListItem,
     CompanyOverviewResponse,
     CompanyStatisticsResponse,
@@ -17,10 +18,13 @@ from app.features.companies.schemas.schema import (
 from app.features.companies.services.service import (
     activate_company as activate_company_service,
     create_company as create_company_service,
+    get_company_by_id as get_company_service,
     get_company_statistics,
     get_multi_company_overview,
     list_companies as list_companies_service,
     suspend_company as suspend_company_service,
+    update_company as update_company_service,
+    upload_logo as upload_logo_service,
 )
 from app.shared.schemas.response import StandardResponse, PaginatedResponse
 from app.core.utils.pagination import PaginationParams
@@ -41,12 +45,13 @@ async def create_company(
 @router.get("", response_model=StandardResponse[PaginatedResponse[CompanyListItem]])
 async def list_companies(
     q: Optional[str] = None,
+    industry: Optional[str] = None,
     is_active: Optional[bool] = None,
     pagination: PaginationParams = Depends(),
     db: AsyncSession = Depends(get_db),
     _=Depends(require_super_admin),
 ):
-    result = await list_companies_service(db, pagination=pagination, q=q, is_active=is_active)
+    result = await list_companies_service(db, pagination=pagination, q=q, industry=industry, is_active=is_active)
     return StandardResponse.ok(data=result)
 
 
@@ -62,6 +67,23 @@ async def activate_company(company_id: int, db: AsyncSession = Depends(get_db), 
     return StandardResponse.ok(data=result)
 
 
+@router.get("/{company_id}", response_model=StandardResponse[CompanyDetailResponse])
+async def get_company(company_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_super_admin)):
+    result = await get_company_service(db, company_id)
+    return StandardResponse.ok(data=result)
+
+
+@router.patch("/{company_id}", response_model=StandardResponse[CompanyDetailResponse])
+async def update_company(
+    company_id: int,
+    data: CreateCompanyRequest,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_super_admin),
+):
+    result = await update_company_service(db, company_id, data)
+    return StandardResponse.ok(data=result)
+
+
 @router.get("/{company_id}/statistics", response_model=StandardResponse[CompanyStatisticsResponse])
 async def company_statistics(company_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_super_admin)):
     """Statistik lengkap satu perusahaan untuk Super Admin."""
@@ -74,3 +96,14 @@ async def multi_company_overview(db: AsyncSession = Depends(get_db), _=Depends(r
     """Overview semua perusahaan untuk Super Admin dashboard."""
     result = await get_multi_company_overview(db)
     return StandardResponse.ok(data=result)
+
+
+@router.post("/upload-logo", response_model=StandardResponse[dict])
+async def upload_company_logo(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_super_admin),
+):
+    """Upload logo perusahaan ke Cloudflare R2."""
+    url = await upload_logo_service(db, file)
+    return StandardResponse.ok(data={"logo_url": url})

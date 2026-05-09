@@ -1,4 +1,4 @@
-"""Custom exceptions for the HireBase application."""
+"""Custom exceptions for the HiringBase application."""
 
 
 class BaseDomainException(Exception):

@@ -190,13 +190,19 @@ Routers must not contain:
 - Call AI helpers, storage helpers, security helpers, and repositories.
 - Control transaction boundaries consistently. If a workflow changes multiple records, commit at the service boundary after all records are prepared.
 
-Services may receive `AsyncSession`, but should not build complex SQLAlchemy queries directly. Move reusable or non-trivial DB access into repositories.
+Services may receive `AsyncSession`, but they MUST NOT contain:
+- Direct ORM mutation logic such as `db.flush()`, `db.refresh()`, or `db.add()`. These are handled by **Repositories**.
+- Complex SQLAlchemy query building.
+- Hardcoded database constraints.
+
+**Transaction Rule**: Services own the `db.commit()`. Repositories prepare the state (flush), and Services finalize the transaction.
 
 ### Repositories
 
 `repositories/` is only for database access:
 - Build SQLAlchemy `select`, `insert`, `update`, `delete`, joins, counts, filters, ordering, and pagination queries.
 - Provide functions such as `get_by_id`, `get_by_email`, `list_paginated`, `create`, `update`, `soft_delete`, `exists`, and domain-specific query helpers.
+- **ORM Synchronization**: Repositories are responsible for `db.add()`, `db.flush()`, and `db.refresh()` to ensure the Model state is synchronized with the database session.
 - Return ORM models, scalar values, or simple query result objects to services.
 - Keep persistence details in one place so services do not duplicate SQL.
 

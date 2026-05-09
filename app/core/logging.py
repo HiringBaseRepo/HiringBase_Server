@@ -14,11 +14,11 @@ from app.core.config import settings
 def setup_logging():
     """Configures structlog based on environment."""
     
+    # Processors that don't depend on the underlying logger type
     shared_processors = [
         structlog.contextvars.merge_contextvars,
-        add_log_level,
-        structlog.stdlib.add_logger_name,
-        TimeStamper(fmt="iso", utc=True),
+        structlog.processors.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso", utc=True),
     ]
 
     if settings.APP_ENV == "development" and sys.stderr.isatty():
@@ -29,6 +29,7 @@ def setup_logging():
     else:
         # Structured JSON logging for production
         processors = shared_processors + [
+            structlog.stdlib.add_logger_name,
             StackInfoRenderer(),
             format_exc_info,
             dict_tracebacks,
@@ -37,11 +38,12 @@ def setup_logging():
 
     structlog.configure(
         processors=processors,
-        logger_factory=structlog.PrintLoggerFactory(),
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
         cache_logger_on_first_use=True,
     )
 
-    # Bridge standard logging to structlog if needed
+    # Configure the standard library logging to use structlog's LoggerFactory
     logging.basicConfig(
         format="%(message)s",
         stream=sys.stdout,

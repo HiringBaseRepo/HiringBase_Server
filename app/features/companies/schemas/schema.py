@@ -3,8 +3,33 @@ from pydantic import BaseModel
 
 
 class CreateCompanyRequest(BaseModel):
+    name: str | None = None
+    slug: str | None = None
+    industry: str | None = None
+    website: str | None = None
+    contact_name: str | None = None
+    contact_email: str | None = None
+    contact_phone: str | None = None
+    quota: str | None = None
+    model: str | None = None
+    auto_onboarding: bool = True
+    logo_url: str | None = None
+
+
+class CompanyDetailResponse(BaseModel):
+    id: int
     name: str
     slug: str
+    industry: str | None
+    website: str | None
+    description: str | None
+    is_active: bool
+    is_suspended: bool
+    logo_url: str | None
+    contact_name: str | None
+    contact_email: str | None
+    contact_phone: str | None
+    created_at: str | None
 
 
 class CompanyCreatedResponse(BaseModel):
@@ -20,6 +45,9 @@ class CompanyListItem(BaseModel):
     slug: str
     is_active: bool
     is_suspended: bool
+    industry: str | None = None
+    hr_count: int = 0
+    logo_url: str | None = None
     created_at: str | None
 
 

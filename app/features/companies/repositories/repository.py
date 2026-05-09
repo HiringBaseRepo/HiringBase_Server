@@ -24,16 +24,25 @@ async def get_company_by_id(db: AsyncSession, company_id: int) -> Company | None
     return result.scalar_one_or_none()
 
 
+async def update_company_repo(db: AsyncSession, company: Company) -> Company:
+    await db.flush()
+    await db.refresh(company)
+    return company
+
+
 async def list_companies(
     db: AsyncSession,
     *,
     pagination: PaginationParams,
     q: str | None = None,
+    industry: str | None = None,
     is_active: bool | None = None,
 ) -> tuple[list[Company], int]:
     stmt = select(Company).where(Company.deleted_at.is_(None))
     if q:
         stmt = stmt.where(Company.name.ilike(f"%{q}%"))
+    if industry:
+        stmt = stmt.where(Company.industry == industry)
     if is_active is not None:
         stmt = stmt.where(Company.is_active == is_active)
 
@@ -77,6 +86,17 @@ async def count_hr_users(db: AsyncSession, company_id: int) -> int:
         )
     )
     return result.scalar_one()
+
+
+async def get_hr_contact(db: AsyncSession, company_id: int) -> User | None:
+    result = await db.execute(
+        select(User).where(
+            User.company_id == company_id,
+            User.role == UserRole.HR,
+            User.deleted_at.is_(None),
+        ).limit(1)
+    )
+    return result.scalar_one_or_none()
 
 
 async def list_all_companies(db: AsyncSession) -> list[Company]:

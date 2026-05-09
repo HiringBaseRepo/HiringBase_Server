@@ -1,4 +1,4 @@
-"""Scoring engine for the HireBase application."""
+"""Scoring engine for the HiringBase application."""
 
 from typing import List
 

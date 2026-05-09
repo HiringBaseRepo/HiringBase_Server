@@ -147,7 +147,24 @@ async def test_refresh_token_reuse_detection_kill_switch(
     await session.refresh(user)
     token_version_after_rotation = user.token_version
 
-    # Step 3: Attempt to reuse the OLD token (should fail with Kill Switch)
+    # Step 3: Attempt to reuse the OLD token
+    # We must first "age" the revoked_at timestamp to bypass the grace period (30s)
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import update
+    from app.features.users.models import RefreshToken
+    
+    # Get the JTI from the old token
+    from app.core.security.jwt import decode_token
+    old_payload = decode_token(old_refresh_token)
+    old_jti = old_payload.get("jti")
+    
+    await session.execute(
+        update(RefreshToken)
+        .where(RefreshToken.jti == old_jti)
+        .values(revoked_at=datetime.now(timezone.utc) - timedelta(seconds=60))
+    )
+    await session.commit()
+
     reuse_attack_response = await client.post(
         "/api/v1/auth/refresh",
         cookies={"refresh_token": old_refresh_token},
@@ -155,14 +172,14 @@ async def test_refresh_token_reuse_detection_kill_switch(
 
     # System should detect reuse and return 401
     assert reuse_attack_response.status_code == 401, (
-        f"Expected 401 Unauthorized for reused token, got {reuse_attack_response.status_code}. "
+        f"Expected 401 Unauthorized for reused token (outside grace period), got {reuse_attack_response.status_code}. "
         f"Response: {reuse_attack_response.text}"
     )
 
     reuse_data = reuse_attack_response.json()
     assert (
-        "Security Alert" in reuse_data.get("detail", "")
-        or "login" in reuse_data.get("detail", "").lower()
+        "Peringatan Keamanan" in reuse_data.get("message", "")
+        or "login" in reuse_data.get("message", "").lower()
     )
 
     # Step 4: Verify Kill Switch was triggered (token_version incremented)
@@ -228,13 +245,37 @@ async def test_concurrent_token_rotation_prevents_double_use(
     )
     assert resp1.status_code == 200
 
-    # Second rotation attempt with SAME token should fail
+    # Second rotation attempt with SAME token
+    # Within grace period (30s), it should SUCCEED but generate a NEW token
     resp2 = await client.post(
         "/api/v1/auth/refresh",
         cookies={"refresh_token": shared_refresh_token},
     )
-    assert resp2.status_code == 401, (
-        "Same token used twice should be rejected on second attempt"
+    assert resp2.status_code == 200, (
+        "Same token used twice within grace period should be accepted"
+    )
+    
+    # Third rotation attempt AFTER grace period should FAIL
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import update
+    from app.features.users.models import RefreshToken
+    from app.core.security.jwt import decode_token
+    payload = decode_token(shared_refresh_token)
+    jti = payload.get("jti")
+    
+    await session.execute(
+        update(RefreshToken)
+        .where(RefreshToken.jti == jti)
+        .values(revoked_at=datetime.now(timezone.utc) - timedelta(seconds=60))
+    )
+    await session.commit()
+    
+    resp3 = await client.post(
+        "/api/v1/auth/refresh",
+        cookies={"refresh_token": shared_refresh_token},
+    )
+    assert resp3.status_code == 401, (
+        "Same token used after grace period should be rejected"
     )
 
 
@@ -319,14 +360,28 @@ async def test_token_version_tracking_in_jwt(
     assert refresh_response.status_code == 200
 
     # Second attempt: reuse the ORIGINAL token (already rotated once)
-    # This should trigger Kill Switch because old_refresh_token was already consumed
+    # Bypass grace period
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import update
+    from app.features.users.models import RefreshToken
+    from app.core.security.jwt import decode_token
+    old_payload = decode_token(old_refresh_token)
+    old_jti = old_payload.get("jti")
+    
+    await session.execute(
+        update(RefreshToken)
+        .where(RefreshToken.jti == old_jti)
+        .values(revoked_at=datetime.now(timezone.utc) - timedelta(seconds=60))
+    )
+    await session.commit()
+
     reuse_attack_response = await client.post(
         "/api/v1/auth/refresh",
         cookies={"refresh_token": old_refresh_token},
     )
     assert reuse_attack_response.status_code == 401, (
         f"Reusing old rotated token should trigger Kill Switch. "
-        f"Got {reuse_attack_response.status_code}: {reuse_attack_response.text}"
+        f"Got {reuse_attack_response.status_code}: {reuse_attack_response.json()}"
     )
 
     # Now old access token should be invalid (because token_version changed)

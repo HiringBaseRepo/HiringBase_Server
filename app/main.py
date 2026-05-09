@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.core.config import settings
 from app.core.database.base import Base, engine
+from app.features.models import *  # noqa: F401,F403 — register all models
 from app.core.exceptions.custom_exceptions import BaseDomainException
 from app.core.exceptions.handlers import (
     domain_exception_handler,

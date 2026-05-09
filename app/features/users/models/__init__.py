@@ -60,6 +60,7 @@ class RefreshToken(Base):
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     jti: Mapped[str] = mapped_column(PGUUID(as_uuid=False), unique=True, nullable=False, index=True)
     is_revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

@@ -22,11 +22,17 @@ from app.features.auth.repositories.repository import (
     save_company,
     save_refresh_token_record,
     save_user,
+    soft_revoke_refresh_token,
 )
 from app.features.auth.schemas.schema import RegisterRequest, TokenPair
 from app.features.companies.models import Company
 from app.features.users.models import RefreshToken, User
 from app.shared.enums.user_roles import UserRole
+from app.core.exceptions import (
+    InvalidCredentialsException,
+    UserInactiveException,
+    UserNotFoundException,
+)
 
 # Moved RefreshToken to top
 
@@ -128,14 +134,11 @@ async def refresh_access_token(
     )
 
     payload = decode_token(refresh_token)
-    if not payload or payload.get("type") != "refresh":
-        raise InvalidRefreshTokenException()
+    if not payload or payload.get("type") != "refresh" or not payload.get("jti"):
+        raise InvalidRefreshTokenException("Struktur token tidak valid")
 
     user_id = int(payload.get("sub"))
     jti = payload.get("jti")
-
-    if not jti:
-        raise InvalidRefreshTokenException("Struktur token tidak valid")
 
     user = await get_user_by_id(db, user_id)
     if not user:
@@ -155,19 +158,26 @@ async def refresh_access_token(
         raise SecurityAlertException()
 
     if token_record.is_revoked:
+        # Grace period for multi-tab concurrency (30 seconds)
+        if token_record.revoked_at:
+            delta = datetime.now(timezone.utc) - token_record.revoked_at
+            if delta.total_seconds() < 30:
+                # Likely a concurrent request from another tab
+                # We allow a new rotation but security alert is NOT triggered
+                return await generate_token_pair(db, user)
+
         user.token_version += 1
         await delete_all_refresh_tokens_by_user_id(db, user.id)
         await db.commit()
-        raise SecurityAlertException("Token sudah pernah digunakan. Silakan login kembali")
+        raise SecurityAlertException("Peringatan Keamanan: Token telah digunakan. Sesi Anda dihentikan demi keamanan.")
 
     if token_record.expires_at < datetime.now(timezone.utc):
         raise RefreshTokenExpiredException()
 
     # Rotate token
-    # Using transaction to ensure atomic operation
     try:
-        # Delete old token
-        await delete_refresh_token(db, token_record)
+        # Use soft revoke instead of delete to support grace period
+        await soft_revoke_refresh_token(db, token_record)
         # We don't commit yet, generate_token_pair will add the new one and commit
         return await generate_token_pair(db, user)
     except Exception as e:
