@@ -66,6 +66,8 @@ from app.shared.helpers.storage import (
     upload_file,
 )
 from app.shared.schemas.response import PaginatedResponse
+from app.shared.tasks.mail_tasks import send_ticket_email
+
 
 
 async def list_public_jobs(
@@ -199,6 +201,14 @@ async def public_apply(
     )
     await db.commit()
     await db.refresh(ticket)
+
+    # Trigger Background Task: Send Ticket Email
+    await send_ticket_email.kiq(
+        email=applicant.email,
+        name=applicant.full_name,
+        ticket_number=ticket.code
+    )
+
     return PublicApplyResponse(
         application_id=application.id,
         ticket_code=ticket.code,
