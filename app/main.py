@@ -50,6 +50,8 @@ from app.shared.schemas.response import StandardResponse
 setup_logging()
 
 from app.core.tkq import broker
+import app.features.screening.tasks  # noqa: F401
+import app.shared.tasks.mail_tasks  # noqa: F401
 
 
 @asynccontextmanager
