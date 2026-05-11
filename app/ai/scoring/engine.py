@@ -19,8 +19,10 @@ def score_education(education_level: List[Any], requirement: str) -> float:
     """Calculate education score based on education level and requirement."""
     from app.shared.constants.scoring import EDUCATION_RANK
 
-    if not education_level or not requirement:
-        return 0.0 if education_level else 100.0
+    if not requirement:
+        return 100.0
+    if not education_level:
+        return 0.0
     
     # Normalize requirement
     req_key = str(requirement).lower().replace(".", "").replace(" ", "").strip()

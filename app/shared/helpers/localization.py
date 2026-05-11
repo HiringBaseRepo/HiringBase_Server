@@ -114,6 +114,7 @@ INTERNAL_MESSAGES: Dict[str, str] = {
     "Screening started in background": "Proses screening telah dimulai di latar belakang",
     "Screening completed": "Proses screening selesai",
     "Proses screening telah dimasukkan dalam antrean": "Proses screening telah dimasukkan dalam antrean",
+    "screening_completed_reason": "Screening AI selesai. Skor akhir: {score}",
     
     # Validators
     "Validator skipped (no API key)": "Validasi dilewati (API Key tidak dikonfigurasi)",
@@ -123,8 +124,20 @@ INTERNAL_MESSAGES: Dict[str, str] = {
 }
 
 
-def get_label(enum_value: Any) -> str:
+def get_label(enum_value: Any, **kwargs) -> str:
     """Get Indonesian label for a given Enum or internal key."""
+    label = _get_raw_label(enum_value)
+    
+    if kwargs:
+        try:
+            return label.format(**kwargs)
+        except (KeyError, ValueError):
+            return label
+    return label
+
+
+def _get_raw_label(enum_value: Any) -> str:
+    """Internal helper to get raw label string."""
     if isinstance(enum_value, DocumentType):
         return DOCUMENT_TYPE_LABELS.get(enum_value, str(enum_value))
     if isinstance(enum_value, ApplicationStatus):
