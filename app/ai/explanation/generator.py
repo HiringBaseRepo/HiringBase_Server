@@ -63,7 +63,7 @@ async def _generate_llm_explanation(
     - Output HANYA teks ringkasan summary.
     """
     try:
-        return await call_llm(prompt, max_tokens=256)
+        return await call_llm(prompt, max_tokens=1024)
     except Exception as exc:
         log.error("LLM explanation failed, falling back to template", error=str(exc))
         return None

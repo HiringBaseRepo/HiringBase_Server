@@ -58,6 +58,20 @@ import app.shared.tasks.mail_tasks  # noqa: F401
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
     # Startup Taskiq Broker
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan events."""
+    # Startup Taskiq Broker
+    if not broker.is_worker_process:
+        await broker.startup()
+
+    if settings.APP_ENV == "development":
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    yield
+    # Shutdown
     if not broker.is_worker_process:
         await broker.startup()
 

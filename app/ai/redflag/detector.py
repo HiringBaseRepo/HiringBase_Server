@@ -1,7 +1,6 @@
-"""Red flag detection engine."""
-from typing import Dict, List, Any
-import re
 import json
+import re
+from typing import Dict, List, Any, Optional
 import structlog
 from app.ai.llm.client import call_llm
 
@@ -22,14 +21,38 @@ def _detect_red_flags_regex(parsed_data: Dict, raw_text: str) -> List[str]:
             if curr_start - prev_end > 1:
                 gaps.append(curr_start - prev_end)
         if any(g > 2 for g in gaps):
-            flags.append("Terdeteksi celah karir (employment gap) yang signifikan")
+            flags.append({
+                "message": "Terdeteksi celah karir (employment gap) yang signifikan",
+                "risk_level": "medium",
+                "type": "professional"
+            })
 
     # Job hopping
     if len(experiences) >= 4:
         total_years = sum(e.get("years", 0) for e in experiences)
         avg_years = total_years / len(experiences) if len(experiences) > 0 else 0
         if avg_years < 1:
-            flags.append("Potensi pola berpindah-pindah kerja (job hopping)")
+            flags.append({
+                "message": "Potensi pola berpindah-pindah kerja (job hopping)",
+                "risk_level": "medium",
+                "type": "professional"
+            })
+
+    # Content integrity
+    if any(k in raw_text.lower() for k in ["fake", "modified", "edit"]):
+        flags.append({
+            "message": "Potensi manipulasi dokumen terdeteksi (kata kunci mencurigakan).",
+            "risk_level": "high",
+            "type": "content"
+        })
+    
+    # Check for empty text
+    if not raw_text.strip() and not parsed_data:
+        flags.append({
+            "message": "Data pendaftaran sangat minim atau kosong.",
+            "risk_level": "medium",
+            "type": "system"
+        })
 
     # Too many typos
     words = raw_text.split()
@@ -38,7 +61,11 @@ def _detect_red_flags_regex(parsed_data: Dict, raw_text: str) -> List[str]:
             r"\b(teh|adn|hte|recieve|seperate)\b", raw_text.lower()
         )
         if len(typo_patterns) > 3:
-            flags.append("Tingkat kesalahan pengetikan (typo) tinggi pada dokumen")
+            flags.append({
+                "message": "Tingkat kesalahan pengetikan (typo) tinggi pada dokumen",
+                "risk_level": "low",
+                "type": "quality"
+            })
 
     # Salary unrealistic placeholder check
     salary_matches = re.findall(r"\b(100\s*juta|1\s*miliar)\b", raw_text.lower())
@@ -102,7 +129,10 @@ Kembalikan HANYA daftar poin (bullet-point) red flag yang terdeteksi. Jika tidak
             flags.append(rf)
 
     # Determine risk
-    if any("inkonsistensi" in f.lower() or "palsu" in f.lower() for f in flags):
+    risk_level = "low"
+    if any("inkonsistensi" in f.get("message", "").lower() or "palsu" in f.get("message", "").lower() for f in flags):
+        risk_level = "high"
+    elif any(f.get("risk_level") == "high" for f in flags):
         risk_level = "high"
     elif len(flags) >= 3:
         risk_level = "high"
@@ -115,34 +145,29 @@ Kembalikan HANYA daftar poin (bullet-point) red flag yang terdeteksi. Jika tidak
     }
 
 
-async def _detect_data_inconsistencies(parsed_data: Dict, doc_ocr_results: Dict[str, str], force_fallback: bool = False) -> List[str]:
+async def _detect_data_inconsistencies(parsed_data: Dict, doc_ocr_results: Dict[str, str], force_fallback: bool = False) -> List[Dict]:
     """Detect inconsistencies between form data and OCR results using LLM."""
     inconsistencies = []
     
-    # Focus on Degree vs Experience
-    degree_text = doc_ocr_results.get("degree", "")
-    if not degree_text:
-        return []
-        
-    prompt = f"""Analisis konsistensi antara data form dan dokumen ijazah.
-Data Form:
-- Tahun Pengalaman: {parsed_data.get('total_years_experience')} tahun
-- Pendidikan Terakhir: {parsed_data.get('education')}
-
-Teks Ijazah (OCR):
-{degree_text[:2000]}
-
-Tugas:
-Cek apakah tahun lulus di ijazah logis dengan jumlah pengalaman kerja yang diklaim. 
-Misal: Jika lulus 2024 tapi klaim pengalaman 5 tahun, itu inkonsisten.
-
-Kembalikan daftar inkonsistensi dalam Bahasa Indonesia poin demi poin. Jika konsisten, kembalikan 'KONSISTEN'.
-"""
+    # Identity Check (Name Mismatch) is now handled in validator_step.py
+    prompt = f"""Analisis inkonsistensi data antara data profil dan hasil OCR dokumen.
+    Data: {json.dumps(parsed_data)}
+    OCR: {json.dumps(doc_ocr_results)}
+    
+    Misal: Jika lulus 2024 tapi klaim pengalaman 5 tahun, itu inkonsisten.
+    
+    Kembalikan daftar inkonsistensi dalam Bahasa Indonesia poin demi poin. Jika konsisten, kembalikan 'KONSISTEN'.
+    """
     try:
         res = await call_llm(prompt, max_tokens=150)
         if res and "KONSISTEN" not in res.upper():
             lines = [line.strip("- ").strip() for line in res.split("\n") if line.strip() and (line.startswith("-") or line.strip()[0].isdigit())]
-            inconsistencies.extend(lines)
+            for line in lines:
+                inconsistencies.append({
+                    "message": line,
+                    "risk_level": "medium",
+                    "type": "ai_analysis"
+                })
     except Exception:
         pass
         

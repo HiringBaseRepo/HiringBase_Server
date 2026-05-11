@@ -129,5 +129,11 @@ outputs/
 .vscode/
 .history/
 =0.11.0
-.zed/
-=0.11.0
+
+# API Testing
+HireBase_API_Testing.json
+
+# ML Models
+*mini*model*
+paraphrase-multilingual-MiniLM-L12-v2/
+
