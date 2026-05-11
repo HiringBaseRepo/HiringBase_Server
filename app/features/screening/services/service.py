@@ -34,6 +34,7 @@ from app.features.screening.repositories.repository import (
     get_knockout_rule_by_id,
     get_requirements_by_job_id,
     get_scoring_template_by_job_id,
+    get_candidate_score_by_app_id,
     save_candidate_score,
     save_knockout_rule,
 )
@@ -145,6 +146,22 @@ async def process_screening(
                     raise MissingDocumentsException([rule.target_value])
             
             answers = await get_answers_by_application_id(db, application_id)
+            
+            # Fallback to application.notes if no answers in table
+            if not answers and application.notes:
+                import json
+                try:
+                    notes_data = json.loads(application.notes)
+                    # We need to simulate ApplicationAnswer objects or handle it in evaluators
+                    # For now, let's just log it
+                    print(f"DEBUG SCREENING: No answers in table, but found in notes metadata.")
+                except:
+                    pass
+
+            print(f"DEBUG SCREENING: AppID={application_id} | Answers={len(answers)} | Docs={len(docs)}")
+            for a in answers:
+                print(f" - Answer: field_id={a.form_field_id}, val={a.value_text}")
+
             for rule in rules:
                 if not evaluate_knockout_rule(rule, application, docs, answers=answers):
                     application.status = ApplicationStatus.KNOCKOUT
@@ -200,6 +217,12 @@ async def process_screening(
             portfolio_score = score_portfolio(parsed_data)
             soft_skill_score = await _score_soft_skills(text, force_fallback=force_fallback)
             admin_score = 100.0
+            # Step 2: Document check flags
+            if doc_validation_flags:
+                # If high risk document flags exist, set admin score to 0
+                if any(f.get("risk_level") == "high" for f in doc_validation_flags if isinstance(f, dict)):
+                    admin_score = 0.0
+
             final = calculate_final_score(
                 skill_match_score=match_result["match_percentage"],
                 experience_score=exp_score,
@@ -220,8 +243,18 @@ async def process_screening(
             )
             # Append document validation flags to red flags
             if doc_validation_flags:
-                red_flags["red_flags"].extend(doc_validation_flags)
+                # Ensure all are dicts
+                for flag in doc_validation_flags:
+                    if isinstance(flag, dict):
+                        red_flags["red_flags"].append(flag)
+                    else:
+                        red_flags["red_flags"].append({
+                            "message": str(flag),
+                            "risk_level": "high",
+                            "type": "document"
+                        })
                 red_flags["risk_level"] = "high"
+            
             explanation = await generate_explanation(
                 match_result,
                 exp_score,
@@ -232,23 +265,49 @@ async def process_screening(
                 final,
                 red_flags,
             )
-            await save_candidate_score(
-                db,
-                CandidateScore(
-                    application_id=application.id,
-                    skill_match_score=match_result["match_percentage"],
-                    experience_score=exp_score,
-                    education_score=edu_score,
-                    portfolio_score=portfolio_score,
-                    soft_skill_score=soft_skill_score,
-                    administrative_score=admin_score,
-                    final_score=final,
-                    explanation=explanation,
-                    red_flags=red_flags.get("red_flags"),
-                    risk_level=red_flags.get("risk_level"),
-                ),
-            )
-            application.status = get_application_status(final)
+            
+            # Clean up AI thought tags
+            import re
+            explanation = re.sub(r"<think>.*?</think>", "", explanation, flags=re.DOTALL).strip()
+
+            # UPSERT LOGIC
+            existing_score = await get_candidate_score_by_app_id(db, application.id)
+            if existing_score:
+                # Update existing
+                existing_score.skill_match_score = match_result["match_percentage"]
+                existing_score.experience_score = exp_score
+                existing_score.education_score = edu_score
+                existing_score.portfolio_score = portfolio_score
+                existing_score.soft_skill_score = soft_skill_score
+                existing_score.administrative_score = admin_score
+                existing_score.final_score = final
+                existing_score.explanation = explanation
+                existing_score.red_flags = red_flags["red_flags"]
+                existing_score.risk_level = red_flags["risk_level"]
+                # computed_at will be updated by default if needed or just left as is
+            else:
+                # Create new
+                await save_candidate_score(
+                    db,
+                    CandidateScore(
+                        application_id=application.id,
+                        skill_match_score=match_result["match_percentage"],
+                        experience_score=exp_score,
+                        education_score=edu_score,
+                        portfolio_score=portfolio_score,
+                        soft_skill_score=soft_skill_score,
+                        administrative_score=admin_score,
+                        final_score=final,
+                        explanation=explanation,
+                        red_flags=red_flags["red_flags"],
+                        risk_level=red_flags["risk_level"],
+                    ),
+                )
+            # Force REJECTED if document mismatch (High Risk)
+            if red_flags.get("risk_level") == "high":
+                application.status = ApplicationStatus.REJECTED
+            else:
+                application.status = get_application_status(final)
             await add_status_log(
                 db,
                 ApplicationStatusLog(

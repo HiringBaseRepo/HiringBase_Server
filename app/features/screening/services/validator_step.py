@@ -11,7 +11,7 @@ async def run_document_semantic_check(
     docs: list[Any],
     applicant: Any,
     force_fallback: bool = False,
-) -> tuple[list[str], dict[str, str]]:
+) -> tuple[list[dict], dict[str, str]]:
     """Run OCR and semantic validation on required documents.
 
     Args:
@@ -20,12 +20,16 @@ async def run_document_semantic_check(
         force_fallback: If True, uses fallback logic on API failure instead of raising exception.
 
     Returns:
-        Tuple of (List of validation flags, Dict of OCR results per doc type)
+        Tuple of (List of validation flags as dicts, Dict of OCR results per doc type)
     """
     doc_validation_flags = []
     ocr_results = {}
     for doc in docs:
-        if doc.document_type in [DocumentType.IDENTITY_CARD, DocumentType.DEGREE]:
+        if doc.document_type in [
+            DocumentType.IDENTITY_CARD,
+            DocumentType.DEGREE,
+            DocumentType.CRIMINAL_RECORD,
+        ]:
             extracted_text = await extract_text_from_document(
                 doc.file_url, force_fallback=force_fallback
             )
@@ -37,7 +41,9 @@ async def run_document_semantic_check(
                 force_fallback=force_fallback,
             )
             if not v_res.get("valid"):
-                doc_validation_flags.append(
-                    f"Warning {doc.document_type.value}: {v_res.get('reason')}"
-                )
+                doc_validation_flags.append({
+                    "message": f"Warning {doc.document_type.value}: {v_res.get('reason')}",
+                    "risk_level": "high",
+                    "type": "document"
+                })
     return doc_validation_flags, ocr_results
