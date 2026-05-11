@@ -39,15 +39,20 @@ from app.features.applications.repositories.repository import (
     save_ticket,
     save_user,
     update_application_status as update_application_status_repo,
+    get_application_detail as get_application_detail_repo,
 )
 from app.features.applications.schemas.schema import (
+    PublicJobFormField,
+    PublicJobItem,
+    PublicJobDetailResponse,
     ApplicationListItem,
     ApplicationStatusUpdateResponse,
     PublicApplyCommand,
     PublicApplyResponse,
-    PublicJobDetailResponse,
-    PublicJobFormField,
-    PublicJobItem,
+    ApplicationDetailResponse,
+    ApplicationAnswerResponse,
+    ApplicationDocumentResponse,
+    CandidateScoreResponse,
 )
 from app.shared.helpers.localization import get_label
 from app.features.applications.services.mapper import map_job_to_public_item
@@ -160,9 +165,15 @@ async def public_apply(
 
     if data.answers_json:
         answers = json.loads(data.answers_json)
+        print(f"DEBUG SUBMIT: Processing {len(answers)} answers for Job ID {data.job_id}")
+        
+        # Save as metadata in application.notes for safety
+        application.notes = data.answers_json
+        
         for key, value in answers.items():
             field = await get_form_field_by_key(db, job_id=data.job_id, field_key=key)
             if field:
+                print(f"DEBUG SUBMIT: Field found for key '{key}' (ID: {field.id}). Saving value: {value}")
                 await add_answer(
                     db,
                     ApplicationAnswer(
@@ -171,14 +182,26 @@ async def public_apply(
                         value_text=str(value) if value is not None else None,
                     ),
                 )
+            else:
+                print(f"DEBUG SUBMIT: Field NOT found for key '{key}' in Job ID {data.job_id}")
 
     for upload in documents or []:
+        # Detect document type from filename
+        fname = (upload.filename or "").lower()
+        doc_type = DocumentType.OTHERS
+        if any(k in fname for k in ["ktp", "identity", "id_card", "identitas"]):
+            doc_type = DocumentType.IDENTITY_CARD
+        elif any(k in fname for k in ["skck", "criminal", "record", "polisi"]):
+            doc_type = DocumentType.CRIMINAL_RECORD
+        elif any(k in fname for k in ["ijazah", "degree", "diploma", "certificate"]):
+            doc_type = DocumentType.DEGREE
+        
         try:
             await _store_uploaded_document(
                 db,
                 application_id=application.id,
                 upload=upload,
-                document_type=DocumentType.LAINNYA,
+                document_type=doc_type,
                 skip_invalid=True,
             )
         except (InvalidFileTypeException, FileTooLargeException):
@@ -199,8 +222,15 @@ async def public_apply(
             application_id=application.id, to_status=ApplicationStatus.APPLIED.value
         ),
     )
+
     await db.commit()
-    await db.refresh(ticket)
+
+    return PublicApplyResponse(
+        application_id=application.id,
+        ticket_code=ticket.code,
+        status=application.status.value,
+        status_label=get_label(application.status),
+    )
 
     # Trigger Background Task: Send Ticket Email
     await send_ticket_email.kiq(
@@ -343,4 +373,91 @@ async def update_application_status(
         old_status=old_status.value if old_status else None,
         new_status=new_status.value,
         new_status_label=get_label(new_status),
+    )
+
+
+async def get_application_detail(
+    db: AsyncSession,
+    *,
+    current_user: User,
+    application_id: int,
+) -> ApplicationDetailResponse:
+    application = await get_application_detail_repo(
+        db, application_id=application_id, company_id=current_user.company_id
+    )
+    if not application:
+        raise ApplicationNotFoundException()
+
+    # Debugging
+    print(f"DEBUG: Application ID {application.id} has {len(application.answers)} answers and {len(application.documents)} documents")
+    
+    answers = []
+    for ans in application.answers:
+        print(f"DEBUG: Mapping answer {ans.id} for field {ans.form_field.field_key if ans.form_field else 'UNKNOWN'}")
+        answers.append(
+            ApplicationAnswerResponse(
+                field_key=ans.form_field.field_key if ans.form_field else "unknown",
+                label=ans.form_field.label if ans.form_field else "Unknown Field",
+                value=ans.value_text or ans.value_number or ans.value_json,
+            )
+        )
+    
+    # Fallback to notes if no formal answers found
+    if not answers and application.notes:
+        try:
+            import json
+            notes_data = json.loads(application.notes)
+            for key, value in notes_data.items():
+                answers.append(
+                    ApplicationAnswerResponse(
+                        field_key=key,
+                        label=key.replace("_", " ").title(),
+                        value=value,
+                    )
+                )
+            print(f"DEBUG: Loaded {len(answers)} answers from fallback metadata (notes)")
+        except:
+            pass
+
+    documents = []
+    for doc in application.documents:
+        print(f"DEBUG: Mapping document {doc.id}")
+        documents.append(
+            ApplicationDocumentResponse(
+                id=doc.id,
+                document_type=doc.document_type.value,
+                file_name=doc.file_name,
+                file_url=doc.file_url,
+            )
+        )
+
+    score = None
+    if application.scores:
+        # scores is a list due to relationship, get the first one
+        s = application.scores[0] if isinstance(application.scores, list) else application.scores
+        score = CandidateScoreResponse(
+            skill_match_score=s.skill_match_score,
+            experience_score=s.experience_score,
+            education_score=s.education_score,
+            portfolio_score=s.portfolio_score,
+            soft_skill_score=s.soft_skill_score,
+            administrative_score=s.administrative_score,
+            final_score=s.final_score,
+            explanation=s.explanation,
+            red_flags=s.red_flags,
+            risk_level=s.risk_level,
+        )
+
+    return ApplicationDetailResponse(
+        id=application.id,
+        job_id=application.job_id,
+        job_title=application.job.title,
+        applicant_name=application.applicant.full_name,
+        applicant_email=application.applicant.email,
+        status=application.status.value,
+        status_label=get_label(application.status),
+        created_at=application.created_at,
+        answers=answers,
+        documents=documents,
+        score=score,
     )

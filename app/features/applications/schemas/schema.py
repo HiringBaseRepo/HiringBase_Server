@@ -1,5 +1,7 @@
 """Application schemas."""
 from pydantic import BaseModel, EmailStr
+from typing import List, Optional, Any
+from datetime import datetime
 
 
 class PublicJobItem(BaseModel):
@@ -68,3 +70,45 @@ class ApplicationStatusUpdateResponse(BaseModel):
     old_status: str | None
     new_status: str
     new_status_label: str | None = None
+
+
+class ApplicationAnswerResponse(BaseModel):
+    field_key: str
+    label: str
+    value: Any
+
+
+class ApplicationDocumentResponse(BaseModel):
+    id: int
+    document_type: str
+    file_name: str
+    file_url: str
+
+
+class CandidateScoreResponse(BaseModel):
+    skill_match_score: float
+    experience_score: float
+    education_score: float
+    portfolio_score: float
+    soft_skill_score: float
+    administrative_score: float
+    final_score: float
+    explanation: Optional[str]
+    red_flags: Optional[List[dict]]
+    risk_level: Optional[str]
+
+
+class ApplicationDetailResponse(BaseModel):
+    id: int
+    job_id: int
+    job_title: str
+    applicant_name: str
+    applicant_email: str
+    status: str
+    status_label: str
+    created_at: datetime
+    answers: List[ApplicationAnswerResponse]
+    documents: List[ApplicationDocumentResponse]
+    score: Optional[CandidateScoreResponse] = None
+
+    model_config = {"from_attributes": True}
