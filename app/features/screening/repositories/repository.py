@@ -89,6 +89,11 @@ async def get_scoring_template_by_job_id(db: AsyncSession, job_id: int) -> JobSc
     return result.scalar_one_or_none()
 
 
+async def get_candidate_score_by_app_id(db: AsyncSession, application_id: int) -> CandidateScore | None:
+    result = await db.execute(select(CandidateScore).where(CandidateScore.application_id == application_id))
+    return result.scalar_one_or_none()
+
+
 async def get_requirements_by_job_id(db: AsyncSession, job_id: int) -> list[JobRequirement]:
     result = await db.execute(select(JobRequirement).where(JobRequirement.job_id == job_id))
     return list(result.scalars().all())

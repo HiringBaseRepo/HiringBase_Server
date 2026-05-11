@@ -15,6 +15,24 @@ def build_candidate_profile(application: Any, answers: list[Any]) -> dict[str, A
     Returns:
         Dictionary containing parsed candidate data
     """
+    # Fallback for answers if list is empty but metadata exists
+    if not answers and hasattr(application, "notes") and application.notes:
+        import json
+        try:
+            notes_data = json.loads(application.notes)
+            # Create mock answer objects for find_answer_value
+            class MockAnswer:
+                def __init__(self, key, val):
+                    self.form_field = type('obj', (object,), {'field_key': key})
+                    self.value_text = str(val)
+                    self.value_number = None
+                    self.value_json = None
+            
+            answers = [MockAnswer(k, v) for k, v in notes_data.items()]
+            print(f"DEBUG PARSER: Built candidate profile from fallback metadata ({len(answers)} keys)")
+        except:
+            pass
+
     parsed_data = {
         "name": application.applicant.full_name if application.applicant else None,
         "email": application.applicant.email if application.applicant else None,
