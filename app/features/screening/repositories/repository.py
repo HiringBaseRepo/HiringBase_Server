@@ -126,3 +126,14 @@ async def get_candidate_score_for_company(
 
 async def add_audit_log(db: AsyncSession, audit: AuditLog) -> None:
     db.add(audit)
+
+
+async def get_pending_applications_for_batch(db: AsyncSession) -> list[tuple[int, int]]:
+    """Get all applications with status APPLIED for batch processing."""
+    from app.shared.enums.application_status import ApplicationStatus
+    
+    stmt = select(Application.id, Job.company_id).join(Job).where(
+        Application.status == ApplicationStatus.APPLIED
+    )
+    result = await db.execute(stmt)
+    return list(result.all())

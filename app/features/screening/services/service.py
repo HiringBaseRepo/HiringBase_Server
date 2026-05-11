@@ -238,22 +238,8 @@ async def process_screening(
                 administrative_weight=template.administrative_weight,
             )
 
-            red_flags = await detect_red_flags(
-                parsed_data, text, doc_ocr_results=ocr_results, force_fallback=force_fallback
-            )
-            # Append document validation flags to red flags
-            if doc_validation_flags:
-                # Ensure all are dicts
-                for flag in doc_validation_flags:
-                    if isinstance(flag, dict):
-                        red_flags["red_flags"].append(flag)
-                    else:
-                        red_flags["red_flags"].append({
-                            "message": str(flag),
-                            "risk_level": "high",
-                            "type": "document"
-                        })
-                red_flags["risk_level"] = "high"
+            # Merge all red flags using helper
+            red_flags = await _merge_red_flags(parsed_data, text, ocr_results, doc_validation_flags, force_fallback=force_fallback)
             
             explanation = await generate_explanation(
                 match_result,
@@ -273,6 +259,10 @@ async def process_screening(
             # UPSERT LOGIC
             existing_score = await get_candidate_score_by_app_id(db, application.id)
             if existing_score:
+                # Capture snapshot for Audit Log
+                from app.core.utils.audit import get_model_snapshot
+                old_values = get_model_snapshot(existing_score)
+                
                 # Update existing
                 existing_score.skill_match_score = match_result["match_percentage"]
                 existing_score.experience_score = exp_score
@@ -284,7 +274,20 @@ async def process_screening(
                 existing_score.explanation = explanation
                 existing_score.red_flags = red_flags["red_flags"]
                 existing_score.risk_level = red_flags["risk_level"]
-                # computed_at will be updated by default if needed or just left as is
+                
+                # Create Audit Log for automated update
+                await add_audit_log(
+                    db,
+                    AuditLog(
+                        company_id=company_id,
+                        user_id=None,  # System automated
+                        action="automated_screening_update",
+                        entity_type="candidate_score",
+                        entity_id=existing_score.id,
+                        old_values=old_values,
+                        new_values={"final_score": final, "risk_level": red_flags["risk_level"]},
+                    )
+                )
             else:
                 # Create new
                 await save_candidate_score(
@@ -313,7 +316,7 @@ async def process_screening(
                 ApplicationStatusLog(
                     application_id=application.id,
                     to_status=application.status.value,
-                    reason=f"Screening AI selesai. Skor akhir: {final:.1f}",
+                    reason=get_label("screening_completed_reason", score=f"{final:.1f}"),
                 ),
             )
             await db.commit()
@@ -406,3 +409,36 @@ async def manual_override_score(
 
 def _clamp_score(value: float) -> float:
     return max(0, min(100, value))
+
+
+async def _merge_red_flags(
+    parsed_data: dict, 
+    text: str, 
+    ocr_results: dict, 
+    doc_validation_flags: list[dict],
+    force_fallback: bool = False
+) -> dict:
+    """Helper to merge all red flags from different sources."""
+    # Base red flags from detector
+    red_flags = await detect_red_flags(
+        parsed_data, text, doc_ocr_results=ocr_results, force_fallback=force_fallback
+    )
+    
+    # Merge document validation flags
+    if doc_validation_flags:
+        for flag in doc_validation_flags:
+            if isinstance(flag, dict):
+                red_flags["red_flags"].append(flag)
+            else:
+                # Fallback for legacy string flags
+                red_flags["red_flags"].append({
+                    "message": str(flag),
+                    "risk_level": "high",
+                    "type": "document"
+                })
+        
+        # If any doc flag is high, ensure overall risk is high
+        if any(f.get("risk_level") == "high" for f in doc_validation_flags if isinstance(f, dict)):
+            red_flags["risk_level"] = "high"
+            
+    return red_flags

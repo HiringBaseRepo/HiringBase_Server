@@ -53,20 +53,12 @@ async def run_batch_screening() -> None:
     Task periodik (setiap jam) untuk memproses semua aplikasi yang masih berstatus APPLIED.
     """
     from app.core.database.session import get_session
-    from sqlalchemy import select
-    from app.features.applications.models import Application
-    from app.features.jobs.models import Job
-    from app.shared.enums.application_status import ApplicationStatus
+    from app.features.screening.repositories.repository import get_pending_applications_for_batch
 
     logger.info("Starting batch screening task")
     
     async with get_session() as db:
-        # Cari semua aplikasi dengan status APPLIED
-        stmt = select(Application.id, Job.company_id).join(Job).where(
-            Application.status == ApplicationStatus.APPLIED
-        )
-        result = await db.execute(stmt)
-        pending_apps = result.all()
+        pending_apps = await get_pending_applications_for_batch(db)
         
         if not pending_apps:
             logger.info("No pending applications for batch screening")
