@@ -48,7 +48,7 @@ async def validate_document_content(
     ---
     
     Instructions:
-    1. Check if the Name in the document matches the Applicant Name (allow minor spelling variations).
+    1. Check if the Name in the document EXACTLY matches the Applicant Name. If different name found, set valid to false. No typos allowed.
     2. Verify if the document type being read is indeed a {doc_type}.
     3. Check the document's validity period (if any). Ensure it is still active or valid for life.
     4. Check for a valid document number format (e.g., ID number, Certificate number).

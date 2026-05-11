@@ -1,6 +1,6 @@
 """Scoring engine for the HiringBase application."""
 
-from typing import List
+from typing import List, Any
 
 from app.features.jobs.models import JobRequirement
 from app.features.screening.models import CandidateScore
@@ -15,20 +15,32 @@ def score_experience(total_years_experience: int, requirement: str) -> float:
     return min(100.0, (total_years_experience / required_years) * 100.0)
 
 
-def score_education(education_level: List[str], requirement: str) -> float:
+def score_education(education_level: List[Any], requirement: str) -> float:
     """Calculate education score based on education level and requirement."""
     if not education_level:
         return 0.0
     # Map education levels to numerical values
     education_map = {
-        "SMA": 1,
-        "D3": 2,
-        "S1": 3,
-        "S2": 4,
-        "S3": 5,
+        "sma": 1,
+        "d3": 2,
+        "s1": 3,
+        "s2": 4,
+        "s3": 5,
     }
-    required_level = education_map.get(requirement, 0)
-    candidate_level = max(education_map.get(level, 0) for level in education_level)
+    
+    # Normalize requirement
+    req_key = str(requirement).lower().replace(".", "").strip()
+    required_level = education_map.get(req_key, 0)
+    
+    # Extract levels if they are dictionaries
+    levels = []
+    for item in education_level:
+        if isinstance(item, dict):
+            levels.append(str(item.get("level", "")).lower().replace(".", "").strip())
+        else:
+            levels.append(str(item).lower().replace(".", "").strip())
+
+    candidate_level = max(education_map.get(level, 0) for level in levels) if levels else 0
     if required_level == 0:
         return 100.0
     return min(100.0, (candidate_level / required_level) * 100.0)

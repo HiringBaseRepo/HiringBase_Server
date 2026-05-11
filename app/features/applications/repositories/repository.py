@@ -1,6 +1,7 @@
 """Application data access helpers."""
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload, joinedload
 
 from app.core.utils.pagination import PaginationParams
 from app.features.applications.models import (
@@ -126,10 +127,12 @@ async def save_application(db: AsyncSession, application: Application) -> Applic
 
 async def add_answer(db: AsyncSession, answer: ApplicationAnswer) -> None:
     db.add(answer)
+    await db.flush()
 
 
 async def add_document(db: AsyncSession, document: ApplicationDocument) -> None:
     db.add(document)
+    await db.flush()
 
 
 async def save_ticket(db: AsyncSession, ticket: Ticket) -> Ticket:
@@ -192,3 +195,26 @@ async def update_application_status(
     application.status = new_status
     await db.flush()
     return application
+
+
+async def get_application_detail(
+    db: AsyncSession, *, application_id: int, company_id: int | None
+) -> Application | None:
+    stmt = (
+        select(Application)
+        .options(
+            joinedload(Application.applicant),
+            joinedload(Application.job),
+            selectinload(Application.answers).joinedload(ApplicationAnswer.form_field),
+            selectinload(Application.documents),
+            selectinload(Application.scores),
+        )
+        .join(Job)
+        .where(
+            Application.id == application_id,
+            Job.company_id == company_id,
+            Application.deleted_at.is_(None),
+        )
+    )
+    result = await db.execute(stmt)
+    return result.unique().scalar_one_or_none()
