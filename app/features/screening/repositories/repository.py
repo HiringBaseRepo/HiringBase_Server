@@ -80,7 +80,11 @@ async def get_active_knockout_rules(db: AsyncSession, job_id: int) -> list[JobKn
 
 
 async def get_answers_by_application_id(db: AsyncSession, application_id: int) -> list[ApplicationAnswer]:
-    result = await db.execute(select(ApplicationAnswer).where(ApplicationAnswer.application_id == application_id))
+    result = await db.execute(
+        select(ApplicationAnswer)
+        .options(selectinload(ApplicationAnswer.form_field))
+        .where(ApplicationAnswer.application_id == application_id)
+    )
     return list(result.scalars().all())
 
 

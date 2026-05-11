@@ -165,7 +165,6 @@ async def public_apply(
 
     if data.answers_json:
         answers = json.loads(data.answers_json)
-        print(f"DEBUG SUBMIT: Processing {len(answers)} answers for Job ID {data.job_id}")
         
         # Save as metadata in application.notes for safety
         application.notes = data.answers_json
@@ -182,8 +181,7 @@ async def public_apply(
                         value_text=str(value) if value is not None else None,
                     ),
                 )
-            else:
-                print(f"DEBUG SUBMIT: Field NOT found for key '{key}' in Job ID {data.job_id}")
+     
 
     for upload in documents or []:
         # Detect document type from filename
@@ -225,12 +223,6 @@ async def public_apply(
 
     await db.commit()
 
-    return PublicApplyResponse(
-        application_id=application.id,
-        ticket_code=ticket.code,
-        status=application.status.value,
-        status_label=get_label(application.status),
-    )
 
     # Trigger Background Task: Send Ticket Email
     await send_ticket_email.kiq(
