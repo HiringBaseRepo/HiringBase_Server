@@ -17,33 +17,28 @@ def score_experience(total_years_experience: int, requirement: str) -> float:
 
 def score_education(education_level: List[Any], requirement: str) -> float:
     """Calculate education score based on education level and requirement."""
-    if not education_level:
-        return 0.0
-    # Map education levels to numerical values
-    education_map = {
-        "sma": 1,
-        "d3": 2,
-        "s1": 3,
-        "s2": 4,
-        "s3": 5,
-    }
+    from app.shared.constants.scoring import EDUCATION_RANK
+
+    if not education_level or not requirement:
+        return 0.0 if education_level else 100.0
     
     # Normalize requirement
-    req_key = str(requirement).lower().replace(".", "").strip()
-    required_level = education_map.get(req_key, 0)
+    req_key = str(requirement).lower().replace(".", "").replace(" ", "").strip()
+    required_rank = EDUCATION_RANK.get(req_key, 1)
     
-    # Extract levels if they are dictionaries
+    # Extract levels and get max rank
     levels = []
     for item in education_level:
         if isinstance(item, dict):
-            levels.append(str(item.get("level", "")).lower().replace(".", "").strip())
+            levels.append(str(item.get("level", "")).lower().replace(".", "").replace(" ", "").strip())
         else:
-            levels.append(str(item).lower().replace(".", "").strip())
+            levels.append(str(item).lower().replace(".", "").replace(" ", "").strip())
 
-    candidate_level = max(education_map.get(level, 0) for level in levels) if levels else 0
-    if required_level == 0:
+    candidate_rank = max(EDUCATION_RANK.get(level, 1) for level in levels) if levels else 1
+    
+    if candidate_rank >= required_rank:
         return 100.0
-    return min(100.0, (candidate_level / required_level) * 100.0)
+    return min(100.0, (candidate_rank / required_rank) * 100.0)
 
 
 def score_portfolio(parsed_data: dict) -> float:
