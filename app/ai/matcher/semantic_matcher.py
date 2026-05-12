@@ -22,23 +22,9 @@ log = structlog.get_logger(__name__)
 SEMANTIC_THRESHOLD = 0.65
 
 # Model multilingual agar support kalimat BahasaIndonesia/Inggris
-_DEFAULT_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
+_DEFAULT_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+_HF_API_URL = f"https://api-inference.huggingface.co/models/{_DEFAULT_MODEL}"
 
-
-@lru_cache(maxsize=1)
-def _get_model():
-    """Load model satu kali dan cache (singleton)."""
-    try:
-        from sentence_transformers import SentenceTransformer
-        model = SentenceTransformer(_DEFAULT_MODEL)
-        log.info("SentenceTransformer model loaded", model=_DEFAULT_MODEL)
-        return model
-    except ImportError:
-        log.warning("sentence-transformers not installed, falling back to exact match only")
-        return None
-    except Exception as exc:
-        log.error("Failed to load SentenceTransformer model", error=str(exc))
-        return None
 
 
 def _synonym_map() -> Dict[str, List[str]]:
@@ -82,43 +68,72 @@ def _exact_and_synonym_match(
     return False
 
 
-def _semantic_match(
+from app.core.cache.service import cache_service
+
+async def _semantic_match(
     required_skill: str,
     candidate_skills: List[str],
-    model,
+    hf_token: Optional[str],
     threshold: float = SEMANTIC_THRESHOLD,
 ) -> bool:
-    """Cek semantic similarity menggunakan sentence-transformers."""
-    if not candidate_skills or model is None:
+    """Cek semantic similarity menggunakan Hugging Face Inference API dengan Redis caching."""
+    if not candidate_skills or not hf_token:
+        log.warning("Semantic matching skipped: no candidate skills or HF_TOKEN missing")
         return False
 
+    # Cache key based on input pair
+    # Sort candidate skills to ensure deterministic key
+    cache_id = f"{required_skill}:{','.join(sorted(candidate_skills))}"
+    
+    cached_result = await cache_service.get("hf_match", cache_id)
+    if cached_result is not None:
+        log.debug("Semantic match cache hit", required=required_skill)
+        return cached_result
+
     try:
-        import numpy as np
+        import httpx
 
-        query_emb = model.encode([required_skill], convert_to_tensor=False)
-        cand_embs = model.encode(candidate_skills, convert_to_tensor=False)
+        headers = {"Authorization": f"Bearer {hf_token}"}
+        payload = {
+            "inputs": {
+                "source_sentence": required_skill,
+                "sentences": candidate_skills,
+            }
+        }
 
-        # Cosine similarity manual (lebih portable)
-        def cosine_sim(a, b):
-            a_norm = a / (np.linalg.norm(a) + 1e-9)
-            b_norm = b / (np.linalg.norm(b) + 1e-9)
-            return float(np.dot(a_norm, b_norm))
-
-        for i, cand_emb in enumerate(cand_embs):
-            sim = cosine_sim(query_emb[0], cand_emb)
-            if sim >= threshold:
-                log.debug(
-                    "Semantic skill match",
-                    required=required_skill,
-                    candidate=candidate_skills[i],
-                    similarity=round(sim, 3),
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.post(_HF_API_URL, headers=headers, json=payload)
+            
+            if response.status_code == 200:
+                scores = response.json()
+                is_match = False
+                # scores adalah list of floats yang merepresentasikan similarity
+                for i, score in enumerate(scores):
+                    if score >= threshold:
+                        log.debug(
+                            "Semantic skill match (HF API)",
+                            required=required_skill,
+                            candidate=candidate_skills[i],
+                            similarity=round(score, 3),
+                        )
+                        is_match = True
+                        break
+                
+                # Cache the boolean result for 1 day (86400 seconds)
+                await cache_service.set("hf_match", cache_id, is_match, expire=86400)
+                return is_match
+            else:
+                log.warning(
+                    "HF Inference API error",
+                    status_code=response.status_code,
+                    response=response.text,
                 )
-                return True
 
     except Exception as exc:
-        log.warning("Semantic matching error", error=str(exc))
+        log.warning("Semantic matching API error", error=str(exc))
 
     return False
+
 
 
 async def match_candidate_to_job(
@@ -131,16 +146,18 @@ async def match_candidate_to_job(
 
     Layer 1: Exact string match
     Layer 2: Curated synonym match
-    Layer 3: Cosine semantic similarity via sentence-transformers
+    Layer 3: Cosine semantic similarity via Hugging Face Inference API
 
     Returns:
         match_percentage, matched_skills, missing_skills, confidence_score
     """
+    from app.core.config import settings
+
     raw_candidate_skills: List[str] = candidate_data.get("skills", [])
     candidate_skills_lower = set(s.lower() for s in raw_candidate_skills)
     candidate_skills_list = [s.lower() for s in raw_candidate_skills]
     synonyms = _synonym_map()
-    model = _get_model()
+    hf_token = settings.HF_TOKEN
 
     # Kumpulkan required skills dari job_requirements
     required_skills: List[str] = []
@@ -174,20 +191,17 @@ async def match_candidate_to_job(
 
     matched: List[str] = []
     missing: List[str] = []
-    match_methods: Dict[str, str] = {}
 
     for req_skill in required_skills:
         # Layer 1 & 2: exact + synonym
         if _exact_and_synonym_match(req_skill, candidate_skills_lower, synonyms):
             matched.append(req_skill)
-            match_methods[req_skill] = "exact/synonym"
             continue
 
-        # Layer 3: semantic embedding
-        if model is not None and candidate_skills_list:
-            if _semantic_match(req_skill, candidate_skills_list, model):
+        # Layer 3: semantic embedding via HF API
+        if hf_token and candidate_skills_list:
+            if await _semantic_match(req_skill, candidate_skills_list, hf_token):
                 matched.append(f"{req_skill} (semantic)")
-                match_methods[req_skill] = "semantic"
                 continue
 
         missing.append(req_skill)
@@ -195,8 +209,8 @@ async def match_candidate_to_job(
     total = len(required_skills)
     match_pct = (len(matched) / total) * 100.0 if total > 0 else 0.0
 
-    # Confidence lebih tinggi jika model semantic tersedia
-    confidence = 0.90 if model is not None else 0.70
+    # Confidence lebih tinggi jika HF API tersedia
+    confidence = 0.90 if hf_token else 0.70
 
     return {
         "match_percentage": round(min(match_pct, 100.0), 2),

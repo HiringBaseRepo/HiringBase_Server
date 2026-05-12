@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     R2_PUBLIC_URL: str
 
     # AI / LLM
-    HF_API_TOKEN: Optional[str] = None
+    HF_TOKEN: Optional[str] = None
     HF_LLM_MODEL: str = "Qwen/Qwen3-8B"
     HF_LLM_API_URL: str = "https://api-inference.huggingface.co/models/Qwen/Qwen3-8B"
     OPENROUTER_API_KEY: Optional[str] = None

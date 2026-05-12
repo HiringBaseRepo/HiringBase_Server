@@ -84,6 +84,8 @@ def _keyword_count_to_score(count: int, max_keywords: int = 5) -> float:
     return round(40.0 + ratio * 60.0, 1)
 
 
+from app.core.cache.service import cache_service
+
 async def score_soft_skills(text: str, force_fallback: bool = False) -> Dict[str, float]:
     """Analyze text and return soft skill scores per dimension using LLM with keyword fallback.
 
@@ -104,6 +106,15 @@ async def score_soft_skills(text: str, force_fallback: bool = False) -> Dict[str
             "initiative": 30.0,
             "composite_score": 30.0,
         }
+
+    # Check Cache first
+    # Only cache if text is substantial and LLM is enabled
+    if not force_fallback and len(text.strip()) > 200:
+        cached_scores = await cache_service.get("soft_skills", text)
+        if cached_scores:
+            log.info("Soft skill score cache hit")
+            return cached_scores
+
 
     # Keyword-based baseline
     comm_count = _count_keyword_matches(text, _COMMUNICATION_KEYWORDS)
@@ -164,4 +175,10 @@ Contoh: {{"communication": 85, "leadership": 70, ...}}
     )
 
     log.debug("Soft skill scores computed", **baseline_scores)
+    
+    # Store in cache if LLM was used
+    if not force_fallback and len(text.strip()) > 200:
+        await cache_service.set("soft_skills", text, baseline_scores, expire=86400)
+
     return baseline_scores
+

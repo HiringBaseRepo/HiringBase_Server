@@ -54,15 +54,14 @@ import app.features.screening.tasks  # noqa: F401
 import app.shared.tasks.mail_tasks  # noqa: F401
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Application lifespan events."""
-    # Startup Taskiq Broker
-
+from app.core.cache.client import redis_client
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
+    # Startup Redis
+    await redis_client.connect()
+    
     # Startup Taskiq Broker
     if not broker.is_worker_process:
         await broker.startup()
@@ -70,21 +69,19 @@ async def lifespan(app: FastAPI):
     if settings.APP_ENV == "development":
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            
     yield
-    # Shutdown
-    if not broker.is_worker_process:
-        await broker.startup()
-
-    if settings.APP_ENV == "development":
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-    yield
+    
     # Shutdown
     if not broker.is_worker_process:
         await broker.shutdown()
 
+    # Shutdown Redis
+    await redis_client.disconnect()
+
     if settings.APP_ENV != "testing":
         await engine.dispose()
+
 
 
 app = FastAPI(

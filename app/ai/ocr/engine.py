@@ -17,25 +17,28 @@ def _is_image(url: str) -> bool:
     return any(url_lower.endswith(ext) for ext in _IMAGE_EXTS)
 
 
+from app.core.cache.service import cache_service
+
 async def extract_text_from_document(file_url: str, force_fallback: bool = False) -> str:
-    """Extract text from document URL (PDF or image) using Mistral OCR API.
+    """Extract text from document URL (PDF or image) using Mistral OCR API with Redis caching.
 
     Flow:
-    1. Detect document type (document_url for PDF, image_url for Images)
-    2. Call Mistral OCR API v1
-    3. Concatenate markdown results from all pages
-    4. Fallback: return empty string
-
-    Args:
-        file_url: Public file URL on Cloudflare R2
-        force_fallback: If True, returns empty string on transient API failure instead of raising.
-
-    Returns:
-        Extracted text in markdown format, or empty string if failed
+    1. Check Redis cache first
+    2. Detect document type (document_url for PDF, image_url for Images)
+    3. Call Mistral OCR API v1
+    4. Concatenate markdown results from all pages
+    5. Cache result and return
+    6. Fallback: return empty string
     """
     if not settings.MISTRAL_API_KEY:
         log.warning("MISTRAL_API_KEY not configured, OCR skipped")
         return ""
+
+    # Check Cache first
+    cached_text = await cache_service.get("mistral_ocr", file_url)
+    if cached_text:
+        log.info("OCR cache hit", url=file_url)
+        return cached_text
 
     is_img = _is_image(file_url)
     doc_type = "image_url" if is_img else "document_url"
@@ -68,8 +71,13 @@ async def extract_text_from_document(file_url: str, force_fallback: bool = False
                     [page.get("markdown", "") for page in pages if page.get("markdown")]
                 )
                 if full_text:
+                    full_text = full_text.strip()
                     log.info("OCR extraction successful via Mistral", pages=len(pages), chars=len(full_text))
-                    return full_text.strip()
+                    
+                    # Cache result for 1 hour (3600 seconds)
+                    await cache_service.set("mistral_ocr", file_url, full_text, expire=3600)
+                    
+                    return full_text
                 return ""
             
             elif resp.status_code >= 500:
@@ -80,6 +88,7 @@ async def extract_text_from_document(file_url: str, force_fallback: bool = False
             else:
                 log.error("Mistral OCR API error", status_code=resp.status_code, body=resp.text)
                 return ""
+
 
     except (httpx.TimeoutException, httpx.NetworkError) as exc:
         log.error("Mistral OCR timeout/network error", url=file_url)

@@ -12,7 +12,7 @@ AI-powered recruitment backend for HR teams: job vacancy creation, form-based ap
 | Security | JWT (python-jose), Bcrypt (passlib) |
 | AI/NLP | Sentence Transformers (`paraphrase-multilingual-MiniLM-L12-v2`), Scikit-learn, NumPy |
 | OCR | Mistral Document AI (PDF & Image via R2 URL) |
-| Background Tasks | Taskiq + Upstash Redis (SmartRetryMiddleware) |
+| Cache & Tasks | Upstash Redis (256MB) — Taskiq Broker + Async Caching |
 | Logging | Structlog (JSON/pretty), UUID Request-ID, Audit Context |
 | Storage | Cloudflare R2 (S3-compatible, Boto3) |
 
@@ -157,6 +157,13 @@ Analyzes all concatenated text answers. Hybrid: 30% keyword baseline + 70% LLM. 
 
 ### Semantic Red Flag Detector (`app/ai/redflag/detector.py`)
 LLM-powered analysis of form data + OCR text. Cross-checks data mismatches (e.g., exp years vs. degree grad year). Fallback to regex-based detection. Output in Indonesian.
+
+### AI Caching Strategy (`app/core/cache/`)
+To optimize API costs and latency, expensive AI results are cached in Upstash Redis:
+- **Semantic Matcher**: HF Inference API results cached for **24 hours**.
+- **OCR Engine**: Mistral OCR text results cached for **1 hour**.
+- **Soft Skill Scorer**: LLM scoring results cached for **24 hours**.
+- **Efficiency**: Keys use MD5 hashing to minimize memory usage on 256MB free tier.
 
 ### AI Fallback Strategy (Retry-then-Fallback)
 1. **Phase 1**: Taskiq retries up to 3× with increasing delay.
