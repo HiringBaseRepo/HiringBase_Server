@@ -36,5 +36,6 @@ def upload_file(content: bytes, key: str, content_type: str = "application/pdf")
         Key=key,
         Body=content,
         ContentType=content_type,
+        CacheControl="public, max-age=31536000, immutable",
     )
     return build_public_url(key)
