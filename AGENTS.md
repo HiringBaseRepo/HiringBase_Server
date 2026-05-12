@@ -117,3 +117,42 @@ Request bodies, response shapes, filter objects, form payloads, DTOs. Explicit s
 String-literal relationships, `TYPE_CHECKING` for cross-domain hints. Aggregated in `app/features/models.py` for Alembic.
 
 **Transaction Rule**: Services own `db.commit()`. Repositories handle flush/refresh. Services finalize.
+
+## File Storage (Cloudflare R2)
+- Documents: `documents/<uuid>.pdf`
+- Portfolios: `portfolios/<uuid>.<ext>`
+- Company Assets: `company-assets/<uuid>.<ext>`
+- Job Attachments: `job-attachments/<uuid>.<ext>`
+- Public URL from `R2_PUBLIC_URL`
+
+## AI Implementation
+
+### Distributed Screening Pipeline (Taskiq)
+- **Manual Trigger** (default): HR triggers via "Run Screening" to manage API costs.
+- **Auto Trigger**: Via `auto_screening` flag on job (to be implemented).
+- **Batch Screening**: Hourly periodic task processes all `APPLIED` applications.
+- **SmartRetryMiddleware**: Exponential backoff + jitter, max 3 retries for transient failures (Connection/Timeout/5xx). Final attempt forces deterministic fallbacks.
+- **ORM Preloading**: All relationships pre-fetched via `selectinload` to prevent `MissingGreenlet` in async workers.
+
+### Scoring Pipeline (Form-based, `app/ai/scoring/engine.py`)
+No CV parsing. All data from `ApplicationAnswer` via standard `field_key`:
+- `experience_years` → experience score
+- `education_level` → education score (SMA, D3, S1, S2, S3)
+- `skills` → comma-separated list for Semantic Matcher
+- `github_url`, `portfolio_url`, `live_project_url` → portfolio score
+
+**Mathematical Integrity**: Single source of truth in `engine.py`. Education ranks synced with `EDUCATION_RANK` constants. Missing requirements → full score (100%).
+
+### OCR & Validation (`app/ai/ocr/engine.py` + `app/ai/validator/`)
+Mistral Document AI for async PDF/image text extraction via R2 URLs. LLM (Groq) validates:
+1. Name matches applicant | 2. Valid date/lifetime | 3. Valid document number | 4. Correct doc type | 5. Semantic reasonableness  
+Anomalies → `red_flags` (high risk).
+
+### Semantic Matcher (`app/ai/matcher/semantic_matcher.py`)
+3-layer skill matching: **Layer 1** Exact → **Layer 2** Synonym map (includes Indonesian terms) → **Layer 3** Sentence Transformer (cosine similarity).
+
+### Soft Skill Scorer (`app/ai/nlp/soft_skill_scorer.py`)
+Analyzes all concatenated text answers. Hybrid: 30% keyword baseline + 70% LLM. Fallback to pure keyword if LLM fails. Output: 20–100 per dimension.
+
+### Semantic Red Flag Detector (`app/ai/redflag/detector.py`)
+LLM-powered analysis of form data + OCR text. Cross-checks data mismatches (e.g., exp years vs. degree grad year). Fallback to regex-based detection. Output in Indonesian.
