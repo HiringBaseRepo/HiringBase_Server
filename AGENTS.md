@@ -7,10 +7,10 @@ AI-powered recruitment backend for HR teams: job vacancy creation, form-based ap
 | Layer | Technology |
 |---|---|
 | Framework | FastAPI (Async), Python 3.12+ |
-| Database | PostgreSQL, SQLAlchemy 2.0 (Async), Alembic |
+| Database | PostgreSQL (cloud) Neon DB | SQLAlchemy 2.0 (Async), Alembic |
 | Validation | Pydantic v2 |
 | Security | JWT (python-jose), Bcrypt (passlib) |
-| AI/NLP | Sentence Transformers (`paraphrase-multilingual-MiniLM-L12-v2`), Scikit-learn, NumPy |
+| AI/NLP | Sentence Transformers (`paraphrase-multilingual-MiniLM-L12-v2`) HuggingFace, Scikit-learn, NumPy |
 | OCR | Mistral Document AI (PDF & Image via R2 URL) |
 | Cache & Tasks | Upstash Redis (256MB) — Taskiq Broker + Async Caching |
 | Logging | Structlog (JSON/pretty), UUID Request-ID, Audit Context |
