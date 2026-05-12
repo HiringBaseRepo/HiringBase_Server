@@ -21,6 +21,8 @@ from app.core.exceptions.custom_exceptions import (
     TicketNotFoundException,
     TokenRotationFailedException,
     TokenRevokedException,
+    UnauthenticatedException,
+    UnauthorizedException,
     UserInactiveException,
     UserNotFoundException,
     WeightTotalInvalidException,
@@ -50,4 +52,6 @@ __all__ = [
     "CompanyNotFoundException",
     "FieldNotFoundException",
     "WeightTotalInvalidException",
+    "UnauthenticatedException",
+    "UnauthorizedException",
 ]

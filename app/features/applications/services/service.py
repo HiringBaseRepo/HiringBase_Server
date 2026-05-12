@@ -335,7 +335,9 @@ async def update_application_status(
     )
     if not application:
         raise ApplicationNotFoundException()
-    old_status = application.status
+    from app.core.utils.audit import get_model_snapshot
+    old_values = get_model_snapshot(application)
+    
     await update_application_status_repo(db, application, new_status)
     await add_status_log(
         db,
@@ -355,7 +357,7 @@ async def update_application_status(
             action="APPLICATION_STATUS_UPDATE",
             entity_type="application",
             entity_id=application.id,
-            old_values={"status": old_status.value if old_status else None},
+            old_values=old_values,
             new_values={"status": new_status.value, "reason": reason},
         ),
     )

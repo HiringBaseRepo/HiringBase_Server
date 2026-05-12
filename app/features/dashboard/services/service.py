@@ -21,7 +21,8 @@ async def get_dashboard_overview(db: AsyncSession) -> DashboardOverview:
         stats = await get_dashboard_stats(db)
         
         # Real DB health check (Ping)
-        await db.execute(text("SELECT 1"))
+        from app.features.dashboard.repositories.repository import ping_database
+        await ping_database(db)
         system_health = 100.0
     except Exception:
         # If DB connection or stats fetch fails

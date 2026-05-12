@@ -1,12 +1,17 @@
 """Auth dependencies for FastAPI routes."""
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.base import get_db
 from app.core.security.jwt import decode_token
+from app.core.exceptions import (
+    UnauthenticatedException,
+    UnauthorizedException,
+    UserInactiveException,
+)
 from app.features.auth.repositories.repository import get_user_by_id
 from app.features.users.models import User
 from app.shared.enums.user_roles import UserRole
@@ -19,23 +24,23 @@ async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> User:
     if not credentials:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing authentication")
+        raise UnauthenticatedException("Otentikasi diperlukan (Missing token)")
 
     payload = decode_token(credentials.credentials)
     if not payload or payload.get("type") != "access":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+        raise UnauthenticatedException("Token tidak valid atau kedaluwarsa")
 
     user_id = int(payload.get("sub"))
     user = await get_user_by_id(db, user_id)
 
     if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        raise UnauthenticatedException("Pengguna tidak ditemukan")
     if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive")
+        raise UserInactiveException()
         
     token_version = payload.get("token_version")
     if token_version is None or token_version != user.token_version:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session invalidated")
+        raise UnauthenticatedException("Sesi telah berakhir, silakan login kembali")
 
     return user
 
@@ -43,9 +48,8 @@ async def get_current_user(
 def require_role(*roles: UserRole):
     async def role_checker(user: User = Depends(get_current_user)) -> User:
         if user.role not in roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Requires one of roles: {[r.value for r in roles]}",
+            raise UnauthorizedException(
+                f"Akses ditolak. Memerlukan peran: {[r.value for r in roles]}"
             )
         return user
     return role_checker

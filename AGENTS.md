@@ -20,7 +20,7 @@ AI-powered recruitment backend for HR teams: job vacancy creation, form-based ap
 1. **Layer 1 — Deterministic**: Scoring, knockout, ranking via form answers (`ApplicationAnswer`).
 2. **Layer 2 — NLP/Embeddings**: Skill matching (cosine similarity) + soft skill keyword scorer.
 3. **Layer 3 — LLM**: Natural language explanation + Semantic Red Flag Detection.
-4. **Exception Handling**: `BaseDomainException` → global HTTP handler. Never raise `HTTPException` in services.
+4. **Exception Handling**: `BaseDomainException` → global HTTP handler. Never raise `HTTPException` anywhere in features (including Services, Routers, and Dependencies).
 5. **Distributed Processing**: Heavy AI (OCR, LLM, Semantic Matching) offloaded via Taskiq + Redis.
 6. **Localization**: Backend/DB/AI use English; all user-facing strings (labels, status, messages, errors) mapped to Indonesian via `app/shared/helpers/localization.py`.
 7. **Security & Audit**:
@@ -90,7 +90,7 @@ Applicants have no login. Flow: fill form + upload docs → system validates (fi
 - `snake_case` for functions/variables/files, `PascalCase` for classes
 - All I/O must be `async`
 - Full type hints on all function signatures
-- Raise `BaseDomainException` subclasses only — **never** `HTTPException` in services
+- Raise `BaseDomainException` subclasses only — **never** `HTTPException` in any feature layer (Routers, Dependencies, Services)
 - Heavy libraries imported lazily (inside functions or via background workers)
 - Never add files directly to feature root — always use `routers/`, `services/`, `repositories/`, `schemas/`, `models/`
 
@@ -99,8 +99,8 @@ Applicants have no login. Flow: fill form + upload docs → system validates (fi
 **Direction**: `routers/ → services/ → repositories/ → models/`
 
 ### Routers (`routers/router.py`) — HTTP concerns only
-✅ `APIRouter`, path ops, tags, response models, dependencies, `StandardResponse` wrapping  
-❌ No SQLAlchemy queries, no DB operations, no business logic, no large mapping loops
+✅ `APIRouter`, path ops, tags, response models, `StandardResponse` wrapping  
+❌ **No `HTTPException`** (use `BaseDomainException`), no SQLAlchemy queries, no DB operations, no business logic, no large mapping loops
 
 ### Services (`services/service.py`) — Business logic & orchestration
 ✅ Domain rules, permissions, ownership checks, status transitions, ticket generation, password hashing, token creation, score/knockout decisions, audit-log intent, `db.commit()`  
@@ -190,76 +190,5 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload                        
 taskiq worker app.core.tkq:broker app.main:app            # Background worker
 alembic revision --autogenerate -m "description"          # Create migration
 alembic upgrade head                                       # Apply migration
-pytest app/tests/ -v                                       # All tests (121)
-pytest app/tests/unit/ -v                                  # Unit only (89)
-pytest app/tests/integration/ -v                           # Integration only (32)
 ruff check . && black .                                    # Lint + format
 ```
-
-## Testing
-
-### Test Summary: 121 Tests PASSED (89 unit + 32 integration)
-
-**Unit Tests (89)**
-| File | Coverage | Count |
-|---|---|---|
-| `test_auth.py` | JWT, password hashing | 2 |
-| `test_ai_scoring.py` | Parser, red flags, soft skill, scoring helpers | 21 |
-| `test_explanation_logic.py` | Explanation template + fallback | 3 |
-| `test_knockout_rules.py` | All knockout types with mocks | 20 |
-| `test_semantic_matcher.py` | Exact, synonym, embedding layers | 10 |
-| `test_screening_pipeline.py` | Orchestrator: DOC_FAILED, KNOCKOUT, AI_PASSED, UNDER_REVIEW, red flags, weighted score | 11 |
-| `test_validator_step.py` | OCR+LLM routing, flag generation, non-required skip | 8 |
-| `test_document_validator.py` | LLM fallback, parse response, OCR internals | 14 |
-
-**Integration Tests (32)**
-| File | Count |
-|---|---|
-| `test_public_application.py` (submit, duplicate 409, ticket tracking) | 3 |
-| `test_auth_flows.py` (register, login, get me, logout) | 4 |
-| `test_user_management.py` (RBAC, tenant isolation) | 2 |
-| `test_scoring_templates.py`, `test_job_forms.py`, `test_companies.py`, `test_audit_logs.py`, `test_notifications.py` | 1 each |
-| `test_hr_workflows.py` (vacancy lifecycle, screening, interviews) | 4 |
-| `test_jobs_public.py` | 2 |
-| `test_auth_security.py` (token rotation, reuse detection, kill switch) | 5 |
-| `test_document_pipeline.py` | 3 |
-| `test_ranking.py` (custom weights, tenant isolation, top-N, pagination) | 4 |
-
-### Mocking Infrastructure (`app/tests/conftest.py`)
-- `mock_r2` → mocks `boto3.client()` for R2
-- `mock_groq` → mocks `call_llm` and `validate_document_content`
-- `mock_ocr_engine` → mocks `extract_text_from_document()`
-- `test_db_session` → function-scoped engine, auto-rollback per test
-- `auth_headers` → valid JWT with `token_version` + `sub: str(user_id)`
-
-### Unit Test Isolation (`app/tests/unit/conftest.py`)
-Overrides all autouse fixtures so AI module tests call real functions. Internal AI modules tested via **direct namespace patching** (`validator_module.settings`, `ocr_module._download_file`).
-
-### Call-Site Mocking Pattern
-- Patch `app.core.database.session.get_session` (source), not the service attribute.
-- Use `@asynccontextmanager` wrapper as mock session.
-- Patch repo functions in service namespace: `app.features.screening.services.service.<func>`.
-
-### Zero External Dependency Testing
-All 121 tests pass without external API credentials (Groq/R2/Mistral all mocked).
-
-## Critical Testing Notes
-- `employment_type` → must use `EmploymentType.FULL_TIME` (enum object, not string)
-- `description` on `Job` → NOT NULL, required in all fixtures
-- JWT tokens → must include `token_version: int` and `sub: str(user_id)`
-- Duplicate applications → `409 Conflict`
-- `InterviewScheduledResponse` → field is `interview_id` (not `id`)
-- Screening endpoint → `POST /api/v1/screening/applications/{id}/run`
-- `pytest.ini` → `asyncio_default_test_loop_scope = function`
-- Do NOT delete `app/tests/unit/conftest.py`
-- `doc_type.value` sent to LLM validator as **lowercase** (e.g., `"identity_card"`)
-
-## Known Limitations
-1. `password_reset_tokens` table not yet created (needs Alembic migration).
-2. Email delivery not configured — tokens logged to console in dev.
-3. LLM: Groq with `qwen/qwen3-32b` or `llama3-70b-8192`.
-
-## Pending Work
-**Integration Tests Needed**: `scoring_templates`, `companies`, `users`, `notifications`, `job_forms`, `audit_logs`  
-**Unit Tests Needed**: `app/ai/explanation/generator.py`, `app/ai/llm/client.py`, `app/ai/scoring/engine.py`  
-**Feature**: `auto_screening` flag on job (auto-trigger on submission)

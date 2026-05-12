@@ -50,3 +50,9 @@ async def get_application_count_by_job(db: AsyncSession, job_id: int) -> int:
     """Get total application count for a specific job."""
     apps_stmt = select(func.count(Application.id)).where(Application.job_id == job_id)
     return (await db.execute(apps_stmt)).scalar_one()
+
+async def ping_database(db: AsyncSession) -> bool:
+    """Check database connection health."""
+    from sqlalchemy import text
+    await db.execute(text("SELECT 1"))
+    return True

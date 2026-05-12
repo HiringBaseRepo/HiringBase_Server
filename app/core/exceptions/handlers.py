@@ -97,6 +97,7 @@ async def domain_exception_handler(request: Request, exc: Exception) -> JSONResp
             cex.SecurityAlertException,
             cex.TokenRotationFailedException,
             cex.TokenRevokedException,
+            cex.UnauthenticatedException,
         ),
     ):
         status_code = status.HTTP_401_UNAUTHORIZED
@@ -112,7 +113,7 @@ async def domain_exception_handler(request: Request, exc: Exception) -> JSONResp
         ),
     ):
         status_code = status.HTTP_400_BAD_REQUEST
-    elif isinstance(exc, cex.UserInactiveException):
+    elif isinstance(exc, (cex.UserInactiveException, cex.UnauthorizedException)):
         status_code = status.HTTP_403_FORBIDDEN
     elif isinstance(exc, (cex.MissingDocumentsException, cex.AIAPIException)):
         status_code = status.HTTP_422_UNPROCESSABLE_ENTITY

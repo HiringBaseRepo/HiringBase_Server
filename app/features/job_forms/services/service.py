@@ -52,9 +52,27 @@ async def update_form_field(
     field = await get_form_field(db, job_id=job_id, field_id=field_id)
     if not field:
         raise FieldNotFoundException()
+        
+    from app.core.utils.audit import get_model_snapshot
+    from app.features.audit_logs.models import AuditLog
+    from app.features.audit_logs.repositories.repository import create_audit_log
+    
+    old_values = get_model_snapshot(field)
+    
     for key, value in updates.items():
         if hasattr(field, key):
             setattr(field, key, value)
+            
+    await create_audit_log(
+        db,
+        AuditLog(
+            action="JOB_FORM_FIELD_UPDATE",
+            entity_type="job_form_field",
+            entity_id=field.id,
+            old_values=old_values,
+            new_values=updates
+        )
+    )
     await db.commit()
     return FormFieldUpdatedResponse(field_id=field.id, updated=True)
 

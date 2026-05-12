@@ -207,3 +207,19 @@ class AIAPIServerException(AIAPIException):
     def __init__(self, message: str = "Server API AI sedang bermasalah (5xx)"):
         self.message = message
         super().__init__(self.message)
+
+
+class UnauthenticatedException(BaseDomainException):
+    """Raised when authentication is missing or invalid."""
+
+    def __init__(self, message: str = "Otentikasi diperlukan"):
+        self.message = message
+        super().__init__(self.message)
+
+
+class UnauthorizedException(BaseDomainException):
+    """Raised when a user lacks permission for an action."""
+
+    def __init__(self, message: str = "Anda tidak memiliki akses untuk melakukan tindakan ini"):
+        self.message = message
+        super().__init__(self.message)

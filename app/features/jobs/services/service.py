@@ -66,7 +66,6 @@ async def create_job_step1(
         status=JobStatus.DRAFT,
     )
     job = await save_job(db, job)
-    await db.flush()
     await create_audit_log(
         db,
         AuditLog(
@@ -206,7 +205,6 @@ async def publish_job(
         ),
     )
     await db.commit()
-    await db.refresh(job)
     response = JobPublishResponse(
         job_id=job.id,
         status=job.status,

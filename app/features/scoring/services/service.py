@@ -78,6 +78,9 @@ async def update_scoring_template(
     template = await get_template_by_id(db, template_id)
     if not template:
         raise TemplateNotFoundException()
+    from app.core.utils.audit import get_model_snapshot
+    old_values = get_model_snapshot(template)
+    
     for key, value in updates.items():
         if hasattr(template, key):
             setattr(template, key, value)
@@ -89,6 +92,7 @@ async def update_scoring_template(
             action="SCORING_TEMPLATE_UPDATE",
             entity_type="scoring_template",
             entity_id=template.id,
+            old_values=old_values,
             new_values=updates
         )
     )
