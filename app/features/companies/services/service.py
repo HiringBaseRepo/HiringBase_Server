@@ -20,6 +20,7 @@ from app.features.users.repositories.repository import save_user, update_user_re
 from app.shared.enums.user_roles import UserRole
 from fastapi import UploadFile
 from app.shared.helpers.storage import generate_filename, build_public_url, get_s3_client
+from app.shared.constants.storage import UPLOAD_PREFIX_COMPANY_LOGO
 from app.core.config import settings
 from app.features.companies.schemas.schema import (
     CompanyActivateResponse,
@@ -124,7 +125,7 @@ async def get_company_by_id(db: AsyncSession, company_id: int) -> CompanyDetailR
 
 async def upload_logo(db: AsyncSession, file: UploadFile) -> str:
     content = await file.read()
-    key = generate_filename(file.filename, "company-logos")
+    key = generate_filename(file.filename, UPLOAD_PREFIX_COMPANY_LOGO)
     s3 = get_s3_client()
     s3.put_object(
         Bucket=settings.R2_BUCKET_NAME,

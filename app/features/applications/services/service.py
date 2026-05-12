@@ -61,7 +61,7 @@ from app.features.applications.services.validator import (
 )
 from app.features.tickets.models import Ticket
 from app.features.users.models import User
-from app.shared.constants.storage import ALLOWED_EXTENSIONS, MAX_FILE_SIZE_MB
+from app.shared.constants.storage import ALLOWED_EXTENSIONS, MAX_FILE_SIZE_MB, UPLOAD_PREFIX_PORTFOLIO, UPLOAD_PREFIX_DOCUMENT
 from app.shared.enums.application_status import ApplicationStatus
 from app.shared.enums.document_type import DocumentType
 from app.shared.enums.ticket_status import TicketStatus
@@ -257,7 +257,7 @@ async def _store_uploaded_document(
         if skip_invalid:
             return
         raise FileTooLargeException()
-    prefix = "portfolios" if document_type == DocumentType.PORTFOLIO else "documents"
+    prefix = UPLOAD_PREFIX_PORTFOLIO if document_type == DocumentType.PORTFOLIO else UPLOAD_PREFIX_DOCUMENT
     key = generate_filename(upload.filename or "unknown", prefix)
     file_url = upload_file(
         content=content,

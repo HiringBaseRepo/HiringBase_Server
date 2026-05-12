@@ -15,7 +15,7 @@ from app.features.documents.repositories.repository import (
 from app.features.documents.schemas.schema import DocumentUploadResponse
 from app.features.applications.models import ApplicationDocument
 from app.features.users.models import User
-from app.shared.constants.storage import ALLOWED_EXTENSIONS, MAX_FILE_SIZE_MB
+from app.shared.constants.storage import ALLOWED_EXTENSIONS, MAX_FILE_SIZE_MB, UPLOAD_PREFIX_PORTFOLIO, UPLOAD_PREFIX_DOCUMENT
 from app.shared.enums.document_type import DocumentType
 from app.shared.helpers.storage import build_public_url, generate_filename, get_s3_client
 
@@ -44,7 +44,7 @@ async def upload_document(
     if len(content) > MAX_FILE_SIZE_MB * 1024 * 1024:
         raise FileTooLargeException()
 
-    prefix = "portfolios" if document_type == DocumentType.PORTFOLIO else "documents"
+    prefix = UPLOAD_PREFIX_PORTFOLIO if document_type == DocumentType.PORTFOLIO else UPLOAD_PREFIX_DOCUMENT
     key = generate_filename(file.filename, prefix)
     s3 = get_s3_client()
     s3.put_object(

@@ -121,6 +121,7 @@ String-literal relationships, `TYPE_CHECKING` for cross-domain hints. Aggregated
 ## File Storage (Cloudflare R2)
 - Documents: `documents/<uuid>.pdf`
 - Portfolios: `portfolios/<uuid>.<ext>`
+- Company Logos: `company-logos/<uuid>.<ext>`
 - Company Assets: `company-assets/<uuid>.<ext>`
 - Job Attachments: `job-attachments/<uuid>.<ext>`
 - Public URL from `R2_PUBLIC_URL`
@@ -185,7 +186,7 @@ LLM-powered analysis of form data + OCR text. Cross-checks data mismatches (e.g.
 
 ## Development Commands
 ```bash
-uvicorn app.main:app --reload                              # Dev server
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload                            # Dev server
 taskiq worker app.core.tkq:broker app.main:app            # Background worker
 alembic revision --autogenerate -m "description"          # Create migration
 alembic upgrade head                                       # Apply migration
