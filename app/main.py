@@ -141,11 +141,11 @@ app.include_router(audit_logs_router, prefix=settings.API_V1_PREFIX)
 app.include_router(manual_override_router, prefix=settings.API_V1_PREFIX)
 
 
-@app.get("/", tags=["Health"])
+@app.api_route("/", methods=["GET", "HEAD"], tags=["Health"])
 async def root():
     return StandardResponse.ok(data={"app": settings.APP_NAME, "version": "1.0.0"})
 
 
-@app.get("/health", tags=["Health"])
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["Health"])
 async def health_check():
     return StandardResponse.ok(data={"status": "healthy"})
