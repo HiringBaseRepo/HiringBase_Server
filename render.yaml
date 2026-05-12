@@ -1,21 +1,17 @@
 services:
   - type: web
     name: hirebase-api
-    runtime: python
+    runtime: docker
     plan: free
-    buildCommand: |
-      pip install -r requirements.txt
-      alembic upgrade head
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.12.3
       - key: APP_ENV
         value: production
 
   - type: worker
     name: hirebase-worker
-    runtime: python
+    runtime: docker
     plan: free # Note: Render free worker terbatas, jika gagal gabung ke web service
-    buildCommand: pip install -r requirements.txt
-    startCommand: taskiq worker app.core.tkq:broker app.main:app
+    dockerfilePath: ./Dockerfile
+    dockerCommand: taskiq worker app.core.tkq:broker app.main:app

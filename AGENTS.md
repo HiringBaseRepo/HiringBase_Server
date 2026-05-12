@@ -10,7 +10,7 @@ AI-powered recruitment backend for HR teams: job vacancy creation, form-based ap
 | Database | PostgreSQL (cloud) Neon DB | SQLAlchemy 2.0 (Async), Alembic |
 | Validation | Pydantic v2 |
 | Security | JWT (python-jose), Bcrypt (passlib) |
-| AI/NLP | Sentence Transformers (`paraphrase-multilingual-MiniLM-L12-v2`) HuggingFace, Scikit-learn, NumPy |
+| AI/NLP | HuggingFace Inference API (`paraphrase-multilingual-MiniLM-L12-v2`). No local ML libs. |
 | OCR | Mistral Document AI (PDF & Image via R2 URL) |
 | Cache & Tasks | Upstash Redis (256MB) — Taskiq Broker + Async Caching |
 | Logging | Structlog (JSON/pretty), UUID Request-ID, Audit Context |
@@ -28,6 +28,7 @@ AI-powered recruitment backend for HR teams: job vacancy creation, form-based ap
    - Every `UPDATE` must snapshot old values with `get_model_snapshot` before modifying.
    - AI scoring weight changes must be recorded in Audit Log.
    - Dashboard ("Pulse"): lightweight real-time aggregation. Reports ("Brain"): complex historical aggregation with date filters.
+8. **Deployment (Render)**: Web API and Taskiq Worker run as separate Docker services. Heavy inference offloaded to external APIs to fit 512MB RAM free tier limit.
 
 ## Project Structure
 ```
@@ -198,4 +199,6 @@ taskiq worker app.core.tkq:broker app.main:app            # Background worker
 alembic revision --autogenerate -m "description"          # Create migration
 alembic upgrade head                                       # Apply migration
 ruff check . && black .                                    # Lint + format
+docker build -t hirebase .                                # Build Docker image
+docker run -p 10000:10000 hirebase                        # Test Docker locally
 ```
