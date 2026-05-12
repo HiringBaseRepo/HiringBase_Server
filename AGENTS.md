@@ -47,3 +47,22 @@ AI-powered recruitment backend for HR teams: job vacancy creation, form-based ap
 ├── tests/       # unit/, integration/, e2e/
 └── main.py
 ```
+
+## Database Schema (Key Tables)
+`companies`, `users`, `jobs`, `job_requirements`, `job_scoring_templates`, `job_form_fields`, `job_knockout_rules`, `applications`, `application_answers` (`value_text`, `value_number`), `application_documents` (**NO CV**), `candidate_scores`, `application_status_logs`, `tickets` (TKT-YYYY-NNNNN), `interviews`, `notifications`, `audit_logs`
+
+## Business Rules
+
+### Default Scoring Weights
+Skill Match 40% | Experience 20% | Education 10% | Portfolio 10% | Soft Skill 10% | Admin Complete 10%
+
+### Knockout Rule Types
+| Type | Operators | Example |
+|---|---|---|
+| `document` | n/a | Must have Identity Card, Degree |
+| `experience` | gte, gt, lt, lte, eq | Min 2 years |
+| `education` | gte | Min Bachelor's |
+| `boolean` | eq, neq | Willing to WFO = yes |
+| `range` | lte, gte | Salary ≤ 10jt |
+
+**Knockout Actions**: `auto_reject` or `pending_review`
