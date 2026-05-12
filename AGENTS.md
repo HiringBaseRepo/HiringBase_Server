@@ -66,3 +66,54 @@ Skill Match 40% | Experience 20% | Education 10% | Portfolio 10% | Soft Skill 10
 | `range` | lte, gte | Salary ≤ 10jt |
 
 **Knockout Actions**: `auto_reject` or `pending_review`
+
+### Application Status Flow
+```
+APPLIED → DOC_CHECK → [DOC_FAILED]
+        → AI_PROCESSING → AI_PASSED / UNDER_REVIEW / KNOCKOUT
+        → INTERVIEW → OFFERED → HIRED
+        → REJECTED (any stage)
+```
+
+### Public Applicant Flow (Ticket-Based)
+Applicants have no login. Flow: fill form + upload docs → system validates (fields, docs, file format, email dedup) → atomic save to R2 + DB → returns `TKT-YYYY-NNNNN`. Applicants stored in `users` table as contacts without credentials.
+
+## API Conventions
+- All responses: `StandardResponse` wrapper `{success, message, data, errors, meta}`
+- Pagination: `PaginationParams` (`page`, `per_page`)
+- Auth: Bearer Token in `Authorization` header
+- Use `Annotated` for FastAPI dependencies
+- Router imports: `app.features.<feature>.routers.router`
+- Auth dependencies: `app.features.auth.dependencies.auth`
+
+## Coding Standards
+- `snake_case` for functions/variables/files, `PascalCase` for classes
+- All I/O must be `async`
+- Full type hints on all function signatures
+- Raise `BaseDomainException` subclasses only — **never** `HTTPException` in services
+- Heavy libraries imported lazily (inside functions or via background workers)
+- Never add files directly to feature root — always use `routers/`, `services/`, `repositories/`, `schemas/`, `models/`
+
+## Feature Layer Rules
+
+**Direction**: `routers/ → services/ → repositories/ → models/`
+
+### Routers (`routers/router.py`) — HTTP concerns only
+✅ `APIRouter`, path ops, tags, response models, dependencies, `StandardResponse` wrapping  
+❌ No SQLAlchemy queries, no DB operations, no business logic, no large mapping loops
+
+### Services (`services/service.py`) — Business logic & orchestration
+✅ Domain rules, permissions, ownership checks, status transitions, ticket generation, password hashing, token creation, score/knockout decisions, audit-log intent, `db.commit()`  
+❌ No `db.flush()`, `db.refresh()`, `db.add()`, no complex query building, no hardcoded DB constraints
+
+### Repositories (`repositories/`) — Data access only
+✅ SQLAlchemy queries (select/insert/update/delete), pagination, `db.add()`, `db.flush()`, `db.refresh()`  
+❌ No business decisions, no password hashing, no token/ticket generation, no AI/OCR/file ops, no HTTP responses
+
+### Schemas (`schemas/`) — Pydantic contracts
+Request bodies, response shapes, filter objects, form payloads, DTOs. Explicit schemas over raw `dict`.
+
+### Models (`models/__init__.py`) — SQLAlchemy models
+String-literal relationships, `TYPE_CHECKING` for cross-domain hints. Aggregated in `app/features/models.py` for Alembic.
+
+**Transaction Rule**: Services own `db.commit()`. Repositories handle flush/refresh. Services finalize.
