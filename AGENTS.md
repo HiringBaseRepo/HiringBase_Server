@@ -282,13 +282,18 @@ Workloads are processed asynchronously using **Taskiq**. When screening is trigg
 - **SmartRetryMiddleware**: Implemented with exponential backoff and jitter.
 - **Max Retries**: 3 attempts for transient failures (Connection, Timeout, 5xx).
 - **Last Attempt Logic**: On the final retry, the system is instructed to use deterministic fallbacks instead of raising exceptions to ensure the screening process completes.
+- **ORM Preloading**: All relationship data (e.g., `ApplicationAnswer.form_field`) is now pre-fetched using `selectinload` to prevent `MissingGreenlet` errors in async background workers.
 
 ### Scoring Pipeline (Form-based)
-The system no longer parses CV files. Data for scoring is taken from `ApplicationAnswer` with standard `field_key`:
-- `experience_years`: Used for experience score.
-- `education_level`: Used for education score (SMA, D3, S1, S2, S3).
-- `skills`: List of skills (comma-separated) for `Semantic Matcher`.
-- `github_url`, `portfolio_url`, `live_project_url`: For portfolio score.
+The system no longer parses CV files. Data for scoring is taken from `ApplicationAnswer` with standard `field_key`. **Mathematical Integrity** is guaranteed by:
+- **Single Source of Truth**: All scoring logic is consolidated in `app/ai/scoring/engine.py`.
+- **Education Synchronization**: Ranks are strictly aligned with `EDUCATION_RANK` constants in `app/shared/constants/scoring.py`.
+- **Logic Resilience**: Correctly handles missing requirements by granting full score (100%) if no specific criteria is set.
+- **Field Keys**:
+    - `experience_years`: Used for experience score.
+    - `education_level`: Used for education score (SMA, D3, S1, S2, S3).
+    - `skills`: List of skills (comma-separated) for `Semantic Matcher`.
+    - `github_url`, `portfolio_url`, `live_project_url`: For portfolio score.
 
 ### OCR & Validation Pipeline (`app/ai/ocr/engine.py` & `app/ai/validator/`)
 - Used for text extraction from supporting documents (Identity Card, Degree).
@@ -337,7 +342,8 @@ The system follows a **Retry-then-Fallback** strategy for external API dependenc
 - **Migrations**:
   - Create: `alembic revision --autogenerate -m "description"`
   - Apply: `alembic upgrade head`
-- **Testing**: `pytest app/tests/ -v` (All **107 tests PASSED** — 86 unit + 21 integration)
+- **Testing (Automated)**: `pytest app/tests/ -v` (All **121 tests PASSED** — 89 unit + 32 integration)
+- **Manual API Testing**: Use the comprehensive Postman collection `HireBase_API_Testing.json` located in the root directory for full E2E flow validation.
 - **Test AI only**: `pytest app/tests/unit/test_ai_scoring.py -v`
 - **Test Knockout**: `pytest app/tests/unit/test_knockout_rules.py -v`
 - **Test Semantic Matcher**: `pytest app/tests/unit/test_semantic_matcher.py -v`
@@ -503,6 +509,13 @@ venv/bin/pytest --cov=app --cov-report=term-missing app/tests/
 - **Batch Screening (COMPLETED)**:
     - **Hourly Automation**: Implemented `run_batch_screening` task via Taskiq periodic scheduler.
     - **Bulk Processing**: Automatically enqueues screening for all applications in `APPLIED` status every hour.
+- **Scoring Mathematical Integrity (COMPLETED)**:
+    - **Unified Engine**: Consolidated all logic into `engine.py`, removing redundant/conflicting code from `parser.py`.
+    - **Education Sync**: Aligned scoring ranks with global constants to prevent 0% scores for valid candidates.
+    - **Dynamic Localization**: Updated `get_label` to support `**kwargs`, enabling localized status messages with dynamic scores.
+    - **Taskiq Reliability**: Fixed `MissingGreenlet` errors by pre-fetching relationships in background tasks.
+    - **Audit Trail**: Automated audit logging for AI-triggered score updates to maintain full accountability.
+    - **Postman E2E Collection**: Created `HireBase_API_Testing.json` covering 100% of the screening and job configuration flow.
 
 ### Current Limitations
 1. **Password Reset Table**: Needs `password_reset_tokens` table via Alembic migration for full persistent implementation.
