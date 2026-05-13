@@ -1,7 +1,6 @@
 """Validation logic for applications service."""
 
 import json
-from fastapi import UploadFile
 
 from app.core.exceptions import (
     BaseDomainException,
@@ -16,7 +15,6 @@ from app.features.applications.repositories.repository import (
     get_published_job_by_id,
     get_user_by_email,
 )
-from app.shared.constants.errors import ERR_DUPLICATE_APPLICATION
 
 
 async def validate_public_apply_requirements(
@@ -54,9 +52,7 @@ async def validate_public_apply_requirements(
         if r.rule_type == "document" and r.is_active
     ]
 
-    uploaded_doc_types = (
-        [doc["type"].value for doc in documents_data] if documents_data else []
-    )
+    uploaded_doc_types = [doc["type"].value for doc in documents_data] if documents_data else []
     
     # Blokir OTHERS jika tidak ada di knockout rules
     if "others" in uploaded_doc_types and "others" not in required_docs:

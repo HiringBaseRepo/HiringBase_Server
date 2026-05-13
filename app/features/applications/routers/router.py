@@ -1,17 +1,12 @@
 """Public Applicant + Application Management API."""
 
-from typing import List, Optional
+from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile, status, Request
+from fastapi import APIRouter, Depends, Form, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.base import get_db
-from app.core.exceptions import (
-    ApplicationNotFoundException,
-    FileTooLargeException,
-    InvalidFileTypeException,
-    JobNotFoundException,
-)
+from app.core.exceptions import BaseDomainException
 from app.core.utils.pagination import PaginationParams
 from app.features.applications.schemas.schema import (
     ApplicationListItem,
@@ -38,13 +33,14 @@ from app.features.applications.services.service import (
 from app.features.applications.services.service import (
     update_application_status as update_application_status_service,
 )
-from app.features.auth.dependencies.auth import require_hr
+from app.features.auth.dependencies.auth import HrUserDep
 from app.shared.enums.application_status import ApplicationStatus
 from app.shared.enums.document_type import DocumentType
 from app.shared.helpers.localization import get_label
 from app.shared.schemas.response import PaginatedResponse, StandardResponse
 
 router = APIRouter(prefix="/applications", tags=["Applications"])
+DbDep = Annotated[AsyncSession, Depends(get_db)]
 
 
 @router.get(
@@ -54,7 +50,7 @@ async def public_list_jobs(
     q: Optional[str] = None,
     location: Optional[str] = None,
     pagination: PaginationParams = Depends(),
-    db: AsyncSession = Depends(get_db),
+    db: DbDep,
 ):
     result = await list_public_jobs_service(
         db, pagination=pagination, q=q, location=location
@@ -65,7 +61,7 @@ async def public_list_jobs(
 @router.get(
     "/public/jobs/{job_id}", response_model=StandardResponse[PublicJobDetailResponse]
 )
-async def public_job_detail(job_id: int, db: AsyncSession = Depends(get_db)):
+async def public_job_detail(job_id: int, db: DbDep):
     result = await get_public_job_detail_service(db, job_id)
     return StandardResponse.ok(data=result)
 
@@ -78,7 +74,7 @@ async def public_apply(
     full_name: str = Form(...),
     phone: Optional[str] = Form(None),
     answers_json: Optional[str] = Form(None),  # JSON string of answers
-    db: AsyncSession = Depends(get_db),
+    db: DbDep,
 ):
     form_data = await request.form()
     documents_data = []
@@ -89,6 +85,10 @@ async def public_apply(
                 enum_key = key.replace("file_", "")
                 if enum_key in DocumentType._member_names_:
                     doc_type = DocumentType[enum_key]
+                else:
+                    raise BaseDomainException(
+                        f"Tipe dokumen tidak dikenali untuk key upload: {key}"
+                    )
             documents_data.append({"type": doc_type, "file": value})
     
     command = PublicApplyCommand(
@@ -107,18 +107,18 @@ async def public_apply(
 @router.get("", response_model=StandardResponse[PaginatedResponse[ApplicationListItem]])
 async def list_applications(
     job_id: Optional[int] = None,
-    status: Optional[ApplicationStatus] = None,
+    status_filter: Optional[ApplicationStatus] = None,
     q: Optional[str] = None,
     pagination: PaginationParams = Depends(),
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_hr),
+    db: DbDep,
+    current_user: HrUserDep,
 ):
     result = await list_applications_service(
         db,
         current_user=current_user,
         pagination=pagination,
         job_id=job_id,
-        status_filter=status,
+        status_filter=status_filter,
         q=q,
     )
     return StandardResponse.ok(data=result)
@@ -132,8 +132,8 @@ async def update_application_status(
     application_id: int,
     new_status: ApplicationStatus,
     reason: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_hr),
+    db: DbDep,
+    current_user: HrUserDep,
 ):
     result = await update_application_status_service(
         db,
@@ -148,8 +148,8 @@ async def update_application_status(
 @router.get("/{application_id}", response_model=StandardResponse[ApplicationDetailResponse])
 async def get_application_detail(
     application_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_hr),
+    db: DbDep,
+    current_user: HrUserDep,
 ):
     result = await get_application_detail_service(
         db, current_user=current_user, application_id=application_id
