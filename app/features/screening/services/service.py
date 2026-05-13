@@ -1,5 +1,7 @@
 """Screening business logic."""
 
+import json
+import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.explanation.generator import generate_explanation
@@ -61,6 +63,7 @@ from app.shared.constants.scoring import (
 from app.shared.enums.application_status import ApplicationStatus
 from app.shared.helpers.localization import get_label
 
+logger = structlog.get_logger(__name__)
 
 async def create_knockout_rule(
     db: AsyncSession,
@@ -132,7 +135,18 @@ async def process_screening(
             return
 
         try:
+            previous_status = application.status
             application.status = ApplicationStatus.DOC_CHECK
+            await add_status_log(
+                db,
+                ApplicationStatusLog(
+                    application_id=application.id,
+                    from_status=previous_status.value if previous_status else None,
+                    to_status=ApplicationStatus.DOC_CHECK.value,
+                    reason="Screening dimulai: verifikasi dokumen",
+                ),
+            )
+            await db.commit()
             rules = await get_active_knockout_rules(db, job.id)
             
             # Step 1: Validate mandatory document completeness (Dynamic from Knockout Rules)
@@ -149,32 +163,56 @@ async def process_screening(
             
             # Fallback to application.notes if no answers in table
             if not answers and application.notes:
-                import json
                 try:
-                    notes_data = json.loads(application.notes)
-                    # We need to simulate ApplicationAnswer objects or handle it in evaluators
-                    # For now, let's just log it
-                    print(f"DEBUG SCREENING: No answers in table, but found in notes metadata.")
-                except:
-                    pass
+                    json.loads(application.notes)
+                    logger.debug(
+                        "screening_notes_fallback_available",
+                        application_id=application_id,
+                    )
+                except (json.JSONDecodeError, TypeError):
+                    logger.warning(
+                        "screening_notes_fallback_invalid_json",
+                        application_id=application_id,
+                    )
 
-            print(f"DEBUG SCREENING: AppID={application_id} | Answers={len(answers)} | Docs={len(docs)}")
-            for a in answers:
-                print(f" - Answer: field_id={a.form_field_id}, val={a.value_text}")
+            logger.debug(
+                "screening_inputs_loaded",
+                application_id=application_id,
+                answers_count=len(answers),
+                docs_count=len(docs),
+            )
 
             for rule in rules:
                 if not evaluate_knockout_rule(rule, application, docs, answers=answers):
-                    application.status = ApplicationStatus.KNOCKOUT
+                    target_status = (
+                        ApplicationStatus.UNDER_REVIEW
+                        if rule.action == "pending_review"
+                        else ApplicationStatus.KNOCKOUT
+                    )
+                    application.status = target_status
                     await add_status_log(
                         db,
                         ApplicationStatusLog(
                             application_id=application.id,
-                            to_status=ApplicationStatus.KNOCKOUT.value,
+                            from_status=ApplicationStatus.DOC_CHECK.value,
+                            to_status=target_status.value,
                             reason=f"Gagal kualifikasi (Knockout): {rule.rule_name}",
                         ),
                     )
                     await db.commit()
                     return
+
+            application.status = ApplicationStatus.AI_PROCESSING
+            await add_status_log(
+                db,
+                ApplicationStatusLog(
+                    application_id=application.id,
+                    from_status=ApplicationStatus.DOC_CHECK.value,
+                    to_status=ApplicationStatus.AI_PROCESSING.value,
+                    reason="Dokumen valid, lanjut proses AI",
+                ),
+            )
+            await db.commit()
 
             # Langkah 2 & 3: OCR JIT & Validasi Semantik Dokumen Berbasis LLM
             doc_validation_flags, ocr_results = await run_document_semantic_check(
@@ -306,15 +344,19 @@ async def process_screening(
                         risk_level=red_flags["risk_level"],
                     ),
                 )
-            # Force REJECTED if document mismatch (High Risk)
+            # Final status mapping
             if red_flags.get("risk_level") == "high":
                 application.status = ApplicationStatus.REJECTED
             else:
-                application.status = get_application_status(final)
+                calculated_status = get_application_status(final)
+                if calculated_status == ApplicationStatus.APPLIED:
+                    calculated_status = ApplicationStatus.UNDER_REVIEW
+                application.status = calculated_status
             await add_status_log(
                 db,
                 ApplicationStatusLog(
                     application_id=application.id,
+                    from_status=ApplicationStatus.AI_PROCESSING.value,
                     to_status=application.status.value,
                     reason=get_label("screening_completed_reason", score=f"{final:.1f}"),
                 ),
@@ -326,7 +368,7 @@ async def process_screening(
                 db,
                 ApplicationStatusLog(
                     application_id=application.id,
-                    from_status=ApplicationStatus.APPLIED.value,
+                    from_status=ApplicationStatus.DOC_CHECK.value,
                     to_status=ApplicationStatus.DOC_FAILED.value,
                     reason=str(e),
                 ),

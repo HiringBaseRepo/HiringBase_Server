@@ -1,6 +1,6 @@
 import json
 import re
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List
 import structlog
 from app.ai.llm.client import call_llm
 
@@ -70,7 +70,13 @@ def _detect_red_flags_regex(parsed_data: Dict, raw_text: str) -> List[str]:
     # Salary unrealistic placeholder check
     salary_matches = re.findall(r"\b(100\s*juta|1\s*miliar)\b", raw_text.lower())
     if salary_matches:
-        flags.append("Ekspektasi gaji tidak realistis (nilai placeholder)")
+        flags.append(
+            {
+                "message": "Ekspektasi gaji tidak realistis (nilai placeholder)",
+                "risk_level": "medium",
+                "type": "professional",
+            }
+        )
 
     return flags
 
@@ -115,7 +121,13 @@ Kembalikan HANYA daftar poin (bullet-point) red flag yang terdeteksi. Jika tidak
             ]
             for f in llm_flags:
                 if f not in flags:
-                    flags.append(f)
+                    flags.append(
+                        {
+                            "message": f,
+                            "risk_level": "medium",
+                            "type": "ai_analysis",
+                        }
+                    )
     except Exception as exc:
         log.warning("LLM red flag detection failed", error=str(exc))
         if not force_fallback:
@@ -130,9 +142,18 @@ Kembalikan HANYA daftar poin (bullet-point) red flag yang terdeteksi. Jika tidak
 
     # Determine risk
     risk_level = "low"
-    if any("inkonsistensi" in f.get("message", "").lower() or "palsu" in f.get("message", "").lower() for f in flags):
+    if any(
+        "inkonsistensi" in f.get("message", "").lower()
+        or "palsu" in f.get("message", "").lower()
+        for f in flags
+        if isinstance(f, dict)
+    ):
         risk_level = "high"
-    elif any(f.get("risk_level") == "high" for f in flags):
+    elif any(
+        f.get("risk_level") == "high"
+        for f in flags
+        if isinstance(f, dict)
+    ):
         risk_level = "high"
     elif len(flags) >= 3:
         risk_level = "high"
