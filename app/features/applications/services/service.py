@@ -1,11 +1,10 @@
 """Application business logic."""
 
 import json
+import structlog
 
 from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.core.config import settings
 from app.features.audit_logs.models import AuditLog
 from app.features.audit_logs.repositories.repository import create_audit_log
 from app.core.exceptions import (
@@ -13,7 +12,6 @@ from app.core.exceptions import (
     FileTooLargeException,
     InvalidFileTypeException,
     JobNotFoundException,
-    MissingDocumentsException,
 )
 from app.core.utils.pagination import PaginationParams
 from app.core.utils.ticket import generate_ticket_code
@@ -67,12 +65,14 @@ from app.shared.enums.document_type import DocumentType
 from app.shared.enums.ticket_status import TicketStatus
 from app.shared.enums.user_roles import UserRole
 from app.shared.helpers.storage import (
+    delete_file_async,
     generate_filename,
-    upload_file,
+    upload_file_async,
 )
 from app.shared.schemas.response import PaginatedResponse
 from app.shared.tasks.mail_tasks import send_ticket_email
 
+logger = structlog.get_logger(__name__)
 
 
 async def list_public_jobs(
@@ -163,6 +163,7 @@ async def public_apply(
         ),
     )
 
+    uploaded_keys: list[str] = []
     if data.answers_json:
         answers = json.loads(data.answers_json)
         
@@ -172,7 +173,6 @@ async def public_apply(
         for key, value in answers.items():
             field = await get_form_field_by_key(db, job_id=data.job_id, field_key=key)
             if field:
-                print(f"DEBUG SUBMIT: Field found for key '{key}' (ID: {field.id}). Saving value: {value}")
                 await add_answer(
                     db,
                     ApplicationAnswer(
@@ -181,22 +181,17 @@ async def public_apply(
                         value_text=str(value) if value is not None else None,
                     ),
                 )
-     
-
     for item in documents_data or []:
         upload = item["file"]
         doc_type = item["type"]
-        
-        try:
-            await _store_uploaded_document(
-                db,
-                application_id=application.id,
-                upload=upload,
-                document_type=doc_type,
-                skip_invalid=True,
-            )
-        except (InvalidFileTypeException, FileTooLargeException):
-            continue
+        uploaded_key = await _store_uploaded_document(
+            db,
+            application_id=application.id,
+            upload=upload,
+            document_type=doc_type,
+            skip_invalid=False,
+        )
+        uploaded_keys.append(uploaded_key)
 
     ticket = await save_ticket(
         db,
@@ -214,7 +209,19 @@ async def public_apply(
         ),
     )
 
-    await db.commit()
+    try:
+        await db.commit()
+    except Exception:
+        for key in uploaded_keys:
+            try:
+                await delete_file_async(key)
+            except Exception as delete_exc:
+                logger.warning(
+                    "r2_rollback_delete_failed",
+                    key=key,
+                    error=str(delete_exc),
+                )
+        raise
 
 
     # Trigger Background Task: Send Ticket Email
@@ -239,20 +246,20 @@ async def _store_uploaded_document(
     upload: UploadFile,
     document_type: DocumentType,
     skip_invalid: bool = False,
-) -> None:
+) -> str:
     ext = (upload.filename or "").split(".")[-1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         if skip_invalid:
-            return
+            return ""
         raise InvalidFileTypeException()
     content = await upload.read()
     if len(content) > MAX_FILE_SIZE_MB * 1024 * 1024:
         if skip_invalid:
-            return
+            return ""
         raise FileTooLargeException()
     prefix = UPLOAD_PREFIX_PORTFOLIO if document_type == DocumentType.PORTFOLIO else UPLOAD_PREFIX_DOCUMENT
     key = generate_filename(upload.filename or "unknown", prefix)
-    file_url = upload_file(
+    file_url = await upload_file_async(
         content=content,
         key=key,
         content_type=upload.content_type or "application/pdf",
@@ -268,6 +275,7 @@ async def _store_uploaded_document(
             mime_type=upload.content_type or "application/pdf",
         ),
     )
+    return key
 
 
 async def list_applications(
@@ -330,6 +338,7 @@ async def update_application_status(
         raise ApplicationNotFoundException()
     from app.core.utils.audit import get_model_snapshot
     old_values = get_model_snapshot(application)
+    old_status = application.status
     
     await update_application_status_repo(db, application, new_status)
     await add_status_log(
@@ -376,11 +385,15 @@ async def get_application_detail(
         raise ApplicationNotFoundException()
 
     # Debugging
-    print(f"DEBUG: Application ID {application.id} has {len(application.answers)} answers and {len(application.documents)} documents")
+    logger.debug(
+        "application_detail_loaded",
+        application_id=application.id,
+        answers_count=len(application.answers),
+        documents_count=len(application.documents),
+    )
     
     answers = []
     for ans in application.answers:
-        print(f"DEBUG: Mapping answer {ans.id} for field {ans.form_field.field_key if ans.form_field else 'UNKNOWN'}")
         answers.append(
             ApplicationAnswerResponse(
                 field_key=ans.form_field.field_key if ans.form_field else "unknown",
@@ -402,13 +415,20 @@ async def get_application_detail(
                         value=value,
                     )
                 )
-            print(f"DEBUG: Loaded {len(answers)} answers from fallback metadata (notes)")
-        except:
-            pass
+            logger.debug(
+                "application_notes_fallback_used",
+                application_id=application.id,
+                answers_count=len(answers),
+            )
+        except (json.JSONDecodeError, TypeError) as exc:
+            logger.warning(
+                "application_notes_fallback_parse_failed",
+                application_id=application.id,
+                error=str(exc),
+            )
 
     documents = []
     for doc in application.documents:
-        print(f"DEBUG: Mapping document {doc.id}")
         documents.append(
             ApplicationDocumentResponse(
                 id=doc.id,

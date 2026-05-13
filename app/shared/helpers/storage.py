@@ -1,7 +1,7 @@
 """Cloudflare R2 / S3 compatible storage helper."""
 import uuid
-from typing import Optional
 
+import anyio
 import boto3
 from botocore.config import Config
 
@@ -39,3 +39,27 @@ def upload_file(content: bytes, key: str, content_type: str = "application/pdf")
         CacheControl="public, max-age=31536000, immutable",
     )
     return build_public_url(key)
+
+
+async def upload_file_async(
+    content: bytes, key: str, content_type: str = "application/pdf"
+) -> str:
+    """Async wrapper around boto3 upload to avoid blocking event loop."""
+    return await anyio.to_thread.run_sync(
+        upload_file,
+        content,
+        key,
+        content_type,
+    )
+
+
+def delete_file(key: str) -> None:
+    s3 = get_s3_client()
+    s3.delete_object(
+        Bucket=settings.R2_BUCKET_NAME,
+        Key=key,
+    )
+
+
+async def delete_file_async(key: str) -> None:
+    await anyio.to_thread.run_sync(delete_file, key)

@@ -1,33 +1,22 @@
 """Auth API endpoints."""
 
-from fastapi import (
-    APIRouter,
-    Depends,
-    Request,
-    Response,
-    status,
-)
+from fastapi import APIRouter, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.database.base import get_db
 from app.core.exceptions import (
+    BaseDomainException,
     InvalidCredentialsException,
     InvalidRefreshTokenException,
-    RefreshTokenExpiredException,
-    SecurityAlertException,
-    UserInactiveException,
-    UserNotFoundException,
+    PasswordResetTokenInvalidException,
 )
-from app.features.auth.dependencies.auth import get_current_user
+from app.features.auth.dependencies.auth import CurrentUserDep, DbDep
 from app.features.auth.schemas.schema import (
     AccessTokenResponse,
     LoginRequest,
     PasswordResetConfirm,
     PasswordResetRequest,
-    RefreshRequest,
     RegisterRequest,
-    TokenPair,
     UserResponse,
 )
 from app.features.auth.services.service import (
@@ -51,7 +40,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 async def register_super_admin(
     data: RegisterRequest, 
     request: Request,
-    db: AsyncSession = Depends(get_db)
+    db: DbDep,
 ):
     """
     Register initial super admin.
@@ -68,7 +57,7 @@ async def register_super_admin(
 
 
 @router.post("/register/hr", response_model=StandardResponse[dict])
-async def register_hr(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
+async def register_hr(data: RegisterRequest, db: DbDep):
     if not data.company_name:
         raise BaseDomainException("Nama perusahaan wajib diisi untuk HR")
     hr, company = await create_company_and_hr(db, data)
@@ -83,7 +72,7 @@ async def register_hr(data: RegisterRequest, db: AsyncSession = Depends(get_db))
 
 @router.post("/login", response_model=StandardResponse[AccessTokenResponse])
 async def login(
-    data: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)
+    data: LoginRequest, response: Response, db: DbDep
 ):
     try:
         user = await authenticate_user(db, data.email, data.password)
@@ -111,7 +100,7 @@ async def login(
 
 @router.post("/refresh", response_model=StandardResponse[AccessTokenResponse])
 async def refresh(
-    response: Response, request: Request, db: AsyncSession = Depends(get_db)
+    response: Response, request: Request, db: DbDep
 ):
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
@@ -137,16 +126,17 @@ async def refresh(
 
 @router.post("/logout", response_model=StandardResponse[dict])
 async def logout(
-    response: Response, request: Request, db: AsyncSession = Depends(get_db)
+    response: Response, request: Request, db: DbDep
 ):
     refresh_token = request.cookies.get("refresh_token")
     if refresh_token:
         from app.core.security.jwt import decode_token
 
         payload = decode_token(refresh_token)
-        if payload and payload.get("jti"):
+        if payload and payload.get("jti") and payload.get("sub"):
             jti = payload.get("jti")
-            await logout_service(db, current_user.id, jti)
+            user_id = int(payload.get("sub"))
+            await logout_service(db, user_id, jti)
 
     response.delete_cookie(key="refresh_token")
     return StandardResponse.ok(
@@ -155,13 +145,13 @@ async def logout(
 
 
 @router.get("/me", response_model=StandardResponse[UserResponse])
-async def me(current_user=Depends(get_current_user)):
+async def me(current_user: CurrentUserDep):
     return StandardResponse.ok(data=UserResponse.model_validate(current_user))
 
 
 @router.post("/password-reset/request", response_model=StandardResponse[dict])
 async def password_reset_request(
-    data: PasswordResetRequest, db: AsyncSession = Depends(get_db)
+    data: PasswordResetRequest, db: DbDep
 ):
     """Request password reset token."""
     token = await request_password_reset(db, data.email)
@@ -177,7 +167,7 @@ async def password_reset_request(
 
 @router.post("/password-reset/confirm", response_model=StandardResponse[dict])
 async def password_reset_confirm(
-    data: PasswordResetConfirm, db: AsyncSession = Depends(get_db)
+    data: PasswordResetConfirm, db: DbDep
 ):
     """Konfirmasi reset password menggunakan token."""
     success = await confirm_password_reset(db, data.token, data.new_password)

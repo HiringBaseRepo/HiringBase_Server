@@ -1,5 +1,5 @@
 """Auth dependencies for FastAPI routes."""
-from typing import Optional
+from typing import Annotated, Optional
 
 from fastapi import Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -58,3 +58,9 @@ def require_role(*roles: UserRole):
 require_super_admin = require_role(UserRole.SUPER_ADMIN)
 require_hr = require_role(UserRole.HR, UserRole.SUPER_ADMIN)
 require_applicant = require_role(UserRole.APPLICANT, UserRole.HR, UserRole.SUPER_ADMIN)
+
+# Shared router dependency aliases (AGENTS.md convention)
+DbDep = Annotated[AsyncSession, Depends(get_db)]
+CurrentUserDep = Annotated[User, Depends(get_current_user)]
+HrUserDep = Annotated[User, Depends(require_hr)]
+SuperAdminDep = Annotated[User, Depends(require_super_admin)]
