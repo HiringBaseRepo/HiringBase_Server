@@ -17,7 +17,6 @@ from app.core.database.base import Base
 
 if TYPE_CHECKING:
     from app.features.applications.models import Application
-    from app.features.users.models import User
 
 class CandidateScore(Base):
     __tablename__ = "candidate_scores"

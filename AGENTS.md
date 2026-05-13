@@ -84,6 +84,8 @@ Applicants have no login. Flow: fill form + upload docs (explicit `file_<Documen
 - Pagination: `PaginationParams` (`page`, `per_page`)
 - Auth: Bearer Token in `Authorization` header
 - Use `Annotated` for FastAPI dependencies
+- Dependency aliases available in `app.features.auth.dependencies.auth`:
+  - `DbDep`, `CurrentUserDep`, `HrUserDep`, `SuperAdminDep`
 - Router imports: `app.features.<feature>.routers.router`
 - Auth dependencies: `app.features.auth.dependencies.auth`
 
@@ -126,6 +128,8 @@ String-literal relationships, `TYPE_CHECKING` for cross-domain hints. Aggregated
 - Company Assets: `company-assets/<uuid>.<ext>`
 - Job Attachments: `job-attachments/<uuid>.<ext>`
 - Public URL from `R2_PUBLIC_URL`
+- Upload operations use async wrappers (`upload_file_async`) via thread offload to keep FastAPI loop non-blocking
+- Upload rollback strategy: best-effort delete uploaded keys when DB commit fails after upload
 
 ## AI Implementation
 
@@ -158,6 +162,7 @@ Analyzes all concatenated text answers. Hybrid: 30% keyword baseline + 70% LLM. 
 
 ### Semantic Red Flag Detector (`app/ai/redflag/detector.py`)
 LLM-powered analysis of form data + OCR text. Cross-checks data mismatches (e.g., exp years vs. degree grad year). Fallback to regex-based detection. Output in Indonesian.
+- Red flag payload normalized as dict list with shape `{message, risk_level, type}`.
 
 ### AI Caching Strategy (`app/core/cache/`)
 To optimize API costs and latency, expensive AI results are cached in Upstash Redis:
@@ -191,6 +196,7 @@ To optimize API costs and latency, expensive AI results are cached in Upstash Re
 - **Request Tracking**: UUID4 per request, returned as `X-Request-ID` header; middleware logs method, path, status, latency
 - **Exception Monitoring**: All global handlers log errors; 500s include structured tracebacks
 - **Context Propagation**: `structlog.contextvars` for async-safe state
+- Runtime debugging should use `structlog` (avoid `print()` in feature flow)
 
 ## Development Commands
 ```bash

@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 import structlog
+from app.core.cache.service import cache_service
 
 log = structlog.get_logger(__name__)
 
@@ -66,8 +67,6 @@ def _exact_and_synonym_match(
 
     return False
 
-
-from app.core.cache.service import cache_service
 
 async def _semantic_match(
     required_skill: str,

@@ -49,12 +49,10 @@ from app.shared.schemas.response import StandardResponse
 # Initialize Logging
 setup_logging()
 
-from app.core.tkq import broker
-import app.features.screening.tasks  # noqa: F401
-import app.shared.tasks.mail_tasks  # noqa: F401
-
-
-from app.core.cache.client import redis_client
+from app.core.tkq import broker  # noqa: E402
+import app.features.screening.tasks  # noqa: F401,E402
+import app.shared.tasks.mail_tasks  # noqa: F401,E402
+from app.core.cache.client import redis_client  # noqa: E402
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

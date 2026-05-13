@@ -16,6 +16,7 @@ import re
 from typing import Dict, List
 
 import structlog
+from app.core.cache.service import cache_service
 
 log = structlog.get_logger(__name__)
 
@@ -83,8 +84,6 @@ def _keyword_count_to_score(count: int, max_keywords: int = 5) -> float:
     # Scale to 40-100 range (keywords alone are not enough for full score)
     return round(40.0 + ratio * 60.0, 1)
 
-
-from app.core.cache.service import cache_service
 
 async def score_soft_skills(text: str, force_fallback: bool = False) -> Dict[str, float]:
     """Analyze text and return soft skill scores per dimension using LLM with keyword fallback.
@@ -181,4 +180,3 @@ Contoh: {{"communication": 85, "leadership": 70, ...}}
         await cache_service.set("soft_skills", text, baseline_scores, expire=86400)
 
     return baseline_scores
-

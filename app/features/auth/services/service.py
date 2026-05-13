@@ -277,9 +277,6 @@ async def confirm_password_reset(
     MVP: Since there is no dedicated table, this would match via secure query.
     Returns: True if successful, False if token invalid/expired.
     """
-    import hashlib
-
-    token_hash = hashlib.sha256(token.encode()).hexdigest()
     # NOTE: Production implementation requires password_reset_tokens table with:
     # user_id, token_hash, expires_at, used_at
     # This MVP is a safe placeholder returning False

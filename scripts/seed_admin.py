@@ -6,11 +6,11 @@ from pathlib import Path
 root_path = Path(__file__).parent.parent
 sys.path.append(str(root_path))
 
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.database.base import engine
-from app.features.models import User
-from app.core.security.hashing import get_password_hash
-from app.shared.enums.user_roles import UserRole
+from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
+from app.core.database.base import engine  # noqa: E402
+from app.features.models import User  # noqa: E402
+from app.core.security.hashing import get_password_hash  # noqa: E402
+from app.shared.enums.user_roles import UserRole  # noqa: E402
 
 async def create_super_admin():
     print("========================================")

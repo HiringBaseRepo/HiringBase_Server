@@ -74,7 +74,7 @@ async def get_documents_by_application_id(db: AsyncSession, application_id: int)
 
 async def get_active_knockout_rules(db: AsyncSession, job_id: int) -> list[JobKnockoutRule]:
     result = await db.execute(
-        select(JobKnockoutRule).where(JobKnockoutRule.job_id == job_id, JobKnockoutRule.is_active == True)
+        select(JobKnockoutRule).where(JobKnockoutRule.job_id == job_id, JobKnockoutRule.is_active)
     )
     return list(result.scalars().all())
 

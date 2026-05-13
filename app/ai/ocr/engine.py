@@ -4,6 +4,7 @@ from __future__ import annotations
 import httpx
 import structlog
 from app.core.config import settings
+from app.core.cache.service import cache_service
 from app.core.exceptions.custom_exceptions import AIAPIConnectionException, AIAPIServerException, AIAPIException
 
 log = structlog.get_logger(__name__)
@@ -16,8 +17,6 @@ def _is_image(url: str) -> bool:
     url_lower = url.lower().split("?")[0]
     return any(url_lower.endswith(ext) for ext in _IMAGE_EXTS)
 
-
-from app.core.cache.service import cache_service
 
 async def extract_text_from_document(file_url: str, force_fallback: bool = False) -> str:
     """Extract text from document URL (PDF or image) using Mistral OCR API with Redis caching.
