@@ -73,6 +73,8 @@ class Settings(BaseSettings):
     DEFAULT_ADMIN_WEIGHT: int = 10
 
     # EMAIL
+    BREVO_API_KEY: Optional[str] = None
+    BREVO_API_BASE_URL: str = "https://api.brevo.com/v3"
     SMTP_HOST: Optional[str] = None
     SMTP_PORT: int = 587
     SMTP_USER: Optional[str] = None
