@@ -180,6 +180,8 @@ async def publish_job(
     job = await get_job_for_company(db, job_id, current_user.company_id)
     if not job:
         raise JobNotFoundException()
+    from app.core.utils.audit import get_model_snapshot
+    old_values = get_model_snapshot(job)
 
     job.apply_code = generate_apply_code()
     if data.mode == "public":
@@ -201,6 +203,7 @@ async def publish_job(
             action="JOB_PUBLISH",
             entity_type="job",
             entity_id=job.id,
+            old_values=old_values,
             new_values={"status": job.status, "mode": data.mode},
         ),
     )
@@ -274,6 +277,8 @@ async def close_job(
     job = await get_job_for_company(db, job_id, current_user.company_id)
     if not job:
         raise JobNotFoundException()
+    from app.core.utils.audit import get_model_snapshot
+    old_values = get_model_snapshot(job)
 
     job.status = JobStatus.CLOSED
     job.closed_at = datetime.utcnow()
@@ -285,6 +290,7 @@ async def close_job(
             action="JOB_CLOSE",
             entity_type="job",
             entity_id=job.id,
+            old_values=old_values,
             new_values={"status": job.status},
         ),
     )

@@ -15,7 +15,7 @@ async def list_notifications(
 ) -> tuple[list[Notification], int]:
     stmt = select(Notification).where(Notification.user_id == user_id)
     if unread_only:
-        stmt = stmt.where(Notification.is_read == False)
+        stmt = stmt.where(~Notification.is_read)
 
     total_result = await db.execute(select(func.count()).select_from(stmt.subquery()))
     total = total_result.scalar_one()
@@ -36,6 +36,28 @@ async def mark_notification_read(db: AsyncSession, *, notification_id: int, user
 async def mark_all_notifications_read(db: AsyncSession, *, user_id: int) -> None:
     await db.execute(
         update(Notification)
-        .where(Notification.user_id == user_id, Notification.is_read == False)
+        .where(Notification.user_id == user_id, ~Notification.is_read)
         .values(is_read=True)
     )
+
+
+async def get_notification_by_id(
+    db: AsyncSession, *, notification_id: int, user_id: int
+) -> Notification | None:
+    result = await db.execute(
+        select(Notification).where(
+            Notification.id == notification_id,
+            Notification.user_id == user_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def list_unread_notifications(db: AsyncSession, *, user_id: int) -> list[Notification]:
+    result = await db.execute(
+        select(Notification).where(
+            Notification.user_id == user_id,
+            ~Notification.is_read,
+        )
+    )
+    return list(result.scalars().all())

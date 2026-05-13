@@ -19,7 +19,11 @@ from app.features.users.models import User as DBUser
 from app.features.users.repositories.repository import save_user, update_user_repo
 from app.shared.enums.user_roles import UserRole
 from fastapi import UploadFile
-from app.shared.helpers.storage import generate_filename, build_public_url, get_s3_client
+from app.shared.helpers.storage import (
+    build_public_url,
+    generate_filename,
+    get_s3_client,
+)
 from app.shared.constants.storage import UPLOAD_PREFIX_COMPANY_LOGO
 from app.core.config import settings
 from app.features.companies.schemas.schema import (
@@ -191,6 +195,7 @@ async def update_company(
             role=UserRole.HR,
             is_active=True,
         )
+        await save_user(db, new_hr)
     # Audit Log
     await create_audit_log(
         db,
@@ -268,9 +273,11 @@ async def suspend_company(
     *,
     current_user: DBUser
 ) -> CompanySuspendResponse:
-    company = await get_company_by_id(db, company_id)
+    company = await get_company_repository_id(db, company_id)
     if not company:
         raise CompanyNotFoundException()
+    from app.core.utils.audit import get_model_snapshot
+    old_values = get_model_snapshot(company)
     company.is_suspended = True
     await create_audit_log(
         db,
@@ -280,6 +287,7 @@ async def suspend_company(
             action="COMPANY_SUSPEND",
             entity_type="company",
             entity_id=company_id,
+            old_values=old_values,
             new_values={"is_suspended": True},
         ),
     )
@@ -293,9 +301,11 @@ async def activate_company(
     *,
     current_user: DBUser
 ) -> CompanyActivateResponse:
-    company = await get_company_by_id(db, company_id)
+    company = await get_company_repository_id(db, company_id)
     if not company:
         raise CompanyNotFoundException()
+    from app.core.utils.audit import get_model_snapshot
+    old_values = get_model_snapshot(company)
     company.is_suspended = False
     company.is_active = True
     await create_audit_log(
@@ -306,6 +316,7 @@ async def activate_company(
             action="COMPANY_ACTIVATE",
             entity_type="company",
             entity_id=company_id,
+            old_values=old_values,
             new_values={"is_active": True, "is_suspended": False},
         ),
     )
