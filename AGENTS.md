@@ -45,7 +45,7 @@ AI-powered recruitment backend for HR teams: job vacancy creation, form-based ap
 │       └── models/       # SQLAlchemy models (__init__.py)
 │   └── models.py         # Central aggregator for Alembic
 ├── shared/      # enums/, constants/, schemas/, helpers/localization.py
-├── tests/       # unit/, integration/, e2e/
+├
 └── main.py
 ```
 
