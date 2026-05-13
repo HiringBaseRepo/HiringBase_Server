@@ -135,10 +135,10 @@ async def public_apply(
     db: AsyncSession,
     *,
     data: PublicApplyCommand,
-    documents: list[UploadFile] | None = None,
+    documents_data: list[dict] | None = None,
 ) -> PublicApplyResponse:
     # Validate all requirements
-    await validate_public_apply_requirements(db, data, documents)
+    await validate_public_apply_requirements(db, data, documents_data)
 
     # Get job and applicant
     job = await get_published_job_by_id(db, data.job_id)
@@ -183,16 +183,9 @@ async def public_apply(
                 )
      
 
-    for upload in documents or []:
-        # Detect document type from filename
-        fname = (upload.filename or "").lower()
-        doc_type = DocumentType.OTHERS
-        if any(k in fname for k in ["ktp", "identity", "id_card", "identitas"]):
-            doc_type = DocumentType.IDENTITY_CARD
-        elif any(k in fname for k in ["skck", "criminal", "record", "polisi"]):
-            doc_type = DocumentType.CRIMINAL_RECORD
-        elif any(k in fname for k in ["ijazah", "degree", "diploma", "certificate"]):
-            doc_type = DocumentType.DEGREE
+    for item in documents_data or []:
+        upload = item["file"]
+        doc_type = item["type"]
         
         try:
             await _store_uploaded_document(

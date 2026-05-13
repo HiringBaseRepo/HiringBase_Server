@@ -40,6 +40,7 @@ from app.features.applications.services.service import (
 )
 from app.features.auth.dependencies.auth import require_hr
 from app.shared.enums.application_status import ApplicationStatus
+from app.shared.enums.document_type import DocumentType
 from app.shared.helpers.localization import get_label
 from app.shared.schemas.response import PaginatedResponse, StandardResponse
 
@@ -80,11 +81,15 @@ async def public_apply(
     db: AsyncSession = Depends(get_db),
 ):
     form_data = await request.form()
-    # Collect all uploaded files from form data (robust check)
-    documents = []
+    documents_data = []
     for key, value in form_data.multi_items():
         if hasattr(value, "filename") and value.filename:
-            documents.append(value)
+            doc_type = DocumentType.OTHERS
+            if key.startswith("file_"):
+                enum_key = key.replace("file_", "")
+                if enum_key in DocumentType._member_names_:
+                    doc_type = DocumentType[enum_key]
+            documents_data.append({"type": doc_type, "file": value})
     
     command = PublicApplyCommand(
         job_id=job_id,
@@ -93,7 +98,7 @@ async def public_apply(
         phone=phone,
         answers_json=answers_json,
     )
-    result = await public_apply_service(db, data=command, documents=documents)
+    result = await public_apply_service(db, data=command, documents_data=documents_data)
     return StandardResponse.ok(
         data=result, message=get_label("Application submitted successfully")
     )

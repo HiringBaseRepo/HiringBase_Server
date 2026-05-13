@@ -22,14 +22,14 @@ from app.shared.constants.errors import ERR_DUPLICATE_APPLICATION
 async def validate_public_apply_requirements(
     db,
     data,
-    documents: list[UploadFile] | None = None,
+    documents_data: list[dict] | None = None,
 ) -> None:
     """Validate public application requirements.
 
     Args:
         db: Database session
         data: Public apply command data
-        documents: List of uploaded documents
+        documents_data: List of dicts containing 'type' and 'file'
 
     Raises:
         BaseDomainException: If validation fails
@@ -54,11 +54,11 @@ async def validate_public_apply_requirements(
         if r.rule_type == "document" and r.is_active
     ]
 
-    uploaded_filenames = (
-        [upload.filename.lower() for upload in documents] if documents else []
+    uploaded_doc_types = (
+        [doc["type"].value for doc in documents_data] if documents_data else []
     )
     for req_doc in required_docs:
-        found = any(req_doc in fname for fname in uploaded_filenames)
+        found = any(req_doc == doc_type for doc_type in uploaded_doc_types)
         if not found:
             raise MissingDocumentsException([req_doc])
 

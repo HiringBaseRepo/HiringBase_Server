@@ -77,7 +77,7 @@ APPLIED → DOC_CHECK → [DOC_FAILED]
 ```
 
 ### Public Applicant Flow (Ticket-Based)
-Applicants have no login. Flow: fill form + upload docs → system validates (fields, docs, file format, email dedup) → atomic save to R2 + DB → returns `TKT-YYYY-NNNNN`. Applicants stored in `users` table as contacts without credentials.
+Applicants have no login. Flow: fill form + upload docs (explicit `file_<DocumentType>` multipart keys) → system validates (fields, docs, file format, email dedup) → atomic save to R2 + DB → returns `TKT-YYYY-NNNNN`. Applicants stored in `users` table as contacts without credentials.
 
 ## API Conventions
 - All responses: `StandardResponse` wrapper `{success, message, data, errors, meta}`
