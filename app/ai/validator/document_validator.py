@@ -87,21 +87,23 @@ async def validate_document_content(
                 result = json.loads(content)
                 log.info("Document validation result", doc_type=doc_type, valid=result.get("valid"))
                 return result
+            elif resp.status_code == 429:
+                return {"valid": False, "reason": "API Limit (Groq). Silakan screening ulang beberapa saat lagi.", "confidence": 0.0}
             elif resp.status_code >= 500:
                 if force_fallback:
-                    return {"valid": True, "reason": get_label("API Error (Fallback to Pass)"), "confidence": 0.5}
+                    return {"valid": False, "reason": "API Groq Error. Silakan coba screening ulang nanti.", "confidence": 0.0}
                 raise AIAPIServerException(f"Groq API returned {resp.status_code}")
             else:
                 log.error("Groq API error", status_code=resp.status_code, body=resp.text)
-                return {"valid": True, "reason": get_label("API Client Error (Fallback)"), "confidence": 0.5}
+                return {"valid": False, "reason": "Gagal validasi (API Client Error). Silakan coba lagi.", "confidence": 0.0}
                 
     except (httpx.TimeoutException, httpx.NetworkError) as exc:
         log.error("Document validation timeout/network error", error=str(exc))
         if force_fallback:
-            return {"valid": True, "reason": get_label("API Timeout (Fallback)"), "confidence": 0.5}
+            return {"valid": False, "reason": "API Timeout. Silakan screening ulang nanti.", "confidence": 0.0}
         raise AIAPIConnectionException(str(exc))
     except Exception as exc:
         if isinstance(exc, (AIAPIConnectionException, AIAPIServerException)):
             raise exc
         log.error("Document validation exception", error=str(exc))
-        return {"valid": True, "reason": get_label("Internal validator error"), "confidence": 0.5}
+        return {"valid": False, "reason": "Sistem Gagal Validasi. Silakan screening ulang nanti.", "confidence": 0.0}
