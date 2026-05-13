@@ -1,17 +1,12 @@
 """Knockout + Administrative Screening + AI Scoring Engine."""
 
-from typing import Optional
+from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.base import get_db
-from app.core.exceptions import (
-    ApplicationNotFoundException,
-    MissingDocumentsException,
-    RuleNotFoundException,
-)
-from app.features.auth.dependencies.auth import require_hr
+from app.features.auth.dependencies.auth import HrUserDep
 from app.features.screening.schemas.schema import (
     KnockoutRuleCreateCommand,
     KnockoutRuleCreatedResponse,
@@ -21,14 +16,14 @@ from app.features.screening.schemas.schema import (
 from app.features.screening.services.service import (
     create_knockout_rule as create_knockout_rule_service,
     delete_knockout_rule as delete_knockout_rule_service,
-    process_screening,
-    process_screening_with_exception_handling,
     queue_screening,
 )
+from app.features.screening.tasks import run_screening_task
 from app.shared.schemas.response import StandardResponse
 from app.shared.helpers.localization import get_label
 
 router = APIRouter(prefix="/screening", tags=["Screening Engine"])
+DbDep = Annotated[AsyncSession, Depends(get_db)]
 
 
 @router.post(
@@ -43,8 +38,8 @@ async def create_knockout_rule(
     target_value: str,
     field_key: Optional[str] = None,
     action: str = "auto_reject",
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_hr),
+    db: DbDep,
+    current_user: HrUserDep,
 ):
     command = KnockoutRuleCreateCommand(
         job_id=job_id,
@@ -64,13 +59,11 @@ async def create_knockout_rule(
     response_model=StandardResponse[KnockoutRuleDeletedResponse],
 )
 async def delete_knockout_rule(
-    rule_id: int, db: AsyncSession = Depends(get_db), current_user=Depends(require_hr)
+    rule_id: int, db: DbDep, current_user: HrUserDep
 ):
     result = await delete_knockout_rule_service(db, rule_id)
     return StandardResponse.ok(data=result)
 
-
-from app.features.screening.tasks import run_screening_task
 
 @router.post(
     "/applications/{application_id}/run",
@@ -78,8 +71,8 @@ from app.features.screening.tasks import run_screening_task
 )
 async def run_screening(
     application_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_hr),
+    db: DbDep,
+    current_user: HrUserDep,
 ):
     result = await queue_screening(
         db, current_user=current_user, application_id=application_id

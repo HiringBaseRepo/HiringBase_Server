@@ -1,9 +1,12 @@
 """Candidate data parser for screening service."""
 
 from typing import Any
+import json
+import structlog
 
 from app.features.screening.services.helpers import find_answer_value
 
+logger = structlog.get_logger(__name__)
 
 def build_candidate_profile(application: Any, answers: list[Any]) -> dict[str, Any]:
     """Build candidate profile from form answers.
@@ -17,7 +20,6 @@ def build_candidate_profile(application: Any, answers: list[Any]) -> dict[str, A
     """
     # Fallback for answers if list is empty but metadata exists
     if not answers and hasattr(application, "notes") and application.notes:
-        import json
         try:
             notes_data = json.loads(application.notes)
             # Create mock answer objects for find_answer_value
@@ -29,9 +31,12 @@ def build_candidate_profile(application: Any, answers: list[Any]) -> dict[str, A
                     self.value_json = None
             
             answers = [MockAnswer(k, v) for k, v in notes_data.items()]
-            print(f"DEBUG PARSER: Built candidate profile from fallback metadata ({len(answers)} keys)")
-        except:
-            pass
+            logger.debug(
+                "parser_notes_fallback_used",
+                answers_count=len(answers),
+            )
+        except (json.JSONDecodeError, TypeError):
+            logger.warning("parser_notes_fallback_invalid_json")
 
     parsed_data = {
         "name": application.applicant.full_name if application.applicant else None,
