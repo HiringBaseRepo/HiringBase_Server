@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-from typing import List, Optional
 
 class DashboardOverview(BaseModel):
     total_companies: int

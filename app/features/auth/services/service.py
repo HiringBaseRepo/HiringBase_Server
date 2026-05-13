@@ -15,7 +15,6 @@ from app.core.security.jwt import (
 from app.core.utils.ticket import generate_apply_code
 from app.features.auth.repositories.repository import (
     delete_all_refresh_tokens_by_user_id,
-    delete_refresh_token,
     get_refresh_token_by_jti,
     get_user_by_email,
     get_user_by_id,
@@ -152,12 +151,10 @@ async def refresh_access_token(
     db: AsyncSession, refresh_token: str
 ) -> Optional[TokenPair]:
     from app.core.exceptions import (
-        InvalidCredentialsException,
         InvalidRefreshTokenException,
         RefreshTokenExpiredException,
         SecurityAlertException,
         UserInactiveException,
-        UserNotFoundException,
         TokenRotationFailedException,
     )
 
@@ -281,7 +278,6 @@ async def confirm_password_reset(
     Returns: True if successful, False if token invalid/expired.
     """
     import hashlib
-    import time
 
     token_hash = hashlib.sha256(token.encode()).hexdigest()
     # NOTE: Production implementation requires password_reset_tokens table with:

@@ -4,7 +4,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.utils.pagination import PaginationParams
 from app.features.audit_logs.models import AuditLog
 from app.features.audit_logs.repositories.repository import create_audit_log
-from app.features.notifications.models import Notification
 from app.features.users.models import User
 from app.features.notifications.repositories.repository import (
     get_notification_by_id,

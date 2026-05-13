@@ -47,10 +47,10 @@ DbDep = Annotated[AsyncSession, Depends(get_db)]
     "/public/jobs", response_model=StandardResponse[PaginatedResponse[PublicJobItem]]
 )
 async def public_list_jobs(
+    db: DbDep,
     q: Optional[str] = None,
     location: Optional[str] = None,
     pagination: PaginationParams = Depends(),
-    db: DbDep,
 ):
     result = await list_public_jobs_service(
         db, pagination=pagination, q=q, location=location
@@ -69,12 +69,12 @@ async def public_job_detail(job_id: int, db: DbDep):
 @router.post("/public/apply", response_model=StandardResponse[PublicApplyResponse])
 async def public_apply(
     request: Request,
+    db: DbDep,
     job_id: int = Form(...),
     email: str = Form(...),
     full_name: str = Form(...),
     phone: Optional[str] = Form(None),
     answers_json: Optional[str] = Form(None),  # JSON string of answers
-    db: DbDep,
 ):
     form_data = await request.form()
     documents_data = []
@@ -106,12 +106,12 @@ async def public_apply(
 
 @router.get("", response_model=StandardResponse[PaginatedResponse[ApplicationListItem]])
 async def list_applications(
+    db: DbDep,
+    current_user: HrUserDep,
     job_id: Optional[int] = None,
     status_filter: Optional[ApplicationStatus] = None,
     q: Optional[str] = None,
     pagination: PaginationParams = Depends(),
-    db: DbDep,
-    current_user: HrUserDep,
 ):
     result = await list_applications_service(
         db,
@@ -129,11 +129,11 @@ async def list_applications(
     response_model=StandardResponse[ApplicationStatusUpdateResponse],
 )
 async def update_application_status(
+    db: DbDep,
+    current_user: HrUserDep,
     application_id: int,
     new_status: ApplicationStatus,
     reason: Optional[str] = None,
-    db: DbDep,
-    current_user: HrUserDep,
 ):
     result = await update_application_status_service(
         db,

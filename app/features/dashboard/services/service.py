@@ -1,7 +1,5 @@
 from typing import List
-import random
 import time
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.features.dashboard.schemas.schema import DashboardOverview, RecentCampaign
 from app.features.dashboard.repositories.repository import (

@@ -31,6 +31,8 @@ DbDep = Annotated[AsyncSession, Depends(get_db)]
     response_model=StandardResponse[KnockoutRuleCreatedResponse],
 )
 async def create_knockout_rule(
+    db: DbDep,
+    current_user: HrUserDep,
     job_id: int,
     rule_name: str,
     rule_type: str,
@@ -38,8 +40,6 @@ async def create_knockout_rule(
     target_value: str,
     field_key: Optional[str] = None,
     action: str = "auto_reject",
-    db: DbDep,
-    current_user: HrUserDep,
 ):
     command = KnockoutRuleCreateCommand(
         job_id=job_id,

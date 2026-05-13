@@ -27,7 +27,7 @@ async def list_public_jobs(
 ) -> tuple[list[Job], int]:
     stmt = select(Job).where(
         Job.status == JobStatus.PUBLISHED,
-        Job.is_public == True,
+        Job.is_public,
         Job.deleted_at.is_(None),
     )
     if q:
@@ -52,7 +52,7 @@ async def get_public_job_by_id(db: AsyncSession, job_id: int) -> Job | None:
         select(Job).where(
             Job.id == job_id,
             Job.status == JobStatus.PUBLISHED,
-            Job.is_public == True,
+            Job.is_public,
             Job.deleted_at.is_(None),
         )
     )
@@ -105,7 +105,7 @@ async def get_knockout_rules_by_job_id(db: AsyncSession, job_id: int) -> list[Jo
     result = await db.execute(
         select(JobKnockoutRule).where(
             JobKnockoutRule.job_id == job_id,
-            JobKnockoutRule.is_active == True,
+            JobKnockoutRule.is_active,
         ).order_by(JobKnockoutRule.order_index)
     )
     return list(result.scalars().all())

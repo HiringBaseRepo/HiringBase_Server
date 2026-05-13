@@ -2,8 +2,6 @@
 
 from typing import List, Any
 
-from app.features.jobs.models import JobRequirement
-from app.features.screening.models import CandidateScore
 from app.shared.constants.scoring import MINIMUM_PASS_SCORE
 
 

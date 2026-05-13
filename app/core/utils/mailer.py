@@ -1,6 +1,5 @@
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
 from app.core.config import settings
-from pathlib import Path
 
 # Mail configuration
 mail_conf = ConnectionConfig(

@@ -2,11 +2,9 @@ import logging
 import sys
 import structlog
 from structlog.processors import (
-    add_log_level,
     dict_tracebacks,
     format_exc_info,
     JSONRenderer,
-    TimeStamper,
     StackInfoRenderer,
 )
 from app.core.config import settings

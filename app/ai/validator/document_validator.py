@@ -2,7 +2,7 @@
 import json
 import httpx
 import structlog
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from app.core.config import settings
 from app.core.exceptions.custom_exceptions import AIAPIConnectionException, AIAPIServerException
 from app.shared.helpers.localization import get_label
