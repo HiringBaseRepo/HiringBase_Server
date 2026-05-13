@@ -110,7 +110,18 @@ def _generate_template_explanation(
         parts.append("Memerlukan tinjauan manual HR sebelum diputuskan.")
 
     if red_flags and red_flags.get("red_flags"):
-        has_anomalies = any("anomaly" in f.lower() or "warning" in f.lower() or "anomali" in f.lower() or "inkonsistensi" in f.lower() for f in red_flags["red_flags"])
+        # Handle both dict and legacy string flags
+        flags_text = []
+        for f in red_flags["red_flags"]:
+            if isinstance(f, dict):
+                flags_text.append(f.get("message", "").lower())
+            else:
+                flags_text.append(str(f).lower())
+                
+        has_anomalies = any(
+            "anomaly" in txt or "warning" in txt or "anomali" in txt or "inkonsistensi" in txt 
+            for txt in flags_text
+        )
         if has_anomalies:
             parts.append("Perhatian: Ditemukan anomali atau inkonsistensi data pada verifikasi dokumen.")
 
