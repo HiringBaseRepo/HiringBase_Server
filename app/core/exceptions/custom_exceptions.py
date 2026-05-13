@@ -113,6 +113,22 @@ class PasswordResetTokenInvalidException(BaseDomainException):
         super().__init__(self.message)
 
 
+class InvalidSetupTokenException(BaseDomainException):
+    """Raised when setup token for super admin registration is invalid."""
+
+    def __init__(self, message: str = "Setup token tidak valid atau belum diatur di .env"):
+        self.message = message
+        super().__init__(self.message)
+
+
+class CompanyNameRequiredException(BaseDomainException):
+    """Raised when HR registration misses company name."""
+
+    def __init__(self, message: str = "Nama perusahaan wajib diisi untuk HR"):
+        self.message = message
+        super().__init__(self.message)
+
+
 class MissingDocumentsException(BaseDomainException):
     """Raised when required documents are missing."""
 

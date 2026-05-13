@@ -5,9 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import (
-    BaseDomainException,
+    CompanyNameRequiredException,
     InvalidCredentialsException,
     InvalidRefreshTokenException,
+    InvalidSetupTokenException,
     PasswordResetTokenInvalidException,
 )
 from app.features.auth.dependencies.auth import CurrentUserDep, DbDep
@@ -48,7 +49,7 @@ async def register_super_admin(
     """
     setup_token = request.headers.get("X-Setup-Token")
     if not settings.SETUP_TOKEN or setup_token != settings.SETUP_TOKEN:
-        raise BaseDomainException("Setup token tidak valid atau belum diatur di .env")
+        raise InvalidSetupTokenException()
         
     user = await create_user(db, data, role=UserRole.SUPER_ADMIN)
     return StandardResponse.ok(
@@ -59,7 +60,7 @@ async def register_super_admin(
 @router.post("/register/hr", response_model=StandardResponse[dict])
 async def register_hr(data: RegisterRequest, db: DbDep):
     if not data.company_name:
-        raise BaseDomainException("Nama perusahaan wajib diisi untuk HR")
+        raise CompanyNameRequiredException()
     hr, company = await create_company_and_hr(db, data)
     return StandardResponse.ok(
         data={

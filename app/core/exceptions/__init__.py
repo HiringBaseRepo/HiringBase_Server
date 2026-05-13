@@ -3,6 +3,7 @@
 from app.core.exceptions.custom_exceptions import (
     ApplicationNotFoundException,
     BaseDomainException,
+    CompanyNameRequiredException,
     CompanyNotFoundException,
     DuplicateApplicationException,
     FieldNotFoundException,
@@ -11,6 +12,7 @@ from app.core.exceptions.custom_exceptions import (
     InvalidCredentialsException,
     InvalidFileTypeException,
     InvalidRefreshTokenException,
+    InvalidSetupTokenException,
     JobNotFoundException,
     MissingDocumentsException,
     PasswordResetTokenInvalidException,
@@ -30,6 +32,7 @@ from app.core.exceptions.custom_exceptions import (
 
 __all__ = [
     "BaseDomainException",
+    "CompanyNameRequiredException",
     "RuleNotFoundException",
     "ApplicationNotFoundException",
     "JobNotFoundException",
@@ -37,6 +40,7 @@ __all__ = [
     "InvalidCredentialsException",
     "UserInactiveException",
     "InvalidRefreshTokenException",
+    "InvalidSetupTokenException",
     "RefreshTokenExpiredException",
     "TokenRevokedException",
     "SecurityAlertException",
