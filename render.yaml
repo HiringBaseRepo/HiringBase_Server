@@ -1,3 +1,41 @@
+envVarGroups:
+  - name: hirebase-shared-secrets
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: R2_ENDPOINT_URL
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_PUBLIC_URL
+        sync: false
+      - key: HF_TOKEN
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: MISTRAL_API_KEY
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+
 services:
   - type: web
     name: hirebase-api
@@ -6,12 +44,13 @@ services:
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
     envVars:
-      - key: APP_ENV
-        value: production
+      - fromGroup: hirebase-shared-secrets
 
   - type: worker
     name: hirebase-worker
     runtime: docker
-    plan: free # Note: Render free worker terbatas, jika gagal gabung ke web service
+    plan: free
     dockerfilePath: ./Dockerfile
     dockerCommand: taskiq worker app.core.tkq:broker app.main:app
+    envVars:
+      - fromGroup: hirebase-shared-secrets
