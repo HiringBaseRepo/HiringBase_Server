@@ -1,12 +1,14 @@
 """Rate limiting middleware (simple in-memory)."""
 import time
-from typing import Dict, Tuple
+from typing import Dict
 
 from fastapi import Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
 from app.core.config import settings
+from app.shared.helpers.localization import get_label
+from app.shared.schemas.response import StandardResponse
 
 client_requests: Dict[str, list] = {}
 
@@ -27,9 +29,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         client_requests[client_ip] = reqs
 
         if len(reqs) > limit:
+            payload = StandardResponse.error(
+                message=get_label("Terlalu banyak permintaan, coba lagi dalam 1 menit."),
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
             return JSONResponse(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                content={"success": False, "message": "Rate limit exceeded."},
+                content=payload.model_dump(),
             )
 
         return await call_next(request)
