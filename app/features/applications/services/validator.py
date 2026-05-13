@@ -57,6 +57,11 @@ async def validate_public_apply_requirements(
     uploaded_doc_types = (
         [doc["type"].value for doc in documents_data] if documents_data else []
     )
+    
+    # Blokir OTHERS jika tidak ada di knockout rules
+    if "others" in uploaded_doc_types and "others" not in required_docs:
+        raise BaseDomainException("Upload dokumen dengan tipe OTHERS tidak diizinkan untuk lowongan ini.")
+
     for req_doc in required_docs:
         found = any(req_doc == doc_type for doc_type in uploaded_doc_types)
         if not found:
