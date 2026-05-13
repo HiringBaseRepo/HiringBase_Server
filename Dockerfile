@@ -21,4 +21,6 @@ COPY . .
 
 EXPOSE 10000
 
-CMD sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000}"
+RUN chmod +x /app/scripts/render-free-start.sh
+
+CMD ["/app/scripts/render-free-start.sh"]

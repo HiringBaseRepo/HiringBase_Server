@@ -45,12 +45,3 @@ services:
     healthCheckPath: /health
     envVars:
       - fromGroup: hirebase-shared-secrets
-
-  - type: worker
-    name: hirebase-worker
-    runtime: docker
-    plan: free
-    dockerfilePath: ./Dockerfile
-    dockerCommand: taskiq worker app.core.tkq:broker app.main:app
-    envVars:
-      - fromGroup: hirebase-shared-secrets
