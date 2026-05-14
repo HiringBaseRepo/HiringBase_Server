@@ -270,3 +270,12 @@ class UnauthorizedException(BaseDomainException):
     def __init__(self, message: str = get_label(ERR_UNAUTHORIZED)):
         self.message = message
         super().__init__(self.message)
+
+
+class ValidationError(BaseDomainException):
+    """Raised when data validation fails."""
+
+    def __init__(self, message: str, errors: dict | None = None):
+        self.message = message
+        self.errors = errors
+        super().__init__(self.message)

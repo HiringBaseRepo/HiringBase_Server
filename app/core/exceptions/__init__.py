@@ -27,6 +27,7 @@ from app.core.exceptions.custom_exceptions import (
     UnauthorizedException,
     UserInactiveException,
     UserNotFoundException,
+    ValidationError,
     WeightTotalInvalidException,
 )
 
@@ -37,6 +38,7 @@ __all__ = [
     "ApplicationNotFoundException",
     "JobNotFoundException",
     "UserNotFoundException",
+    "ValidationError",
     "InvalidCredentialsException",
     "UserInactiveException",
     "InvalidRefreshTokenException",
