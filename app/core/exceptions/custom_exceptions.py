@@ -12,6 +12,7 @@ from app.shared.constants.errors import (
     ERR_INTERVIEW_NOT_FOUND,
     ERR_INVALID_CREDENTIALS,
     ERR_INVALID_FILE_TYPE,
+    ERR_INVALID_REQUEST_ORIGIN,
     ERR_INVALID_REFRESH_TOKEN,
     ERR_INVALID_SETUP_TOKEN,
     ERR_JOB_NOT_FOUND,
@@ -268,6 +269,14 @@ class UnauthorizedException(BaseDomainException):
     """Raised when a user lacks permission for an action."""
 
     def __init__(self, message: str = get_label(ERR_UNAUTHORIZED)):
+        self.message = message
+        super().__init__(self.message)
+
+
+class InvalidRequestOriginException(BaseDomainException):
+    """Raised when a cookie-auth request comes from an untrusted origin."""
+
+    def __init__(self, message: str = get_label(ERR_INVALID_REQUEST_ORIGIN)):
         self.message = message
         super().__init__(self.message)
 

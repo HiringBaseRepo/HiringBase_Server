@@ -1,11 +1,14 @@
 """Auth API endpoints."""
 
+from urllib.parse import urlsplit
+
 from fastapi import APIRouter, Request, Response
 
 from app.core.config import settings
 from app.core.exceptions import (
     CompanyNameRequiredException,
     InvalidCredentialsException,
+    InvalidRequestOriginException,
     InvalidRefreshTokenException,
     InvalidSetupTokenException,
     PasswordResetTokenInvalidException,
@@ -38,6 +41,44 @@ from app.shared.constants.errors import (
 from app.shared.helpers.localization import get_label
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+def _normalize_origin(value: str | None) -> str | None:
+    if not value:
+        return None
+
+    parsed = urlsplit(value)
+    if not parsed.scheme or not parsed.netloc:
+        return None
+    return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
+
+
+def _resolve_request_origin(request: Request) -> str | None:
+    origin = _normalize_origin(request.headers.get("origin"))
+    if origin:
+        return origin
+    return _normalize_origin(request.headers.get("referer"))
+
+
+def _enforce_session_request_origin(request: Request) -> None:
+    request_origin = _resolve_request_origin(request)
+    trusted_origins = {
+        normalized
+        for origin in settings.BACKEND_CORS_ORIGINS
+        if (normalized := _normalize_origin(origin))
+    }
+
+    backend_origin = _normalize_origin(str(request.base_url))
+    if backend_origin:
+        trusted_origins.add(backend_origin)
+
+    if not request_origin:
+        if settings.AUTH_COOKIE_SECURE:
+            raise InvalidRequestOriginException()
+        return
+
+    if request_origin not in trusted_origins:
+        raise InvalidRequestOriginException()
 
 
 def _refresh_cookie_kwargs() -> dict[str, object]:
@@ -114,6 +155,7 @@ async def login(
 async def refresh(
     response: Response, request: Request, db: DbDep
 ):
+    _enforce_session_request_origin(request)
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
         raise InvalidRefreshTokenException(get_label(ERR_REFRESH_TOKEN_NOT_FOUND))
@@ -138,6 +180,7 @@ async def refresh(
 async def logout(
     response: Response, request: Request, db: DbDep
 ):
+    _enforce_session_request_origin(request)
     refresh_token = request.cookies.get("refresh_token")
     if refresh_token:
         from app.core.security.jwt import decode_token
