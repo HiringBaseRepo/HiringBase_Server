@@ -8,7 +8,7 @@ API_CMD="uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000}"
 
 cleanup() {
   if [ -n "${API_PID:-}" ] && kill -0 "$API_PID" 2>/dev/null; then
-    kill "$API_PID" 2>/dev/null || true
+    kill "$API_PID" 2>/dev/null || trueuvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000}
   fi
   if [ -n "${WORKER_PID:-}" ] && kill -0 "$WORKER_PID" 2>/dev/null; then
     kill "$WORKER_PID" 2>/dev/null || true
