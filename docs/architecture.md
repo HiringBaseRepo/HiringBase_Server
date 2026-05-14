@@ -28,7 +28,11 @@ AI-powered recruitment backend for HR teams: job vacancy creation, form-based ap
    - Every `UPDATE` must snapshot old values with `get_model_snapshot` before modifying.
    - AI scoring weight changes must be recorded in audit log.
    - Dashboard ("Pulse") is lightweight real-time aggregation. Reports ("Brain") are complex historical aggregation with date filters.
-8. **Deployment (Render)**: Web API and Taskiq Worker run as separate Docker services. Heavy inference is offloaded to external APIs to fit 512MB RAM free tier limit.
+8. **Deployment (Render)**: current free-tier runtime starts Web API, Taskiq Worker, and Taskiq Scheduler together from one container entrypoint. Heavy inference stays offloaded to external APIs to fit memory limits.
+9. **Quota-Aware Screening**:
+   - Screening throughput is intentionally rate-limited by Redis-backed guards.
+   - Manual screening can jump batch order, but not quota/concurrency rules.
+   - Failed or stale AI screening must degrade to `UNDER_REVIEW`, not loop forever.
 
 ## Project Structure
 ```text
@@ -55,3 +59,6 @@ AI-powered recruitment backend for HR teams: job vacancy creation, form-based ap
 - Raise `BaseDomainException` subclasses only.
 - Heavy libraries imported lazily, inside functions or via background workers.
 - Never add files directly to feature root.
+- Taskiq CLI semantics matter:
+  - broker/scheduler object path uses `module:variable`
+  - task import modules use plain module path only

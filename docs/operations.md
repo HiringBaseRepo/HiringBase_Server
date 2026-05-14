@@ -30,10 +30,32 @@
 ## Development Commands
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-taskiq worker app.core.tkq:broker app.main:app
+taskiq worker app.core.tkq:broker app.main
+taskiq scheduler app.core.tkq:scheduler app.main
 alembic revision --autogenerate -m "description"
 alembic upgrade head
 ruff check . && black .
 docker build -t hirebase .
 docker run -p 10000:10000 hirebase
 ```
+
+## Screening Runtime Operations
+- Hourly batch screening requires both:
+  - Taskiq worker
+  - Taskiq scheduler
+- If worker runs without scheduler, manual screening may still work, but hourly batch is misconfigured.
+- Current entrypoint `scripts/render-free-start.sh` launches:
+  - API
+  - Taskiq worker
+  - Taskiq scheduler
+- Redis is operational dependency for:
+  - screening queue markers
+  - processing locks
+  - hourly/daily quota counters
+  - stale recovery retry counters
+- Default screening throughput targets:
+  - batch max per run: `5`
+  - total parallel screenings: `2`
+  - manual parallel screenings: `1`
+  - max screenings per hour: `20`
+  - max screenings per day: `100`

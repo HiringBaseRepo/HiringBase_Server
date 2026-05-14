@@ -1,11 +1,13 @@
 # HiringBase AI Architecture Reference
 
 ## Distributed Screening Pipeline (Taskiq)
-- **Manual Trigger** (default): HR triggers via "Run Screening" to manage API costs.
-- **Auto Trigger**: via `auto_screening` flag on job (to be implemented).
-- **Batch Screening**: hourly periodic task processes all `APPLIED` applications.
+- **Manual Trigger**: HR triggers via "Run Screening". Manual path may bypass batch ordering, but still respects dedupe + quota guard.
+- **Auto Trigger**: public apply does **not** call AI directly. New applications remain `APPLIED`.
+- **Batch Screening**: hourly periodic task processes small batch, not full fan-out.
+- **Recovery Path**: stale `DOC_CHECK` and `AI_PROCESSING` entries may be retried in bounded recovery flow.
 - **SmartRetryMiddleware**: exponential backoff + jitter, max 3 retries for transient failures (`Connection`, `Timeout`, `5xx`). Final attempt forces deterministic fallbacks.
 - **ORM Preloading**: all relationships pre-fetched via `selectinload` to prevent `MissingGreenlet` in async workers.
+- **Redis Guard Layer**: queue markers, processing locks, hourly/day quota counters, and recovery retry counters enforce safe throughput.
 
 ## Scoring Pipeline (`app/ai/scoring/engine.py`)
 No CV parsing. All data comes from `ApplicationAnswer` via standard `field_key`:
@@ -25,6 +27,7 @@ Mistral Document AI performs async PDF/image text extraction via R2 URLs. LLM va
 5. semantic reasonableness
 
 Anomalies become `red_flags` with high risk.
+- Groq-backed validation may use fallback API key chain when primary key returns provider rate limit (`429`).
 
 ## Semantic Matcher (`app/ai/matcher/semantic_matcher.py`)
 3-layer skill matching:
@@ -53,4 +56,14 @@ LLM-powered analysis of form data + OCR text. Cross-checks mismatches such as ex
    - Red Flag -> regex-based detection
    - Soft Skill -> pure keyword scoring
    - Explanation -> template-based logic
-3. All failures and fallback triggers are logged.
+3. If screening orchestration still fails repeatedly, application must not remain stuck in `DOC_CHECK` or `AI_PROCESSING`; safe fallback target is `UNDER_REVIEW`.
+4. All failures and fallback triggers are logged.
+
+## Screening Throughput Policy
+- Default batch size per hourly run: `5`
+- Default total active screening concurrency: `2`
+- Default manual active concurrency: `1`
+- Default quota ceilings:
+  - `20` screenings per hour
+  - `100` screenings per day
+- Batch pacing intentionally delays enqueue between candidates to avoid API burst and token waste.

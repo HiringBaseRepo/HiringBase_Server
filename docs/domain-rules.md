@@ -25,6 +25,14 @@ APPLIED -> DOC_CHECK -> [DOC_FAILED]
         -> REJECTED (any stage)
 ```
 
+## Screening Execution Rules
+- Public apply does not auto-run AI screening.
+- Manual trigger returns queued/pending style response and may skip immediate enqueue if duplicate or quota guard blocks it.
+- Hourly batch picks oldest eligible records first, with small capped batch size.
+- Recovery candidates may come from stale `DOC_CHECK` and stale `AI_PROCESSING`.
+- Recovery retries are bounded. If retry limit is exceeded, final safe state is `UNDER_REVIEW`.
+- Duplicate screening enqueue for same application must be prevented within cooldown window.
+
 ## Public Applicant Flow (Ticket-Based)
 Applicants have no login. Flow: fill form + upload docs (explicit `file_<DocumentType>` multipart keys) -> system validates fields, requested docs, file format, email deduplication, and rejects unrequested `OTHERS` uploads -> atomic save to R2 + DB -> returns `TKT-YYYY-NNNNN`. Applicants are stored in `users` table as contacts without credentials.
 
