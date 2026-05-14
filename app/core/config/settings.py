@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    AUTH_COOKIE_DOMAIN: Optional[str] = None
+    AUTH_COOKIE_PATH: str = "/"
+    AUTH_COOKIE_SAMESITE: Optional[str] = None
 
     # CLOUDFLARE R2
     R2_ENDPOINT_URL: str
@@ -126,6 +129,18 @@ class Settings(BaseSettings):
         if not self.HF_LLM_API_URL:
             self.HF_LLM_API_URL = build_hf_inference_api_url(self.HF_LLM_MODEL)
         return self
+
+    @computed_field
+    @property
+    def AUTH_COOKIE_SECURE(self) -> bool:
+        return self.APP_ENV == "production"
+
+    @computed_field
+    @property
+    def AUTH_COOKIE_SAMESITE_EFFECTIVE(self) -> str:
+        if self.AUTH_COOKIE_SAMESITE:
+            return self.AUTH_COOKIE_SAMESITE.lower()
+        return "none" if self.AUTH_COOKIE_SECURE else "lax"
 
 
 settings = Settings()

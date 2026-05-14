@@ -40,6 +40,16 @@ from app.shared.helpers.localization import get_label
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
+def _refresh_cookie_kwargs() -> dict[str, object]:
+    return {
+        "httponly": True,
+        "secure": settings.AUTH_COOKIE_SECURE,
+        "samesite": settings.AUTH_COOKIE_SAMESITE_EFFECTIVE,
+        "path": settings.AUTH_COOKIE_PATH,
+        "domain": settings.AUTH_COOKIE_DOMAIN,
+    }
+
+
 @router.post("/register/super-admin", response_model=StandardResponse[UserResponse])
 async def register_super_admin(
     data: RegisterRequest, 
@@ -91,9 +101,7 @@ async def login(
     response.set_cookie(
         key="refresh_token",
         value=tokens.refresh_token,
-        httponly=True,
-        secure=settings.APP_ENV == "production",
-        samesite="lax",
+        **_refresh_cookie_kwargs(),
     )
 
     response_data = AccessTokenResponse(
@@ -117,9 +125,7 @@ async def refresh(
     response.set_cookie(
         key="refresh_token",
         value=tokens.refresh_token,
-        httponly=True,
-        secure=settings.APP_ENV == "production",
-        samesite="lax",
+        **_refresh_cookie_kwargs(),
     )
 
     response_data = AccessTokenResponse(
@@ -142,7 +148,13 @@ async def logout(
             user_id = int(payload.get("sub"))
             await logout_service(db, user_id, jti)
 
-    response.delete_cookie(key="refresh_token")
+    response.delete_cookie(
+        key="refresh_token",
+        path=settings.AUTH_COOKIE_PATH,
+        domain=settings.AUTH_COOKIE_DOMAIN,
+        secure=settings.AUTH_COOKIE_SECURE,
+        samesite=settings.AUTH_COOKIE_SAMESITE_EFFECTIVE,
+    )
     return StandardResponse.ok(
         data={"message": get_label("Logout successful")}, message=get_label("Logged out")
     )
