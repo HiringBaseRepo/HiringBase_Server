@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     SETUP_TOKEN: Optional[str] = None
     API_V1_PREFIX: str = "/api/v1"
+    BACKEND_CORS_ORIGINS: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000",
+        "https://hiringbase-webfrontend.boyblaco77.workers.dev",
+    ]
 
     # DATABASE
     DATABASE_URL: str
