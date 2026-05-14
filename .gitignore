@@ -123,6 +123,7 @@ ocr_cache/
 outputs/
 .ruff_cache/
 .agents/
+.github/
 .zed/
 .python-version
 .idea/
@@ -137,4 +138,3 @@ HireBase_API_Testing.json
 *mini*model*
 paraphrase-multilingual-MiniLM-L12-v2/
 skills-lock.json
-
