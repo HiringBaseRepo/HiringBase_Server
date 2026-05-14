@@ -55,18 +55,6 @@ envVarGroups:
         value: sentence-transformers/all-MiniLM-L6-v2
       - key: SPACY_MODEL
         value: en_core_web_md
-      - key: DEFAULT_SKILL_WEIGHT
-        value: "40"
-      - key: DEFAULT_EXPERIENCE_WEIGHT
-        value: "20"
-      - key: DEFAULT_EDUCATION_WEIGHT
-        value: "10"
-      - key: DEFAULT_PORTFOLIO_WEIGHT
-        value: "10"
-      - key: DEFAULT_SOFT_SKILL_WEIGHT
-        value: "10"
-      - key: DEFAULT_ADMIN_WEIGHT
-        value: "10"
       - key: BREVO_API_KEY
         sync: false
       - key: BREVO_API_BASE_URL

@@ -1,10 +1,35 @@
 from typing import Optional
-from dotenv import load_dotenv
-from pydantic import computed_field
+from pydantic import Field, computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-# Explicitly load .env file
-load_dotenv()
+from app.shared.constants.ai import (
+    DEFAULT_EMBEDDING_MODEL,
+    DEFAULT_GROQ_MODEL,
+    DEFAULT_HF_LLM_MODEL,
+    DEFAULT_MISTRAL_MODEL,
+    DEFAULT_SPACY_MODEL,
+    build_hf_inference_api_url,
+)
+from app.shared.constants.app import (
+    API_V1_PREFIX as DEFAULT_API_V1_PREFIX,
+    APP_ENV as DEFAULT_APP_ENV,
+    APP_NAME as DEFAULT_APP_NAME,
+    DEFAULT_CORS_ORIGINS,
+    DEFAULT_DEBUG,
+    DEFAULT_RATE_LIMIT_PER_MINUTE,
+    DEFAULT_SMTP_PORT,
+)
+from app.shared.constants.screening import (
+    DEFAULT_SCREENING_BATCH_ENQUEUE_DELAY_SECONDS,
+    DEFAULT_SCREENING_BATCH_MAX_PER_RUN,
+    DEFAULT_SCREENING_ENQUEUE_COOLDOWN_SECONDS,
+    DEFAULT_SCREENING_MANUAL_MAX_PARALLEL,
+    DEFAULT_SCREENING_MAX_PARALLEL_TOTAL,
+    DEFAULT_SCREENING_MAX_PER_DAY,
+    DEFAULT_SCREENING_MAX_PER_HOUR,
+    DEFAULT_SCREENING_PROCESSING_LOCK_SECONDS,
+    DEFAULT_SCREENING_RECOVERY_RETRY_LIMIT,
+    DEFAULT_SCREENING_STALE_TIMEOUT_HOURS,
+)
 
 
 class Settings(BaseSettings):
@@ -16,19 +41,13 @@ class Settings(BaseSettings):
     )
 
     # APP
-    APP_NAME: str = "HiringBase"
-    APP_ENV: str = "development"
-    DEBUG: bool = True
+    APP_NAME: str = DEFAULT_APP_NAME
+    APP_ENV: str = DEFAULT_APP_ENV
+    DEBUG: bool = DEFAULT_DEBUG
     SECRET_KEY: str
     SETUP_TOKEN: Optional[str] = None
-    API_V1_PREFIX: str = "/api/v1"
-    BACKEND_CORS_ORIGINS: list[str] = [
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000",
-        "https://hiringbase-webfrontend.boyblaco77.workers.dev",
-    ]
+    API_V1_PREFIX: str = DEFAULT_API_V1_PREFIX
+    BACKEND_CORS_ORIGINS: list[str] = Field(default_factory=lambda: list(DEFAULT_CORS_ORIGINS))
 
     # DATABASE
     DATABASE_URL: str
@@ -55,37 +74,28 @@ class Settings(BaseSettings):
 
     # AI / LLM
     HF_TOKEN: Optional[str] = None
-    HF_LLM_MODEL: str = "Qwen/Qwen3-8B"
-    HF_LLM_API_URL: str = "https://api-inference.huggingface.co/models/Qwen/Qwen3-8B"
+    HF_LLM_MODEL: str = DEFAULT_HF_LLM_MODEL
+    HF_LLM_API_URL: Optional[str] = None
     OPENROUTER_API_KEY: Optional[str] = None
     
     # GROQ
     GROQ_API_KEY: Optional[str] = None
     GROQ_API_KEY_FALLBACK: Optional[str] = None
-    GROQ_MODEL: str = "qwen/qwen3-32b"
+    GROQ_MODEL: str = DEFAULT_GROQ_MODEL
 
     # MISTRAL
     MISTRAL_API_KEY: Optional[str] = None
-    MISTRAL_MODEL: str = "mistral-ocr-latest"
+    MISTRAL_MODEL: str = DEFAULT_MISTRAL_MODEL
 
     # AI MODELS
-    EMBEDDING_MODEL: str = "paraphrase-multilingual-MiniLM-L12-v2"
-    SPACY_MODEL: str = "en_core_web_md"
-
-    # SCORING DEFAULTS (LEGACY - DO NOT USE IN APP CODE)
-    # Use app/shared/constants/scoring.py instead
-    # DEFAULT_SKILL_WEIGHT: int = 40
-    # DEFAULT_EXPERIENCE_WEIGHT: int = 20
-    # DEFAULT_EDUCATION_WEIGHT: int = 10
-    # DEFAULT_PORTFOLIO_WEIGHT: int = 10
-    # DEFAULT_SOFT_SKILL_WEIGHT: int = 10
-    # DEFAULT_ADMIN_WEIGHT: int = 10
+    EMBEDDING_MODEL: str = DEFAULT_EMBEDDING_MODEL
+    SPACY_MODEL: str = DEFAULT_SPACY_MODEL
 
     # EMAIL
     BREVO_API_KEY: Optional[str] = None
     BREVO_API_BASE_URL: str = "https://api.brevo.com/v3"
     SMTP_HOST: Optional[str] = None
-    SMTP_PORT: int = 587
+    SMTP_PORT: int = DEFAULT_SMTP_PORT
     SMTP_USER: Optional[str] = None
     SMTP_PASSWORD: Optional[str] = None
     SMTP_FROM: Optional[str] = None
@@ -96,19 +106,26 @@ class Settings(BaseSettings):
     UPSTASH_REDIS_REST_TOKEN: Optional[str] = None
 
     # RATE LIMITING
-    RATE_LIMIT_PER_MINUTE: int = 60
+    RATE_LIMIT_PER_MINUTE: int = DEFAULT_RATE_LIMIT_PER_MINUTE
 
     # SCREENING BATCH / QUOTA GUARD
-    SCREENING_BATCH_MAX_PER_RUN: int = 5
-    SCREENING_MANUAL_MAX_PARALLEL: int = 1
-    SCREENING_MAX_PARALLEL_TOTAL: int = 2
-    SCREENING_MAX_PER_HOUR: int = 20
-    SCREENING_MAX_PER_DAY: int = 100
-    SCREENING_STALE_TIMEOUT_HOURS: int = 2
-    SCREENING_RECOVERY_RETRY_LIMIT: int = 2
-    SCREENING_ENQUEUE_COOLDOWN_SECONDS: int = 900
-    SCREENING_BATCH_ENQUEUE_DELAY_SECONDS: int = 3
-    SCREENING_PROCESSING_LOCK_SECONDS: int = 7200
+    SCREENING_BATCH_MAX_PER_RUN: int = DEFAULT_SCREENING_BATCH_MAX_PER_RUN
+    SCREENING_MANUAL_MAX_PARALLEL: int = DEFAULT_SCREENING_MANUAL_MAX_PARALLEL
+    SCREENING_MAX_PARALLEL_TOTAL: int = DEFAULT_SCREENING_MAX_PARALLEL_TOTAL
+    SCREENING_MAX_PER_HOUR: int = DEFAULT_SCREENING_MAX_PER_HOUR
+    SCREENING_MAX_PER_DAY: int = DEFAULT_SCREENING_MAX_PER_DAY
+    SCREENING_STALE_TIMEOUT_HOURS: int = DEFAULT_SCREENING_STALE_TIMEOUT_HOURS
+    SCREENING_RECOVERY_RETRY_LIMIT: int = DEFAULT_SCREENING_RECOVERY_RETRY_LIMIT
+    SCREENING_ENQUEUE_COOLDOWN_SECONDS: int = DEFAULT_SCREENING_ENQUEUE_COOLDOWN_SECONDS
+    SCREENING_BATCH_ENQUEUE_DELAY_SECONDS: int = DEFAULT_SCREENING_BATCH_ENQUEUE_DELAY_SECONDS
+    SCREENING_PROCESSING_LOCK_SECONDS: int = DEFAULT_SCREENING_PROCESSING_LOCK_SECONDS
+
+    @model_validator(mode="after")
+    def apply_derived_defaults(self) -> "Settings":
+        """Derive provider URLs from selected models when env var omitted."""
+        if not self.HF_LLM_API_URL:
+            self.HF_LLM_API_URL = build_hf_inference_api_url(self.HF_LLM_MODEL)
+        return self
 
 
 settings = Settings()
