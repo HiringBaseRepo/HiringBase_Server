@@ -11,6 +11,7 @@ class AuditLogItem(BaseModel):
     user_name: str | None = None
     user_initials: str | None = None
     ip_address: str | None = None
+    user_agent: str | None = None
     old_values: dict | None
     new_values: dict | None
     created_at: str | None

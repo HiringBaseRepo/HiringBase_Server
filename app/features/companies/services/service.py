@@ -43,6 +43,12 @@ from app.features.companies.schemas.schema import (
 from app.features.audit_logs.models import AuditLog
 from app.features.audit_logs.repositories.repository import create_audit_log
 from app.features.companies.models import Company
+from app.shared.constants.audit_actions import (
+    COMPANY_ACTIVATE,
+    COMPANY_SUSPEND,
+    CREATE_COMPANY,
+    UPDATE_COMPANY,
+)
 from app.shared.enums.application_status import ApplicationStatus
 from app.shared.schemas.response import PaginatedResponse
 
@@ -88,7 +94,7 @@ async def create_company(
         AuditLog(
             company_id=company.id,
             user_id=current_user.id,
-            action="CREATE_COMPANY",
+            action=CREATE_COMPANY,
             entity_type="company",
             entity_id=company.id,
             new_values=data.model_dump(),
@@ -202,7 +208,7 @@ async def update_company(
         AuditLog(
             company_id=company.id,
             user_id=current_user.id,
-            action="UPDATE_COMPANY",
+            action=UPDATE_COMPANY,
             entity_type="company",
             entity_id=company.id,
             old_values=old_values,
@@ -284,7 +290,7 @@ async def suspend_company(
         AuditLog(
             company_id=company_id,
             user_id=current_user.id,
-            action="COMPANY_SUSPEND",
+            action=COMPANY_SUSPEND,
             entity_type="company",
             entity_id=company_id,
             old_values=old_values,
@@ -313,7 +319,7 @@ async def activate_company(
         AuditLog(
             company_id=company_id,
             user_id=current_user.id,
-            action="COMPANY_ACTIVATE",
+            action=COMPANY_ACTIVATE,
             entity_type="company",
             entity_id=company_id,
             old_values=old_values,

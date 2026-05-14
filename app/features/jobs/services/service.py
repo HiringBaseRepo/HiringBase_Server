@@ -41,6 +41,13 @@ from app.features.jobs.services.mapper import (
     map_requirement_to_item,
 )
 from app.features.users.models import User
+from app.shared.constants.audit_actions import (
+    JOB_CLOSE,
+    JOB_CREATE,
+    JOB_FORM_UPDATE,
+    JOB_PUBLISH,
+    JOB_REQUIREMENTS_UPDATE,
+)
 from app.shared.enums.job_status import JobStatus
 from app.shared.helpers.localization import get_label
 from app.shared.schemas.response import PaginatedResponse
@@ -71,7 +78,7 @@ async def create_job_step1(
         AuditLog(
             company_id=current_user.company_id,
             user_id=current_user.id,
-            action="JOB_CREATE",
+            action=JOB_CREATE,
             entity_type="job",
             entity_id=job.id,
             new_values={"title": job.title, "status": job.status},
@@ -113,7 +120,7 @@ async def add_job_requirements(
         AuditLog(
             company_id=current_user.company_id,
             user_id=current_user.id,
-            action="JOB_REQUIREMENTS_UPDATE",
+            action=JOB_REQUIREMENTS_UPDATE,
             entity_type="job",
             entity_id=job_id,
             new_values={"count": len(requirements)}
@@ -144,7 +151,7 @@ async def setup_job_form(
         AuditLog(
             company_id=current_user.company_id,
             user_id=current_user.id,
-            action="JOB_FORM_UPDATE",
+            action=JOB_FORM_UPDATE,
             entity_type="job",
             entity_id=job_id,
             new_values={"count": len(fields)}
@@ -200,7 +207,7 @@ async def publish_job(
         AuditLog(
             company_id=current_user.company_id,
             user_id=current_user.id,
-            action="JOB_PUBLISH",
+            action=JOB_PUBLISH,
             entity_type="job",
             entity_id=job.id,
             old_values=old_values,
@@ -287,7 +294,7 @@ async def close_job(
         AuditLog(
             company_id=current_user.company_id,
             user_id=current_user.id,
-            action="JOB_CLOSE",
+            action=JOB_CLOSE,
             entity_type="job",
             entity_id=job.id,
             old_values=old_values,

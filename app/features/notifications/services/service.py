@@ -13,6 +13,10 @@ from app.features.notifications.repositories.repository import (
     mark_notification_read,
 )
 from app.features.notifications.schemas.schema import NotificationItem, NotificationReadAllResponse, NotificationReadResponse
+from app.shared.constants.audit_actions import (
+    NOTIFICATION_MARK_READ,
+    NOTIFICATION_MARK_READ_ALL,
+)
 from app.shared.schemas.response import PaginatedResponse
 
 
@@ -62,7 +66,7 @@ async def mark_read(db: AsyncSession, *, current_user: User, notification_id: in
             AuditLog(
                 company_id=current_user.company_id,
                 user_id=current_user.id,
-                action="NOTIFICATION_MARK_READ",
+                action=NOTIFICATION_MARK_READ,
                 entity_type="notification",
                 entity_id=notification_id,
                 old_values=old_values,
@@ -82,7 +86,7 @@ async def mark_all_read(db: AsyncSession, *, current_user: User) -> Notification
             AuditLog(
                 company_id=current_user.company_id,
                 user_id=current_user.id,
-                action="NOTIFICATION_MARK_READ_ALL",
+                action=NOTIFICATION_MARK_READ_ALL,
                 entity_type="notification",
                 entity_id=notif.id,
                 old_values=get_model_snapshot(notif),

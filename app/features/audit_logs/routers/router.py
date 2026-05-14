@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.base import get_db
-from app.features.auth.dependencies.auth import get_current_user
+from app.features.auth.dependencies.auth import require_hr
 from app.features.audit_logs.schemas.schema import AuditLogItem
 from app.features.audit_logs.services.service import list_audit_logs as list_audit_logs_service
 from app.shared.schemas.response import StandardResponse, PaginatedResponse
@@ -22,7 +22,7 @@ async def list_audit_logs(
     end_date: Optional[str] = None,
     pagination: PaginationParams = Depends(),
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_hr),
 ):
     result = await list_audit_logs_service(
         db,

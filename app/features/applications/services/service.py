@@ -60,6 +60,10 @@ from app.features.applications.services.validator import (
 from app.features.tickets.models import Ticket
 from app.features.users.models import User
 from app.shared.constants.storage import ALLOWED_EXTENSIONS, MAX_FILE_SIZE_MB, UPLOAD_PREFIX_PORTFOLIO, UPLOAD_PREFIX_DOCUMENT
+from app.shared.constants.audit_actions import (
+    APPLICATION_STATUS_UPDATE,
+    APPLICATION_SUBMIT,
+)
 from app.shared.enums.application_status import ApplicationStatus
 from app.shared.enums.document_type import DocumentType
 from app.shared.enums.ticket_status import TicketStatus
@@ -206,6 +210,23 @@ async def public_apply(
         db,
         ApplicationStatusLog(
             application_id=application.id, to_status=ApplicationStatus.APPLIED.value
+        ),
+    )
+    await create_audit_log(
+        db,
+        AuditLog(
+            company_id=job.company_id if job else None,
+            user_id=applicant.id,
+            action=APPLICATION_SUBMIT,
+            entity_type="application",
+            entity_id=application.id,
+            new_values={
+                "job_id": data.job_id,
+                "ticket_code": ticket.code,
+                "status": ApplicationStatus.APPLIED.value,
+                "answers_count": len(json.loads(data.answers_json)) if data.answers_json else 0,
+                "documents_count": len(documents_data or []),
+            },
         ),
     )
 
@@ -356,7 +377,7 @@ async def update_application_status(
         AuditLog(
             company_id=current_user.company_id,
             user_id=current_user.id,
-            action="APPLICATION_STATUS_UPDATE",
+            action=APPLICATION_STATUS_UPDATE,
             entity_type="application",
             entity_id=application.id,
             old_values=old_values,

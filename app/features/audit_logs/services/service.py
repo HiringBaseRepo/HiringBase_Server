@@ -45,6 +45,7 @@ async def list_audit_logs(
                 user_name=log.user.full_name if log.user else "System",
                 user_initials="".join([n[0] for n in log.user.full_name.split()]) if log.user and log.user.full_name else "SY",
                 ip_address=log.ip_address,
+                user_agent=log.user_agent,
                 old_values=log.old_values,
                 new_values=log.new_values,
                 created_at=log.created_at.isoformat() if log.created_at else None,

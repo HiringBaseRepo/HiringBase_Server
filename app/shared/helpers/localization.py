@@ -11,6 +11,7 @@ from app.shared.enums.user_roles import UserRole
 from app.shared.enums.job_status import JobStatus
 from app.shared.enums.ticket_status import TicketStatus
 from app.shared.enums.field_type import FormFieldType
+from app.shared.constants import audit_actions
 
 # Mappings
 DOCUMENT_TYPE_LABELS: Dict[DocumentType, str] = {
@@ -87,12 +88,37 @@ SCORING_WEIGHT_LABELS: Dict[str, str] = {
 }
 
 AUDIT_ACTION_LABELS: Dict[str, str] = {
-    "JOB_CREATE": "Membuat Lowongan",
-    "JOB_PUBLISH": "Menerbitkan Lowongan",
-    "JOB_CLOSE": "Menutup Lowongan",
-    "APPLICATION_SUBMIT": "Menerima Lamaran",
-    "APPLICATION_STATUS_UPDATE": "Mengubah Status Lamaran",
-    "INTERVIEW_SCHEDULE": "Menjadwalkan Wawancara",
+    audit_actions.LOGIN_FAILURE: "Login Gagal",
+    audit_actions.LOGIN_SUCCESS: "Login Berhasil",
+    audit_actions.PASSWORD_RESET_REQUESTED: "Meminta Reset Kata Sandi",
+    audit_actions.LOGOUT: "Keluar dari Sistem",
+    audit_actions.CREATE_HR_ACCOUNT: "Membuat Akun HR",
+    audit_actions.UPDATE_USER: "Memperbarui Pengguna",
+    audit_actions.DELETE_USER: "Menghapus Pengguna",
+    audit_actions.CREATE_COMPANY: "Membuat Perusahaan",
+    audit_actions.UPDATE_COMPANY: "Memperbarui Perusahaan",
+    audit_actions.COMPANY_SUSPEND: "Menangguhkan Perusahaan",
+    audit_actions.COMPANY_ACTIVATE: "Mengaktifkan Perusahaan",
+    audit_actions.JOB_CREATE: "Membuat Lowongan",
+    audit_actions.JOB_REQUIREMENTS_UPDATE: "Memperbarui Persyaratan Lowongan",
+    audit_actions.JOB_FORM_UPDATE: "Memperbarui Form Lowongan",
+    audit_actions.JOB_PUBLISH: "Menerbitkan Lowongan",
+    audit_actions.JOB_CLOSE: "Menutup Lowongan",
+    audit_actions.JOB_FORM_FIELD_CREATE: "Membuat Field Form Lowongan",
+    audit_actions.JOB_FORM_FIELD_UPDATE: "Memperbarui Field Form Lowongan",
+    audit_actions.JOB_FORM_FIELD_DELETE: "Menghapus Field Form Lowongan",
+    audit_actions.JOB_FORM_FIELD_REORDER: "Mengurutkan Ulang Field Form Lowongan",
+    audit_actions.APPLICATION_SUBMIT: "Menerima Lamaran",
+    audit_actions.APPLICATION_STATUS_UPDATE: "Mengubah Status Lamaran",
+    audit_actions.INTERVIEW_SCHEDULE: "Menjadwalkan Wawancara",
+    audit_actions.SCORING_TEMPLATE_CREATE: "Membuat Template Skoring",
+    audit_actions.SCORING_TEMPLATE_UPDATE: "Memperbarui Template Skoring",
+    audit_actions.AUTOMATED_SCREENING_CREATE: "Membuat Hasil Screening Otomatis",
+    audit_actions.AUTOMATED_SCREENING_UPDATE: "Memperbarui Hasil Screening Otomatis",
+    audit_actions.AUTOMATED_SCREENING_FALLBACK: "Mengalihkan Screening ke Review Manual",
+    audit_actions.MANUAL_OVERRIDE_SCORE: "Melakukan Override Skor Manual",
+    audit_actions.NOTIFICATION_MARK_READ: "Menandai Notifikasi Sudah Dibaca",
+    audit_actions.NOTIFICATION_MARK_READ_ALL: "Menandai Semua Notifikasi Sudah Dibaca",
 }
 
 

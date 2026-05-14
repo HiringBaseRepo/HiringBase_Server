@@ -34,6 +34,12 @@ from app.core.exceptions import (
 )
 from app.features.audit_logs.models import AuditLog
 from app.features.audit_logs.repositories.repository import create_audit_log
+from app.shared.constants.audit_actions import (
+    LOGIN_FAILURE,
+    LOGIN_SUCCESS,
+    LOGOUT,
+    PASSWORD_RESET_REQUESTED,
+)
 
 # Moved RefreshToken to top
 
@@ -41,7 +47,7 @@ async def log_login_failure(db: AsyncSession, email: str) -> None:
     await create_audit_log(
         db,
         AuditLog(
-            action="LOGIN_FAILURE",
+            action=LOGIN_FAILURE,
             entity_type="auth",
             entity_id=0,
             new_values={"email": email}
@@ -67,7 +73,7 @@ async def authenticate_user(
         AuditLog(
             company_id=user.company_id,
             user_id=user.id,
-            action="LOGIN_SUCCESS",
+            action=LOGIN_SUCCESS,
             entity_type="auth",
             entity_id=user.id,
             new_values={"email": email}
@@ -258,7 +264,7 @@ async def request_password_reset(db: AsyncSession, email: str) -> str | None:
         AuditLog(
             company_id=user.company_id,
             user_id=user.id,
-            action="PASSWORD_RESET_REQUESTED",
+            action=PASSWORD_RESET_REQUESTED,
             entity_type="auth",
             entity_id=user.id,
             new_values={"email": email}
@@ -307,7 +313,7 @@ async def logout(db: AsyncSession, user_id: int, jti: str) -> None:
         AuditLog(
             company_id=user.company_id if user else None,
             user_id=user_id,
-            action="LOGOUT",
+            action=LOGOUT,
             entity_type="auth",
             entity_id=user_id,
         )

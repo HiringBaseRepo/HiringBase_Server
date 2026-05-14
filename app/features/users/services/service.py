@@ -11,6 +11,11 @@ from app.shared.enums.user_roles import UserRole
 from app.shared.schemas.response import PaginatedResponse
 from app.features.audit_logs.models import AuditLog
 from app.features.audit_logs.repositories.repository import create_audit_log
+from app.shared.constants.audit_actions import (
+    CREATE_HR_ACCOUNT,
+    DELETE_USER,
+    UPDATE_USER,
+)
 
 
 async def create_hr_account(
@@ -35,7 +40,7 @@ async def create_hr_account(
         AuditLog(
             company_id=current_user.company_id,
             user_id=current_user.id,
-            action="CREATE_HR_ACCOUNT",
+            action=CREATE_HR_ACCOUNT,
             entity_type="user",
             entity_id=user.id,
             new_values=data.model_dump(exclude={"password"}),
@@ -134,7 +139,7 @@ async def update_user(
         AuditLog(
             company_id=current_user.company_id,
             user_id=current_user.id,
-            action="UPDATE_USER",
+            action=UPDATE_USER,
             entity_type="user",
             entity_id=user.id,
             old_values=old_values,
@@ -165,7 +170,7 @@ async def delete_user(
         AuditLog(
             company_id=current_user.company_id,
             user_id=current_user.id,
-            action="DELETE_USER",
+            action=DELETE_USER,
             entity_type="user",
             entity_id=user_id,
             old_values={"email": user.email, "full_name": user.full_name},

@@ -45,7 +45,11 @@ async def create_scoring_template(
         administrative_weight=administrative_weight,
         custom_rules=custom_rules,
     )
-    result = await create_scoring_template_service(db, data)
+    result = await create_scoring_template_service(
+        db,
+        data,
+        current_user=current_user,
+    )
     return StandardResponse.ok(data=result)
 
 
@@ -56,7 +60,12 @@ async def update_scoring_template(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_hr),
 ):
-    result = await update_scoring_template_service(db, template_id=template_id, updates=updates)
+    result = await update_scoring_template_service(
+        db,
+        template_id=template_id,
+        updates=updates,
+        current_user=current_user,
+    )
     return StandardResponse.ok(data=result)
 
 

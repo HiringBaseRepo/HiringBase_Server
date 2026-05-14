@@ -11,7 +11,6 @@ from app.features.applications.models import (
     ApplicationDocument,
     ApplicationStatusLog,
 )
-from app.features.audit_logs.models import AuditLog
 from app.features.screening.models import CandidateScore
 from app.features.jobs.models import (
     Job,
@@ -128,11 +127,6 @@ async def get_candidate_score_for_company(
         )
     )
     return result.scalar_one_or_none()
-
-
-async def add_audit_log(db: AsyncSession, audit: AuditLog) -> None:
-    db.add(audit)
-
 
 async def get_pending_applications_for_batch(db: AsyncSession) -> list[tuple[int, int]]:
     """Get all applications with status APPLIED for batch processing."""

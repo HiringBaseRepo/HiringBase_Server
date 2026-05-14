@@ -123,6 +123,7 @@ ocr_cache/
 outputs/
 .ruff_cache/
 .agents/
+.ai-context/
 .github/
 .zed/
 .python-version

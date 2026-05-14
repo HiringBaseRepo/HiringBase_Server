@@ -51,7 +51,12 @@ async def create_form_field(
         order_index=order_index,
         validation_rules=validation_rules,
     )
-    result = await create_form_field_service(db, job_id=job_id, data=data)
+    result = await create_form_field_service(
+        db,
+        job_id=job_id,
+        data=data,
+        current_user=current_user,
+    )
     return StandardResponse.ok(data=result)
 
 
@@ -63,7 +68,13 @@ async def update_form_field(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_hr),
 ):
-    result = await update_form_field_service(db, job_id=job_id, field_id=field_id, updates=updates)
+    result = await update_form_field_service(
+        db,
+        job_id=job_id,
+        field_id=field_id,
+        updates=updates,
+        current_user=current_user,
+    )
     return StandardResponse.ok(data=result)
 
 
@@ -74,7 +85,12 @@ async def delete_form_field(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_hr),
 ):
-    result = await delete_form_field_service(db, job_id=job_id, field_id=field_id)
+    result = await delete_form_field_service(
+        db,
+        job_id=job_id,
+        field_id=field_id,
+        current_user=current_user,
+    )
     return StandardResponse.ok(data=result)
 
 
@@ -85,5 +101,10 @@ async def reorder_fields(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_hr),
 ):
-    result = await reorder_fields_service(db, job_id=job_id, data=data)
+    result = await reorder_fields_service(
+        db,
+        job_id=job_id,
+        data=data,
+        current_user=current_user,
+    )
     return StandardResponse.ok(data=result)

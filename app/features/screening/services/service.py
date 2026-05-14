@@ -23,10 +23,10 @@ from app.core.exceptions import (
 from app.core.utils.audit import get_model_snapshot
 from app.features.applications.models import ApplicationStatusLog
 from app.features.audit_logs.models import AuditLog
+from app.features.audit_logs.repositories.repository import create_audit_log
 from app.features.jobs.models import JobKnockoutRule, JobScoringTemplate
 from app.features.screening.models import CandidateScore
 from app.features.screening.repositories.repository import (
-    add_audit_log,
     add_status_log,
     get_active_knockout_rules,
     get_answers_by_application_id,
@@ -65,6 +65,12 @@ from app.features.screening.services.validator_step import run_document_semantic
 from app.features.users.models import User
 from app.shared.constants.scoring import (
     get_default_scoring_template,
+)
+from app.shared.constants.audit_actions import (
+    AUTOMATED_SCREENING_CREATE,
+    AUTOMATED_SCREENING_FALLBACK,
+    AUTOMATED_SCREENING_UPDATE,
+    MANUAL_OVERRIDE_SCORE,
 )
 from app.shared.enums.application_status import ApplicationStatus
 from app.shared.helpers.localization import get_label
@@ -361,12 +367,12 @@ async def process_screening(
                 existing_score.risk_level = red_flags["risk_level"]
                 
                 # Create Audit Log for automated update
-                await add_audit_log(
+                await create_audit_log(
                     db,
                     AuditLog(
                         company_id=company_id,
                         user_id=None,  # System automated
-                        action="automated_screening_update",
+                        action=AUTOMATED_SCREENING_UPDATE,
                         entity_type="candidate_score",
                         entity_id=existing_score.id,
                         old_values=old_values,
@@ -379,7 +385,7 @@ async def process_screening(
                 )
             else:
                 # Create new
-                await save_candidate_score(
+                score = await save_candidate_score(
                     db,
                     CandidateScore(
                         application_id=application.id,
@@ -393,6 +399,21 @@ async def process_screening(
                         explanation=explanation,
                         red_flags=red_flags["red_flags"],
                         risk_level=red_flags["risk_level"],
+                    ),
+                )
+                await create_audit_log(
+                    db,
+                    AuditLog(
+                        company_id=company_id,
+                        user_id=None,
+                        action=AUTOMATED_SCREENING_CREATE,
+                        entity_type="candidate_score",
+                        entity_id=score.id,
+                        new_values={
+                            "final_score": final,
+                            "risk_level": red_flags["risk_level"],
+                            "trigger_source": trigger_source,
+                        },
                     ),
                 )
             # Final status mapping
@@ -483,12 +504,12 @@ async def manual_override_score(
     score.is_manual_override = True
     score.manual_override_reason = reason
     score.manual_override_by = current_user.id
-    await add_audit_log(
+    await create_audit_log(
         db,
         AuditLog(
             company_id=current_user.company_id,
             user_id=current_user.id,
-            action="manual_override_score",
+            action=MANUAL_OVERRIDE_SCORE,
             entity_type="candidate_score",
             entity_id=score.id,
             old_values=old_values,
@@ -542,12 +563,12 @@ async def handle_screening_failure(
                 },
             ),
         )
-        await add_audit_log(
+        await create_audit_log(
             db,
             AuditLog(
                 company_id=company_id,
                 user_id=None,
-                action="automated_screening_fallback",
+                action=AUTOMATED_SCREENING_FALLBACK,
                 entity_type="application",
                 entity_id=application.id,
                 old_values=old_values,

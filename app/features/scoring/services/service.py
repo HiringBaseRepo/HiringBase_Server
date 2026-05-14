@@ -18,6 +18,11 @@ from app.features.scoring.schemas.schema import (
 )
 from app.features.audit_logs.models import AuditLog
 from app.features.audit_logs.repositories.repository import create_audit_log
+from app.features.users.models import User
+from app.shared.constants.audit_actions import (
+    SCORING_TEMPLATE_CREATE,
+    SCORING_TEMPLATE_UPDATE,
+)
 
 
 def _validate_weight_total(data: CreateScoringTemplateRequest) -> None:
@@ -36,6 +41,8 @@ def _validate_weight_total(data: CreateScoringTemplateRequest) -> None:
 async def create_scoring_template(
     db: AsyncSession,
     data: CreateScoringTemplateRequest,
+    *,
+    current_user: User,
 ) -> ScoringTemplateCreatedResponse:
     _validate_weight_total(data)
     old = await get_template_by_job_id(db, data.job_id)
@@ -58,7 +65,9 @@ async def create_scoring_template(
     await create_audit_log(
         db,
         AuditLog(
-            action="SCORING_TEMPLATE_CREATE",
+            company_id=current_user.company_id,
+            user_id=current_user.id,
+            action=SCORING_TEMPLATE_CREATE,
             entity_type="scoring_template",
             entity_id=template.id,
             new_values=data.model_dump()
@@ -74,6 +83,7 @@ async def update_scoring_template(
     *,
     template_id: int,
     updates: dict,
+    current_user: User,
 ) -> ScoringTemplateUpdateResponse:
     template = await get_template_by_id(db, template_id)
     if not template:
@@ -89,7 +99,9 @@ async def update_scoring_template(
     await create_audit_log(
         db,
         AuditLog(
-            action="SCORING_TEMPLATE_UPDATE",
+            company_id=current_user.company_id,
+            user_id=current_user.id,
+            action=SCORING_TEMPLATE_UPDATE,
             entity_type="scoring_template",
             entity_id=template.id,
             old_values=old_values,
