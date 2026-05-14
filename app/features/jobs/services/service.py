@@ -48,7 +48,9 @@ from app.shared.constants.audit_actions import (
     JOB_PUBLISH,
     JOB_REQUIREMENTS_UPDATE,
 )
+from app.shared.constants.audit_entities import JOB
 from app.shared.enums.job_status import JobStatus
+from app.shared.enums.publish_mode import PublishMode
 from app.shared.helpers.localization import get_label
 from app.shared.schemas.response import PaginatedResponse
 
@@ -79,7 +81,7 @@ async def create_job_step1(
             company_id=current_user.company_id,
             user_id=current_user.id,
             action=JOB_CREATE,
-            entity_type="job",
+            entity_type=JOB,
             entity_id=job.id,
             new_values={"title": job.title, "status": job.status},
         ),
@@ -121,7 +123,7 @@ async def add_job_requirements(
             company_id=current_user.company_id,
             user_id=current_user.id,
             action=JOB_REQUIREMENTS_UPDATE,
-            entity_type="job",
+            entity_type=JOB,
             entity_id=job_id,
             new_values={"count": len(requirements)}
         )
@@ -152,7 +154,7 @@ async def setup_job_form(
             company_id=current_user.company_id,
             user_id=current_user.id,
             action=JOB_FORM_UPDATE,
-            entity_type="job",
+            entity_type=JOB,
             entity_id=job_id,
             new_values={"count": len(fields)}
         )
@@ -191,14 +193,14 @@ async def publish_job(
     old_values = get_model_snapshot(job)
 
     job.apply_code = generate_apply_code()
-    if data.mode == "public":
+    if data.mode == PublishMode.PUBLIC:
         job.status = JobStatus.PUBLISHED
         job.is_public = True
         job.published_at = datetime.utcnow()
-    elif data.mode == "private":
+    elif data.mode == PublishMode.PRIVATE:
         job.status = JobStatus.PRIVATE
         job.is_public = False
-    elif data.mode == "scheduled" and data.scheduled_at:
+    elif data.mode == PublishMode.SCHEDULED and data.scheduled_at:
         job.status = JobStatus.SCHEDULED
         job.scheduled_publish_at = data.scheduled_at
 
@@ -208,10 +210,10 @@ async def publish_job(
             company_id=current_user.company_id,
             user_id=current_user.id,
             action=JOB_PUBLISH,
-            entity_type="job",
+            entity_type=JOB,
             entity_id=job.id,
             old_values=old_values,
-            new_values={"status": job.status, "mode": data.mode},
+            new_values={"status": job.status, "mode": data.mode.value},
         ),
     )
     await db.commit()
@@ -295,7 +297,7 @@ async def close_job(
             company_id=current_user.company_id,
             user_id=current_user.id,
             action=JOB_CLOSE,
-            entity_type="job",
+            entity_type=JOB,
             entity_id=job.id,
             old_values=old_values,
             new_values={"status": job.status},

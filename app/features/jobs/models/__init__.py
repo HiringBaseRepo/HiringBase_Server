@@ -20,6 +20,8 @@ from app.core.database.base import Base
 from app.shared.enums.job_status import JobStatus
 from app.shared.enums.employment_type import EmploymentType
 from app.shared.enums.field_type import FormFieldType
+from app.shared.enums.knockout import KnockoutAction
+from app.shared.constants.scoring import DEFAULT_WEIGHTS
 
 if TYPE_CHECKING:
     from app.features.companies.models import Company
@@ -89,12 +91,12 @@ class JobScoringTemplate(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     job_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, unique=True)
-    skill_match_weight: Mapped[int] = mapped_column(Integer, default=40)
-    experience_weight: Mapped[int] = mapped_column(Integer, default=20)
-    education_weight: Mapped[int] = mapped_column(Integer, default=10)
-    portfolio_weight: Mapped[int] = mapped_column(Integer, default=10)
-    soft_skill_weight: Mapped[int] = mapped_column(Integer, default=10)
-    administrative_weight: Mapped[int] = mapped_column(Integer, default=10)
+    skill_match_weight: Mapped[int] = mapped_column(Integer, default=DEFAULT_WEIGHTS["skill_match_weight"])
+    experience_weight: Mapped[int] = mapped_column(Integer, default=DEFAULT_WEIGHTS["experience_weight"])
+    education_weight: Mapped[int] = mapped_column(Integer, default=DEFAULT_WEIGHTS["education_weight"])
+    portfolio_weight: Mapped[int] = mapped_column(Integer, default=DEFAULT_WEIGHTS["portfolio_weight"])
+    soft_skill_weight: Mapped[int] = mapped_column(Integer, default=DEFAULT_WEIGHTS["soft_skill_weight"])
+    administrative_weight: Mapped[int] = mapped_column(Integer, default=DEFAULT_WEIGHTS["administrative_weight"])
     custom_rules: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -139,7 +141,7 @@ class JobKnockoutRule(Base):
     field_key: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     operator: Mapped[str] = mapped_column(String(20), nullable=False)  # eq, neq, gt, gte, lt, lte, contains, in
     target_value: Mapped[str] = mapped_column(Text, nullable=False)
-    action: Mapped[str] = mapped_column(String(20), default="auto_reject")  # auto_reject, pending_review
+    action: Mapped[str] = mapped_column(String(20), default=KnockoutAction.AUTO_REJECT.value)  # auto_reject, pending_review
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     order_index: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

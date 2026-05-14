@@ -2,6 +2,7 @@
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional, Any
 from datetime import datetime
+from app.shared.enums.risk_level import RiskLevel
 
 
 class PublicJobItem(BaseModel):
@@ -95,7 +96,7 @@ class CandidateScoreResponse(BaseModel):
     final_score: float
     explanation: Optional[str]
     red_flags: Optional[List[dict]]
-    risk_level: Optional[str]
+    risk_level: Optional[RiskLevel]
 
 
 class ApplicationDetailResponse(BaseModel):

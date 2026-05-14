@@ -53,6 +53,7 @@ from app.features.screening.schemas.schema import (
     ScreeningQueuedResponse,
 )
 from app.features.screening.services.helpers import evaluate_knockout_rule
+from app.features.screening.services.helpers import normalize_knockout_operator
 from app.features.screening.services.parser import (
     _score_soft_skills,
     build_candidate_profile,
@@ -72,7 +73,10 @@ from app.shared.constants.audit_actions import (
     AUTOMATED_SCREENING_UPDATE,
     MANUAL_OVERRIDE_SCORE,
 )
+from app.shared.constants.audit_entities import APPLICATION, CANDIDATE_SCORE
 from app.shared.enums.application_status import ApplicationStatus
+from app.shared.enums.knockout import KnockoutAction, KnockoutRuleType
+from app.shared.enums.risk_level import RiskLevel
 from app.shared.helpers.localization import get_label
 
 logger = structlog.get_logger(__name__)
@@ -84,11 +88,11 @@ async def create_knockout_rule(
     rule = JobKnockoutRule(
         job_id=data.job_id,
         rule_name=data.rule_name,
-        rule_type=data.rule_type,
+        rule_type=data.rule_type.value,
         field_key=data.field_key,
-        operator=data.operator,
+        operator=normalize_knockout_operator(data.operator.value),
         target_value=data.target_value,
-        action=data.action,
+        action=data.action.value,
     )
     rule = await save_knockout_rule(db, rule)
     await db.commit()
@@ -204,7 +208,7 @@ async def process_screening(
             # Step 1: Validate mandatory document completeness (Dynamic from Knockout Rules)
             docs = await get_documents_by_application_id(db, application_id)
             doc_types = {doc.document_type for doc in docs}
-            required_doc_rules = [r for r in rules if r.rule_type == "document"]
+            required_doc_rules = [r for r in rules if r.rule_type == KnockoutRuleType.DOCUMENT.value]
             
             for rule in required_doc_rules:
                 # Target value contains DocumentType enum value (e.g., "identity_card", "degree")
@@ -238,7 +242,7 @@ async def process_screening(
                 if not evaluate_knockout_rule(rule, application, docs, answers=answers):
                     target_status = (
                         ApplicationStatus.UNDER_REVIEW
-                        if rule.action == "pending_review"
+                        if rule.action == KnockoutAction.PENDING_REVIEW.value
                         else ApplicationStatus.KNOCKOUT
                     )
                     application.status = target_status
@@ -313,7 +317,7 @@ async def process_screening(
             # Step 2: Document check flags
             if doc_validation_flags:
                 # If high risk document flags exist, set admin score to 0
-                if any(f.get("risk_level") == "high" for f in doc_validation_flags if isinstance(f, dict)):
+                if any(f.get("risk_level") == RiskLevel.HIGH.value for f in doc_validation_flags if isinstance(f, dict)):
                     admin_score = 0.0
 
             final = calculate_final_score(
@@ -373,7 +377,7 @@ async def process_screening(
                         company_id=company_id,
                         user_id=None,  # System automated
                         action=AUTOMATED_SCREENING_UPDATE,
-                        entity_type="candidate_score",
+                        entity_type=CANDIDATE_SCORE,
                         entity_id=existing_score.id,
                         old_values=old_values,
                         new_values={
@@ -407,7 +411,7 @@ async def process_screening(
                         company_id=company_id,
                         user_id=None,
                         action=AUTOMATED_SCREENING_CREATE,
-                        entity_type="candidate_score",
+                        entity_type=CANDIDATE_SCORE,
                         entity_id=score.id,
                         new_values={
                             "final_score": final,
@@ -417,7 +421,7 @@ async def process_screening(
                     ),
                 )
             # Final status mapping
-            if red_flags.get("risk_level") == "high":
+            if red_flags.get("risk_level") == RiskLevel.HIGH.value:
                 application.status = ApplicationStatus.REJECTED
             else:
                 calculated_status = get_application_status(final)
@@ -510,7 +514,7 @@ async def manual_override_score(
             company_id=current_user.company_id,
             user_id=current_user.id,
             action=MANUAL_OVERRIDE_SCORE,
-            entity_type="candidate_score",
+            entity_type=CANDIDATE_SCORE,
             entity_id=score.id,
             old_values=old_values,
             new_values={"final_score": score.final_score, "reason": reason},
@@ -569,7 +573,7 @@ async def handle_screening_failure(
                 company_id=company_id,
                 user_id=None,
                 action=AUTOMATED_SCREENING_FALLBACK,
-                entity_type="application",
+                entity_type=APPLICATION,
                 entity_id=application.id,
                 old_values=old_values,
                 new_values={
@@ -608,12 +612,12 @@ async def _merge_red_flags(
                 # Fallback for legacy string flags
                 red_flags["red_flags"].append({
                     "message": str(flag),
-                    "risk_level": "high",
+                    "risk_level": RiskLevel.HIGH.value,
                     "type": "document"
                 })
         
         # If any doc flag is high, ensure overall risk is high
-        if any(f.get("risk_level") == "high" for f in doc_validation_flags if isinstance(f, dict)):
-            red_flags["risk_level"] = "high"
+        if any(f.get("risk_level") == RiskLevel.HIGH.value for f in doc_validation_flags if isinstance(f, dict)):
+            red_flags["risk_level"] = RiskLevel.HIGH.value
             
     return red_flags

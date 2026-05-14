@@ -64,6 +64,7 @@ from app.shared.constants.audit_actions import (
     APPLICATION_STATUS_UPDATE,
     APPLICATION_SUBMIT,
 )
+from app.shared.constants.audit_entities import APPLICATION
 from app.shared.enums.application_status import ApplicationStatus
 from app.shared.enums.document_type import DocumentType
 from app.shared.enums.ticket_status import TicketStatus
@@ -218,7 +219,7 @@ async def public_apply(
             company_id=job.company_id if job else None,
             user_id=applicant.id,
             action=APPLICATION_SUBMIT,
-            entity_type="application",
+            entity_type=APPLICATION,
             entity_id=application.id,
             new_values={
                 "job_id": data.job_id,
@@ -378,7 +379,7 @@ async def update_application_status(
             company_id=current_user.company_id,
             user_id=current_user.id,
             action=APPLICATION_STATUS_UPDATE,
-            entity_type="application",
+            entity_type=APPLICATION,
             entity_id=application.id,
             old_values=old_values,
             new_values={"status": new_status.value, "reason": reason},

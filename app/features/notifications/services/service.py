@@ -17,6 +17,7 @@ from app.shared.constants.audit_actions import (
     NOTIFICATION_MARK_READ,
     NOTIFICATION_MARK_READ_ALL,
 )
+from app.shared.constants.audit_entities import NOTIFICATION
 from app.shared.schemas.response import PaginatedResponse
 
 
@@ -38,7 +39,7 @@ async def list_notifications(
         data=[
             NotificationItem(
                 id=item.id,
-                type=item.type.value,
+                type=item.type,
                 title=item.title,
                 message=item.message,
                 is_read=item.is_read,
@@ -67,7 +68,7 @@ async def mark_read(db: AsyncSession, *, current_user: User, notification_id: in
                 company_id=current_user.company_id,
                 user_id=current_user.id,
                 action=NOTIFICATION_MARK_READ,
-                entity_type="notification",
+                entity_type=NOTIFICATION,
                 entity_id=notification_id,
                 old_values=old_values,
                 new_values={"is_read": True},
@@ -87,7 +88,7 @@ async def mark_all_read(db: AsyncSession, *, current_user: User) -> Notification
                 company_id=current_user.company_id,
                 user_id=current_user.id,
                 action=NOTIFICATION_MARK_READ_ALL,
-                entity_type="notification",
+                entity_type=NOTIFICATION,
                 entity_id=notif.id,
                 old_values=get_model_snapshot(notif),
                 new_values={"is_read": True},

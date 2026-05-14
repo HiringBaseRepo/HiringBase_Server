@@ -17,6 +17,7 @@ from app.features.interviews.schemas.schema import (
 from app.features.interviews.models import Interview
 from app.features.users.models import User
 from app.shared.constants.audit_actions import INTERVIEW_SCHEDULE
+from app.shared.constants.audit_entities import INTERVIEW
 from app.shared.tasks.mail_tasks import send_interview_invite
 
 
@@ -41,7 +42,7 @@ async def schedule_interview(
         duration_minutes=data.duration_minutes,
         location=data.location,
         meeting_link=data.meeting_link,
-        interview_type=data.interview_type,
+        interview_type=data.interview_type.value,
         interviewer_ids=data.interviewer_ids or [],
     )
     interview = await save_interview(db, interview)
@@ -51,13 +52,13 @@ async def schedule_interview(
             company_id=current_user.company_id,
             user_id=current_user.id,
             action=INTERVIEW_SCHEDULE,
-            entity_type="interview",
+            entity_type=INTERVIEW,
             entity_id=interview.id,
             new_values={
                 "application_id": data.application_id,
                 "scheduled_at": data.scheduled_at.isoformat(),
                 "duration_minutes": data.duration_minutes,
-                "interview_type": data.interview_type,
+                "interview_type": data.interview_type.value,
                 "location_or_meeting_link": data.meeting_link or data.location,
             },
         ),

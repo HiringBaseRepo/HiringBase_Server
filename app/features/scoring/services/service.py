@@ -23,6 +23,7 @@ from app.shared.constants.audit_actions import (
     SCORING_TEMPLATE_CREATE,
     SCORING_TEMPLATE_UPDATE,
 )
+from app.shared.constants.audit_entities import SCORING_TEMPLATE
 
 
 def _validate_weight_total(data: CreateScoringTemplateRequest) -> None:
@@ -68,7 +69,7 @@ async def create_scoring_template(
             company_id=current_user.company_id,
             user_id=current_user.id,
             action=SCORING_TEMPLATE_CREATE,
-            entity_type="scoring_template",
+            entity_type=SCORING_TEMPLATE,
             entity_id=template.id,
             new_values=data.model_dump()
         )
@@ -102,7 +103,7 @@ async def update_scoring_template(
             company_id=current_user.company_id,
             user_id=current_user.id,
             action=SCORING_TEMPLATE_UPDATE,
-            entity_type="scoring_template",
+            entity_type=SCORING_TEMPLATE,
             entity_id=template.id,
             old_values=old_values,
             new_values=updates

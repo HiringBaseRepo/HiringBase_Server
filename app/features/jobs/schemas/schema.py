@@ -5,6 +5,8 @@ from pydantic import BaseModel, Field
 from app.shared.enums.employment_type import EmploymentType
 from app.shared.enums.field_type import FormFieldType
 from app.shared.enums.job_status import JobStatus
+from app.shared.enums.knockout import KnockoutAction, KnockoutRuleType
+from app.shared.enums.publish_mode import PublishMode
 
 
 class CreateJobStep1Request(BaseModel):
@@ -48,7 +50,7 @@ class SetupJobFormRequest(BaseModel):
 
 
 class PublishJobRequest(BaseModel):
-    mode: str = "public"
+    mode: PublishMode = PublishMode.PUBLIC
     scheduled_at: datetime | None = None
 
 
@@ -101,8 +103,8 @@ class JobFormFieldItem(BaseModel):
 class JobKnockoutRuleItem(BaseModel):
     id: int
     rule_name: str
-    rule_type: str
-    action: str
+    rule_type: KnockoutRuleType
+    action: KnockoutAction
 
 
 class JobDetailResponse(BaseModel):

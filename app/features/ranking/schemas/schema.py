@@ -1,5 +1,6 @@
 """Ranking schemas."""
 from pydantic import BaseModel
+from app.shared.enums.risk_level import RiskLevel
 
 
 class RankingItem(BaseModel):
@@ -12,5 +13,5 @@ class RankingItem(BaseModel):
     experience: float | None
     education: float | None
     portfolio: float | None
-    risk_level: str | None
+    risk_level: RiskLevel | None
     created_at: str | None

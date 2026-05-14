@@ -13,6 +13,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database.base import Base
+from app.shared.enums.interview import InterviewType
 
 class Interview(Base):
     __tablename__ = "interviews"
@@ -23,7 +24,7 @@ class Interview(Base):
     duration_minutes: Mapped[int] = mapped_column(Integer, default=60)
     location: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     meeting_link: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    interview_type: Mapped[str] = mapped_column(String(50), default="in_person")  # in_person, video, phone
+    interview_type: Mapped[str] = mapped_column(String(50), default=InterviewType.IN_PERSON.value)  # in_person, video, phone
     interviewer_ids: Mapped[list] = mapped_column(JSON, default=list)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     feedback: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)

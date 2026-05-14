@@ -12,6 +12,43 @@ from app.shared.enums.job_status import JobStatus
 from app.shared.enums.ticket_status import TicketStatus
 from app.shared.enums.field_type import FormFieldType
 from app.shared.constants import audit_actions
+from app.shared.constants.errors import (
+    ERR_AI_CONNECTION,
+    ERR_AI_SERVER,
+    ERR_APPLICATION_NOT_FOUND,
+    ERR_COMPANY_NAME_REQUIRED,
+    ERR_COMPANY_NOT_FOUND,
+    ERR_DUPLICATE_APPLICATION,
+    ERR_FIELD_NOT_FOUND,
+    ERR_FILE_TOO_LARGE,
+    ERR_INTERVIEW_NOT_FOUND,
+    ERR_INVALID_CREDENTIALS,
+    ERR_INVALID_FILE_TYPE,
+    ERR_INVALID_REFRESH_TOKEN,
+    ERR_INVALID_SETUP_TOKEN,
+    ERR_JOB_NOT_FOUND,
+    ERR_MISSING_DOCUMENTS,
+    ERR_PASSWORD_RESET_TOKEN_INVALID,
+    ERR_REFRESH_TOKEN_EXPIRED,
+    ERR_RULE_NOT_FOUND,
+    ERR_SCORING_TEMPLATE_MISSING,
+    ERR_SECURITY_ALERT,
+    ERR_TICKET_NOT_FOUND,
+    ERR_TOKEN_REVOKED,
+    ERR_TOKEN_ROTATION_FAILED,
+    ERR_UNAUTHENTICATED,
+    ERR_UNAUTHORIZED,
+    ERR_USER_INACTIVE,
+    ERR_USER_NOT_FOUND,
+)
+from app.shared.constants.scoring import (
+    ADMINISTRATIVE_WEIGHT_KEY,
+    EDUCATION_WEIGHT_KEY,
+    EXPERIENCE_WEIGHT_KEY,
+    PORTFOLIO_WEIGHT_KEY,
+    SKILL_MATCH_WEIGHT_KEY,
+    SOFT_SKILL_WEIGHT_KEY,
+)
 
 # Mappings
 DOCUMENT_TYPE_LABELS: Dict[DocumentType, str] = {
@@ -79,12 +116,12 @@ FIELD_TYPE_LABELS: Dict[FormFieldType, str] = {
 }
 
 SCORING_WEIGHT_LABELS: Dict[str, str] = {
-    "skill_match_weight": "Kesesuaian Skill",
-    "experience_weight": "Pengalaman Kerja",
-    "education_weight": "Pendidikan",
-    "portfolio_weight": "Portofolio",
-    "soft_skill_weight": "Soft Skills",
-    "administrative_weight": "Kelengkapan Admin",
+    SKILL_MATCH_WEIGHT_KEY: "Kesesuaian Skill",
+    EXPERIENCE_WEIGHT_KEY: "Pengalaman Kerja",
+    EDUCATION_WEIGHT_KEY: "Pendidikan",
+    PORTFOLIO_WEIGHT_KEY: "Portofolio",
+    SOFT_SKILL_WEIGHT_KEY: "Soft Skills",
+    ADMINISTRATIVE_WEIGHT_KEY: "Kelengkapan Admin",
 }
 
 AUDIT_ACTION_LABELS: Dict[str, str] = {
@@ -153,6 +190,36 @@ INTERNAL_MESSAGES: Dict[str, str] = {
     "Internal validator error": "Kesalahan internal pada sistem validasi",
 }
 
+ERROR_MESSAGES: Dict[str, str] = {
+    ERR_RULE_NOT_FOUND: "Aturan knockout tidak ditemukan",
+    ERR_APPLICATION_NOT_FOUND: "Lamaran tidak ditemukan",
+    ERR_JOB_NOT_FOUND: "Lowongan tidak ditemukan",
+    ERR_USER_NOT_FOUND: "Pengguna tidak ditemukan",
+    ERR_INVALID_CREDENTIALS: "Email atau password salah",
+    ERR_USER_INACTIVE: "Akun tidak aktif",
+    ERR_INVALID_REFRESH_TOKEN: "Refresh token tidak valid",
+    ERR_REFRESH_TOKEN_EXPIRED: "Sesi telah berakhir, silakan login kembali",
+    ERR_TOKEN_REVOKED: "Token telah dicabut atau sudah digunakan",
+    ERR_SECURITY_ALERT: "Peringatan Keamanan: Silakan login kembali",
+    ERR_INVALID_FILE_TYPE: "Format file tidak didukung",
+    ERR_FILE_TOO_LARGE: "Ukuran file terlalu besar",
+    ERR_PASSWORD_RESET_TOKEN_INVALID: "Token reset password tidak valid atau sudah kedaluwarsa",
+    ERR_INVALID_SETUP_TOKEN: "Setup token tidak valid atau belum diatur di .env",
+    ERR_COMPANY_NAME_REQUIRED: "Nama perusahaan wajib diisi untuk HR",
+    ERR_MISSING_DOCUMENTS: "Dokumen wajib belum diunggah",
+    ERR_TOKEN_ROTATION_FAILED: "Gagal memperbarui sesi (token rotation)",
+    ERR_DUPLICATE_APPLICATION: "Anda sudah melamar untuk lowongan ini",
+    ERR_TICKET_NOT_FOUND: "Tiket tidak ditemukan",
+    ERR_SCORING_TEMPLATE_MISSING: "Template penilaian tidak ditemukan",
+    ERR_INTERVIEW_NOT_FOUND: "Wawancara tidak ditemukan",
+    ERR_COMPANY_NOT_FOUND: "Perusahaan tidak ditemukan",
+    ERR_FIELD_NOT_FOUND: "Field tidak ditemukan",
+    ERR_AI_CONNECTION: "Gagal terhubung ke API AI (Timeout/Network)",
+    ERR_AI_SERVER: "Server API AI sedang bermasalah (5xx)",
+    ERR_UNAUTHENTICATED: "Otentikasi diperlukan",
+    ERR_UNAUTHORIZED: "Anda tidak memiliki akses untuk melakukan tindakan ini",
+}
+
 
 def get_label(enum_value: Any, **kwargs) -> str:
     """Get Indonesian label for a given Enum or internal key."""
@@ -190,5 +257,7 @@ def _get_raw_label(enum_value: Any) -> str:
         return AUDIT_ACTION_LABELS[enum_value]
     if enum_value in INTERNAL_MESSAGES:
         return INTERNAL_MESSAGES[enum_value]
+    if enum_value in ERROR_MESSAGES:
+        return ERROR_MESSAGES[enum_value]
     
     return str(enum_value)

@@ -40,6 +40,8 @@ from app.shared.constants.audit_actions import (
     LOGOUT,
     PASSWORD_RESET_REQUESTED,
 )
+from app.shared.constants.audit_entities import AUTH
+from app.shared.constants.scoring import APPLY_CODE_PREFIX
 
 # Moved RefreshToken to top
 
@@ -48,7 +50,7 @@ async def log_login_failure(db: AsyncSession, email: str) -> None:
         db,
         AuditLog(
             action=LOGIN_FAILURE,
-            entity_type="auth",
+            entity_type=AUTH,
             entity_id=0,
             new_values={"email": email}
         )
@@ -74,7 +76,7 @@ async def authenticate_user(
             company_id=user.company_id,
             user_id=user.id,
             action=LOGIN_SUCCESS,
-            entity_type="auth",
+            entity_type=AUTH,
             entity_id=user.id,
             new_values={"email": email}
         )
@@ -103,7 +105,7 @@ async def create_company_and_hr(
 ) -> Tuple[User, Company]:
     company = Company(
         name=data.company_name or data.full_name + " Company",
-        slug=generate_apply_code().replace("FRM-", "").lower(),
+        slug=generate_apply_code().replace(f"{APPLY_CODE_PREFIX}-", "").lower(),
     )
     company = await save_company(db, company)
 
@@ -265,7 +267,7 @@ async def request_password_reset(db: AsyncSession, email: str) -> str | None:
             company_id=user.company_id,
             user_id=user.id,
             action=PASSWORD_RESET_REQUESTED,
-            entity_type="auth",
+            entity_type=AUTH,
             entity_id=user.id,
             new_values={"email": email}
         )
@@ -314,7 +316,7 @@ async def logout(db: AsyncSession, user_id: int, jti: str) -> None:
             company_id=user.company_id if user else None,
             user_id=user_id,
             action=LOGOUT,
-            entity_type="auth",
+            entity_type=AUTH,
             entity_id=user_id,
         )
     )

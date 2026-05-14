@@ -1,10 +1,11 @@
 """Notification schemas."""
 from pydantic import BaseModel
+from app.shared.enums.notification_type import NotificationType
 
 
 class NotificationItem(BaseModel):
     id: int
-    type: str
+    type: NotificationType
     title: str
     message: str
     is_read: bool

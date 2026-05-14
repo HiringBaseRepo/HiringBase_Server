@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.base import get_db
+from app.core.exceptions import BaseDomainException
 from app.features.auth.dependencies.auth import HrUserDep
 from app.features.screening.schemas.schema import (
     KnockoutRuleCreateCommand,
@@ -18,7 +19,9 @@ from app.features.screening.services.service import (
     delete_knockout_rule as delete_knockout_rule_service,
     queue_screening,
 )
+from app.features.screening.services.helpers import normalize_knockout_operator
 from app.features.screening.tasks import run_screening_task
+from app.shared.enums.knockout import KnockoutAction, KnockoutOperator, KnockoutRuleType
 from app.shared.schemas.response import StandardResponse
 
 router = APIRouter(prefix="/screening", tags=["Screening Engine"])
@@ -34,17 +37,22 @@ async def create_knockout_rule(
     current_user: HrUserDep,
     job_id: int,
     rule_name: str,
-    rule_type: str,
+    rule_type: KnockoutRuleType,
     operator: str,
     target_value: str,
     field_key: Optional[str] = None,
-    action: str = "auto_reject",
+    action: KnockoutAction = KnockoutAction.AUTO_REJECT,
 ):
+    try:
+        normalized_operator = KnockoutOperator(normalize_knockout_operator(operator))
+    except ValueError as exc:
+        raise BaseDomainException(f"Operator knockout tidak valid: {operator}") from exc
+
     command = KnockoutRuleCreateCommand(
         job_id=job_id,
         rule_name=rule_name,
         rule_type=rule_type,
-        operator=operator,
+        operator=normalized_operator,
         target_value=target_value,
         field_key=field_key,
         action=action,

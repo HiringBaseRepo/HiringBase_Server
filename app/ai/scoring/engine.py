@@ -2,7 +2,7 @@
 
 from typing import List, Any
 
-from app.shared.constants.scoring import MINIMUM_PASS_SCORE
+from app.shared.constants.scoring import DEFAULT_WEIGHTS, MINIMUM_PASS_SCORE
 
 
 def score_experience(total_years_experience: int, requirement: str) -> float:
@@ -62,12 +62,12 @@ def calculate_final_score(
     portfolio_score: float,
     soft_skill_score: float,
     administrative_score: float = 100.0,
-    skill_match_weight: float = 40.0,
-    experience_weight: float = 20.0,
-    education_weight: float = 10.0,
-    portfolio_weight: float = 10.0,
-    soft_skill_weight: float = 10.0,
-    administrative_weight: float = 10.0,
+    skill_match_weight: float = DEFAULT_WEIGHTS["skill_match_weight"],
+    experience_weight: float = DEFAULT_WEIGHTS["experience_weight"],
+    education_weight: float = DEFAULT_WEIGHTS["education_weight"],
+    portfolio_weight: float = DEFAULT_WEIGHTS["portfolio_weight"],
+    soft_skill_weight: float = DEFAULT_WEIGHTS["soft_skill_weight"],
+    administrative_weight: float = DEFAULT_WEIGHTS["administrative_weight"],
 ) -> float:
     """Calculate final score based on weighted scores."""
     final = (

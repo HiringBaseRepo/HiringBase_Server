@@ -1,0 +1,12 @@
+"""Centralized audit entity type values."""
+
+AUTH = "auth"
+USER = "user"
+COMPANY = "company"
+JOB = "job"
+JOB_FORM_FIELD = "job_form_field"
+APPLICATION = "application"
+INTERVIEW = "interview"
+NOTIFICATION = "notification"
+SCORING_TEMPLATE = "scoring_template"
+CANDIDATE_SCORE = "candidate_score"

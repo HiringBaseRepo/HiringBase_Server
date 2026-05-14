@@ -1,6 +1,7 @@
 """Interview schemas."""
 from datetime import datetime
 from pydantic import BaseModel
+from app.shared.enums.interview import InterviewResult, InterviewType
 
 
 class ScheduleInterviewRequest(BaseModel):
@@ -9,7 +10,7 @@ class ScheduleInterviewRequest(BaseModel):
     duration_minutes: int = 60
     location: str | None = None
     meeting_link: str | None = None
-    interview_type: str = "in_person"
+    interview_type: InterviewType = InterviewType.IN_PERSON
     interviewer_ids: list | None = None
 
 
@@ -24,4 +25,4 @@ class InterviewDetailResponse(BaseModel):
     duration: int
     location: str | None
     meeting_link: str | None
-    result: str | None
+    result: InterviewResult | None

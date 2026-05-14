@@ -15,6 +15,7 @@ from app.features.applications.repositories.repository import (
     get_published_job_by_id,
     get_user_by_email,
 )
+from app.shared.enums.knockout import KnockoutRuleType
 
 
 async def validate_public_apply_requirements(
@@ -35,7 +36,7 @@ async def validate_public_apply_requirements(
     # Validate job exists and is published
     job = await get_published_job_by_id(db, data.job_id)
     if not job:
-        raise JobNotFoundException("Lowongan tidak ditemukan atau belum dipublikasikan")
+        raise JobNotFoundException()
 
     # VALIDATION 1: Mandatory Form Fields
     form_fields = await get_form_fields_by_job_id(db, job_id=data.job_id)
@@ -49,7 +50,7 @@ async def validate_public_apply_requirements(
     required_docs = [
         r.target_value.lower()
         for r in knockout_rules
-        if r.rule_type == "document" and r.is_active
+        if r.rule_type == KnockoutRuleType.DOCUMENT.value and r.is_active
     ]
 
     uploaded_doc_types = [doc["type"].value for doc in documents_data] if documents_data else []

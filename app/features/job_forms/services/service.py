@@ -27,6 +27,7 @@ from app.shared.constants.audit_actions import (
     JOB_FORM_FIELD_REORDER,
     JOB_FORM_FIELD_UPDATE,
 )
+from app.shared.constants.audit_entities import JOB_FORM_FIELD
 
 
 async def create_form_field(
@@ -55,7 +56,7 @@ async def create_form_field(
             company_id=current_user.company_id,
             user_id=current_user.id,
             action=JOB_FORM_FIELD_CREATE,
-            entity_type="job_form_field",
+            entity_type=JOB_FORM_FIELD,
             entity_id=field.id,
             new_values={
                 "job_id": job_id,
@@ -94,7 +95,7 @@ async def update_form_field(
             company_id=current_user.company_id,
             user_id=current_user.id,
             action=JOB_FORM_FIELD_UPDATE,
-            entity_type="job_form_field",
+            entity_type=JOB_FORM_FIELD,
             entity_id=field.id,
             old_values=old_values,
             new_values=updates
@@ -122,7 +123,7 @@ async def delete_form_field(
             company_id=current_user.company_id,
             user_id=current_user.id,
             action=JOB_FORM_FIELD_DELETE,
-            entity_type="job_form_field",
+            entity_type=JOB_FORM_FIELD,
             entity_id=field_id,
             old_values=old_values,
         ),
@@ -150,7 +151,7 @@ async def reorder_fields(
             company_id=current_user.company_id,
             user_id=current_user.id,
             action=JOB_FORM_FIELD_REORDER,
-            entity_type="job_form_field",
+            entity_type=JOB_FORM_FIELD,
             entity_id=job_id,
             new_values={"job_id": job_id, "order": reorder_payload},
         ),

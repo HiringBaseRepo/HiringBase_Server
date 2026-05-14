@@ -16,6 +16,7 @@ from app.shared.constants.audit_actions import (
     DELETE_USER,
     UPDATE_USER,
 )
+from app.shared.constants.audit_entities import USER
 
 
 async def create_hr_account(
@@ -41,7 +42,7 @@ async def create_hr_account(
             company_id=current_user.company_id,
             user_id=current_user.id,
             action=CREATE_HR_ACCOUNT,
-            entity_type="user",
+            entity_type=USER,
             entity_id=user.id,
             new_values=data.model_dump(exclude={"password"}),
         )
@@ -140,7 +141,7 @@ async def update_user(
             company_id=current_user.company_id,
             user_id=current_user.id,
             action=UPDATE_USER,
-            entity_type="user",
+            entity_type=USER,
             entity_id=user.id,
             old_values=old_values,
             new_values=data.model_dump(exclude_unset=True),
@@ -171,7 +172,7 @@ async def delete_user(
             company_id=current_user.company_id,
             user_id=current_user.id,
             action=DELETE_USER,
-            entity_type="user",
+            entity_type=USER,
             entity_id=user_id,
             old_values={"email": user.email, "full_name": user.full_name},
         )

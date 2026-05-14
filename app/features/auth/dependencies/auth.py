@@ -24,7 +24,7 @@ async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> User:
     if not credentials:
-        raise UnauthenticatedException("Otentikasi diperlukan (Missing token)")
+        raise UnauthenticatedException()
 
     payload = decode_token(credentials.credentials)
     if not payload or payload.get("type") != "access":
@@ -34,7 +34,7 @@ async def get_current_user(
     user = await get_user_by_id(db, user_id)
 
     if not user:
-        raise UnauthenticatedException("Pengguna tidak ditemukan")
+        raise UnauthenticatedException()
     if not user.is_active:
         raise UserInactiveException()
         

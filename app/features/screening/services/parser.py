@@ -5,6 +5,7 @@ import json
 import structlog
 
 from app.features.screening.services.helpers import find_answer_value
+from app.shared.constants.scoring import SOFT_SKILL_FALLBACK_SCORE
 
 logger = structlog.get_logger(__name__)
 
@@ -89,6 +90,6 @@ async def _score_soft_skills(text: str, force_fallback: bool = False) -> float:
         from app.ai.nlp.soft_skill_scorer import score_soft_skills
 
         res = await score_soft_skills(text, force_fallback=force_fallback)
-        return res.get("composite_score", 60.0)
+        return res.get("composite_score", SOFT_SKILL_FALLBACK_SCORE)
     except Exception:
-        return 60.0
+        return SOFT_SKILL_FALLBACK_SCORE

@@ -5,6 +5,7 @@ Berisi semua fungsi evaluasi rule yang TIDAK bergantung pada FastAPI context.
 from __future__ import annotations
 
 from typing import Optional
+from app.shared.enums.knockout import KnockoutOperator, KnockoutRuleType
 
 
 def evaluate_knockout_rule(rule, application, docs: list, answers: list = None) -> bool:
@@ -25,16 +26,16 @@ def evaluate_knockout_rule(rule, application, docs: list, answers: list = None) 
         answers = []
 
     rule_type = (rule.rule_type or "").lower()
-    operator = (rule.operator or "eq").lower()
+    operator = normalize_knockout_operator(rule.operator or KnockoutOperator.EQ.value)
     target = rule.target_value
 
     # --- Document type ---
-    if rule_type == "document":
+    if rule_type == KnockoutRuleType.DOCUMENT.value:
         doc_types = {d.document_type.value for d in docs}
         return target in doc_types
 
     # --- Experience type ---
-    if rule_type == "experience":
+    if rule_type == KnockoutRuleType.EXPERIENCE.value:
         answer_val = find_answer_value(rule.field_key, answers)
         if answer_val is not None:
             try:
@@ -46,7 +47,7 @@ def evaluate_knockout_rule(rule, application, docs: list, answers: list = None) 
         return True  # benefit of the doubt
 
     # --- Education type ---
-    if rule_type == "education":
+    if rule_type == KnockoutRuleType.EDUCATION.value:
         from app.shared.constants.scoring import EDUCATION_RANK
         answer_val = find_answer_value(rule.field_key, answers)
         if answer_val is not None:
@@ -58,7 +59,7 @@ def evaluate_knockout_rule(rule, application, docs: list, answers: list = None) 
         return True
 
     # --- Boolean type ---
-    if rule_type == "boolean":
+    if rule_type == KnockoutRuleType.BOOLEAN.value:
         answer_val = find_answer_value(rule.field_key, answers)
         if answer_val is not None:
             answer_normalized = str(answer_val).lower().strip()
@@ -73,7 +74,7 @@ def evaluate_knockout_rule(rule, application, docs: list, answers: list = None) 
         return True
 
     # --- Range / numeric type ---
-    if rule_type == "range":
+    if rule_type == KnockoutRuleType.RANGE.value:
         answer_val = find_answer_value(rule.field_key, answers)
         if answer_val is not None:
             try:
@@ -124,3 +125,21 @@ def compare_numeric(value: float, target: float, operator: str) -> bool:
         "<=": value <= target,
     }
     return op_map.get(operator, True)
+
+
+def normalize_knockout_operator(operator: str) -> str:
+    """Normalize supported operator aliases into canonical knockout operator value."""
+    alias_map = {
+        "=": KnockoutOperator.EQ.value,
+        "==": KnockoutOperator.EQ.value,
+        "<>": KnockoutOperator.NEQ.value,
+        "!=": KnockoutOperator.NEQ.value,
+        ">": KnockoutOperator.GT.value,
+        ">=": KnockoutOperator.GTE.value,
+        "<": KnockoutOperator.LT.value,
+        "<=": KnockoutOperator.LTE.value,
+    }
+    normalized = (operator or "").strip().lower()
+    if normalized in {item.value for item in KnockoutOperator}:
+        return normalized
+    return alias_map.get(normalized, normalized)

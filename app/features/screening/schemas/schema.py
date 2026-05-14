@@ -1,16 +1,17 @@
 """Screening schemas."""
 
 from pydantic import BaseModel
+from app.shared.enums.knockout import KnockoutAction, KnockoutOperator, KnockoutRuleType
 
 
 class KnockoutRuleCreateCommand(BaseModel):
     job_id: int
     rule_name: str
-    rule_type: str
-    operator: str
+    rule_type: KnockoutRuleType
+    operator: KnockoutOperator
     target_value: str
     field_key: str | None = None
-    action: str = "auto_reject"
+    action: KnockoutAction = KnockoutAction.AUTO_REJECT
 
 
 class KnockoutRuleCreatedResponse(BaseModel):

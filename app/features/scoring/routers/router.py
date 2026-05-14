@@ -15,8 +15,8 @@ from app.features.scoring.services.service import (
     get_scoring_template as get_scoring_template_service,
     update_scoring_template as update_scoring_template_service,
 )
+from app.shared.constants.scoring import DEFAULT_WEIGHTS
 from app.shared.schemas.response import StandardResponse
-from app.core.config import settings
 from typing import Optional
 
 router = APIRouter(prefix="/scoring", tags=["Scoring Templates"])
@@ -25,12 +25,12 @@ router = APIRouter(prefix="/scoring", tags=["Scoring Templates"])
 @router.post("/templates", response_model=StandardResponse[ScoringTemplateCreatedResponse])
 async def create_scoring_template(
     job_id: int,
-    skill_match_weight: int = settings.DEFAULT_SKILL_WEIGHT,
-    experience_weight: int = settings.DEFAULT_EXPERIENCE_WEIGHT,
-    education_weight: int = settings.DEFAULT_EDUCATION_WEIGHT,
-    portfolio_weight: int = settings.DEFAULT_PORTFOLIO_WEIGHT,
-    soft_skill_weight: int = settings.DEFAULT_SOFT_SKILL_WEIGHT,
-    administrative_weight: int = settings.DEFAULT_ADMIN_WEIGHT,
+    skill_match_weight: int = DEFAULT_WEIGHTS["skill_match_weight"],
+    experience_weight: int = DEFAULT_WEIGHTS["experience_weight"],
+    education_weight: int = DEFAULT_WEIGHTS["education_weight"],
+    portfolio_weight: int = DEFAULT_WEIGHTS["portfolio_weight"],
+    soft_skill_weight: int = DEFAULT_WEIGHTS["soft_skill_weight"],
+    administrative_weight: int = DEFAULT_WEIGHTS["administrative_weight"],
     custom_rules: Optional[dict] = None,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_hr),

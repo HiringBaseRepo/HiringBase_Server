@@ -5,6 +5,7 @@ from typing import Any
 from app.ai.ocr.engine import extract_text_from_document
 from app.ai.validator.document_validator import validate_document_content
 from app.shared.enums.document_type import DocumentType
+from app.shared.enums.risk_level import RiskLevel
 
 
 async def run_document_semantic_check(
@@ -43,7 +44,7 @@ async def run_document_semantic_check(
             if not v_res.get("valid"):
                 doc_validation_flags.append({
                     "message": f"Warning {doc.document_type.value}: {v_res.get('reason')}",
-                    "risk_level": "high",
+                    "risk_level": RiskLevel.HIGH.value,
                     "type": "document"
                 })
     return doc_validation_flags, ocr_results

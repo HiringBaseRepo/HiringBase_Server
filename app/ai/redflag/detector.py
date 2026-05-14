@@ -3,6 +3,7 @@ import re
 from typing import Any, Dict, List
 import structlog
 from app.ai.llm.client import call_llm
+from app.shared.enums.risk_level import RiskLevel
 
 log = structlog.get_logger(__name__)
 
@@ -23,7 +24,7 @@ def _detect_red_flags_regex(parsed_data: Dict, raw_text: str) -> List[str]:
         if any(g > 2 for g in gaps):
             flags.append({
                 "message": "Terdeteksi celah karir (employment gap) yang signifikan",
-                "risk_level": "medium",
+                "risk_level": RiskLevel.MEDIUM.value,
                 "type": "professional"
             })
 
@@ -34,7 +35,7 @@ def _detect_red_flags_regex(parsed_data: Dict, raw_text: str) -> List[str]:
         if avg_years < 1:
             flags.append({
                 "message": "Potensi pola berpindah-pindah kerja (job hopping)",
-                "risk_level": "medium",
+                "risk_level": RiskLevel.MEDIUM.value,
                 "type": "professional"
             })
 
@@ -42,7 +43,7 @@ def _detect_red_flags_regex(parsed_data: Dict, raw_text: str) -> List[str]:
     if any(k in raw_text.lower() for k in ["fake", "modified", "edit"]):
         flags.append({
             "message": "Potensi manipulasi dokumen terdeteksi (kata kunci mencurigakan).",
-            "risk_level": "high",
+            "risk_level": RiskLevel.HIGH.value,
             "type": "content"
         })
     
@@ -50,7 +51,7 @@ def _detect_red_flags_regex(parsed_data: Dict, raw_text: str) -> List[str]:
     if not raw_text.strip() and not parsed_data:
         flags.append({
             "message": "Data pendaftaran sangat minim atau kosong.",
-            "risk_level": "medium",
+            "risk_level": RiskLevel.MEDIUM.value,
             "type": "system"
         })
 
@@ -63,7 +64,7 @@ def _detect_red_flags_regex(parsed_data: Dict, raw_text: str) -> List[str]:
         if len(typo_patterns) > 3:
             flags.append({
                 "message": "Tingkat kesalahan pengetikan (typo) tinggi pada dokumen",
-                "risk_level": "low",
+                "risk_level": RiskLevel.LOW.value,
                 "type": "quality"
             })
 
@@ -73,7 +74,7 @@ def _detect_red_flags_regex(parsed_data: Dict, raw_text: str) -> List[str]:
         flags.append(
             {
                 "message": "Ekspektasi gaji tidak realistis (nilai placeholder)",
-                "risk_level": "medium",
+                "risk_level": RiskLevel.MEDIUM.value,
                 "type": "professional",
             }
         )
@@ -89,7 +90,7 @@ async def detect_red_flags(
 ) -> Dict[str, Any]:
     """Detect risk indicators in candidate profile using semantic LLM analysis with regex fallback."""
     flags = []
-    risk_level = "low"
+    risk_level = RiskLevel.LOW.value
 
     # 1. Check for data inconsistencies if OCR results are provided
     if doc_ocr_results:
@@ -124,7 +125,7 @@ Kembalikan HANYA daftar poin (bullet-point) red flag yang terdeteksi. Jika tidak
                     flags.append(
                         {
                             "message": f,
-                            "risk_level": "medium",
+                            "risk_level": RiskLevel.MEDIUM.value,
                             "type": "ai_analysis",
                         }
                     )
@@ -141,24 +142,24 @@ Kembalikan HANYA daftar poin (bullet-point) red flag yang terdeteksi. Jika tidak
             flags.append(rf)
 
     # Determine risk
-    risk_level = "low"
+    risk_level = RiskLevel.LOW.value
     if any(
         "inkonsistensi" in f.get("message", "").lower()
         or "palsu" in f.get("message", "").lower()
         for f in flags
         if isinstance(f, dict)
     ):
-        risk_level = "high"
+        risk_level = RiskLevel.HIGH.value
     elif any(
-        f.get("risk_level") == "high"
+        f.get("risk_level") == RiskLevel.HIGH.value
         for f in flags
         if isinstance(f, dict)
     ):
-        risk_level = "high"
+        risk_level = RiskLevel.HIGH.value
     elif len(flags) >= 3:
-        risk_level = "high"
+        risk_level = RiskLevel.HIGH.value
     elif len(flags) >= 1:
-        risk_level = "medium"
+        risk_level = RiskLevel.MEDIUM.value
 
     return {
         "red_flags": flags,
@@ -186,7 +187,7 @@ async def _detect_data_inconsistencies(parsed_data: Dict, doc_ocr_results: Dict[
             for line in lines:
                 inconsistencies.append({
                     "message": line,
-                    "risk_level": "medium",
+                    "risk_level": RiskLevel.MEDIUM.value,
                     "type": "ai_analysis"
                 })
     except Exception:
