@@ -3,10 +3,15 @@
 import json
 
 from app.core.exceptions import (
-    BaseDomainException,
+    ValidationError,
     DuplicateApplicationException,
     JobNotFoundException,
     MissingDocumentsException,
+)
+from app.shared.helpers.localization import get_label
+from app.shared.constants.errors import (
+    ERR_FIELD_REQUIRED,
+    ERR_OTHERS_UPLOAD_NOT_ALLOWED,
 )
 from app.features.applications.repositories.repository import (
     get_application_by_job_and_applicant,
@@ -43,7 +48,7 @@ async def validate_public_apply_requirements(
     answers = json.loads(data.answers_json) if data.answers_json else {}
     for field in form_fields:
         if field.is_required and not answers.get(field.field_key):
-            raise BaseDomainException(f"Field '{field.label}' wajib diisi")
+            raise ValidationError(get_label(ERR_FIELD_REQUIRED, field=field.label))
 
     # VALIDATION 2: Required Documents
     knockout_rules = await get_knockout_rules_by_job_id(db, job_id=data.job_id)
@@ -57,7 +62,7 @@ async def validate_public_apply_requirements(
     
     # Blokir OTHERS jika tidak ada di knockout rules
     if "others" in uploaded_doc_types and "others" not in required_docs:
-        raise BaseDomainException("Upload dokumen dengan tipe OTHERS tidak diizinkan untuk lowongan ini.")
+        raise ValidationError(get_label(ERR_OTHERS_UPLOAD_NOT_ALLOWED))
 
     for req_doc in required_docs:
         found = any(req_doc == doc_type for doc_type in uploaded_doc_types)

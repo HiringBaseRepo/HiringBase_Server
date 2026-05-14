@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, Form, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.base import get_db
-from app.core.exceptions import BaseDomainException
+from app.core.exceptions import ValidationError
+from app.shared.constants.errors import ERR_INVALID_UPLOAD_KEY
 from app.core.utils.pagination import PaginationParams
 from app.features.applications.schemas.schema import (
     ApplicationListItem,
@@ -86,8 +87,8 @@ async def public_apply(
                 if enum_key in DocumentType._member_names_:
                     doc_type = DocumentType[enum_key]
                 else:
-                    raise BaseDomainException(
-                        f"Tipe dokumen tidak dikenali untuk key upload: {key}"
+                    raise ValidationError(
+                        get_label(ERR_INVALID_UPLOAD_KEY, key=key)
                     )
             documents_data.append({"type": doc_type, "file": value})
     

@@ -65,13 +65,14 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "paraphrase-multilingual-MiniLM-L12-v2"
     SPACY_MODEL: str = "en_core_web_md"
 
-    # SCORING DEFAULTS
-    DEFAULT_SKILL_WEIGHT: int = 40
-    DEFAULT_EXPERIENCE_WEIGHT: int = 20
-    DEFAULT_EDUCATION_WEIGHT: int = 10
-    DEFAULT_PORTFOLIO_WEIGHT: int = 10
-    DEFAULT_SOFT_SKILL_WEIGHT: int = 10
-    DEFAULT_ADMIN_WEIGHT: int = 10
+    # SCORING DEFAULTS (LEGACY - DO NOT USE IN APP CODE)
+    # Use app/shared/constants/scoring.py instead
+    # DEFAULT_SKILL_WEIGHT: int = 40
+    # DEFAULT_EXPERIENCE_WEIGHT: int = 20
+    # DEFAULT_EDUCATION_WEIGHT: int = 10
+    # DEFAULT_PORTFOLIO_WEIGHT: int = 10
+    # DEFAULT_SOFT_SKILL_WEIGHT: int = 10
+    # DEFAULT_ADMIN_WEIGHT: int = 10
 
     # EMAIL
     BREVO_API_KEY: Optional[str] = None

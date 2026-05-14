@@ -5,12 +5,14 @@ AI-powered recruitment backend for HR teams: job vacancy creation, form-based ap
 
 ## Critical Rules
 - Keep feature flow directional: `routers -> services -> repositories -> models`.
-- Never raise `HTTPException` anywhere in feature code, including routers, services, and dependencies. Raise `BaseDomainException` subclasses only.
+- Never raise `HTTPException` anywhere in feature code, including routers, services, and dependencies. Raise `BaseDomainException` subclasses only. Never raise `BaseDomainException` directly.
 - All responses must use `StandardResponse` with `{success, message, data, errors, meta}`.
+- All user-facing messages, labels, statuses, and errors must map through Indonesian localization helpers (`get_label` with `ERR_*` constants). Never use hardcoded Indonesian strings in app logic.
+- Domain constants and enums must have a single source of truth in `app/shared/constants` or `app/shared/enums`. Avoid duplicate definitions in `settings.py`.
 - All I/O must be async-safe. Offload blocking SDK or file work.
 - Services own `db.commit()`. Repositories own `db.add()`, `db.flush()`, and `db.refresh()`.
 - Never add files directly to feature root. Use `routers/`, `services/`, `repositories/`, `schemas/`, `models/`, or `tasks/`.
-- Backend, database, and AI internals stay in English. User-facing labels, statuses, messages, and errors must map through Indonesian localization helpers.
+- Backend, database, and AI internals stay in English.
 - Heavy AI work must run through Taskiq workers or equivalent async-safe offloading.
 - Every update must snapshot old values with `get_model_snapshot` before mutation.
 - AI scoring weight changes must be recorded in audit log.

@@ -6,7 +6,9 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.base import get_db
-from app.core.exceptions import BaseDomainException
+from app.core.exceptions import ValidationError
+from app.shared.helpers.localization import get_label
+from app.shared.constants.errors import ERR_INVALID_KNOCKOUT_OPERATOR
 from app.features.auth.dependencies.auth import HrUserDep
 from app.features.screening.schemas.schema import (
     KnockoutRuleCreateCommand,
@@ -46,7 +48,7 @@ async def create_knockout_rule(
     try:
         normalized_operator = KnockoutOperator(normalize_knockout_operator(operator))
     except ValueError as exc:
-        raise BaseDomainException(f"Operator knockout tidak valid: {operator}") from exc
+        raise ValidationError(get_label(ERR_INVALID_KNOCKOUT_OPERATOR, operator=operator)) from exc
 
     command = KnockoutRuleCreateCommand(
         job_id=job_id,

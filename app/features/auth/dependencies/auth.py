@@ -15,6 +15,12 @@ from app.core.exceptions import (
 from app.features.auth.repositories.repository import get_user_by_id
 from app.features.users.models import User
 from app.shared.enums.user_roles import UserRole
+from app.shared.helpers.localization import get_label
+from app.shared.constants.errors import (
+    ERR_INVALID_TOKEN,
+    ERR_SESSION_EXPIRED,
+    ERR_UNAUTHORIZED,
+)
 
 security = HTTPBearer(auto_error=False)
 
@@ -28,7 +34,7 @@ async def get_current_user(
 
     payload = decode_token(credentials.credentials)
     if not payload or payload.get("type") != "access":
-        raise UnauthenticatedException("Token tidak valid atau kedaluwarsa")
+        raise UnauthenticatedException(get_label(ERR_INVALID_TOKEN))
 
     user_id = int(payload.get("sub"))
     user = await get_user_by_id(db, user_id)
@@ -40,7 +46,7 @@ async def get_current_user(
         
     token_version = payload.get("token_version")
     if token_version is None or token_version != user.token_version:
-        raise UnauthenticatedException("Sesi telah berakhir, silakan login kembali")
+        raise UnauthenticatedException(get_label(ERR_SESSION_EXPIRED))
 
     return user
 
@@ -48,8 +54,10 @@ async def get_current_user(
 def require_role(*roles: UserRole):
     async def role_checker(user: User = Depends(get_current_user)) -> User:
         if user.role not in roles:
+            # Note: We keep the roles list dynamic in the message but use localization for the prefix
+            role_names = ", ".join([get_label(r) for r in roles])
             raise UnauthorizedException(
-                f"Akses ditolak. Memerlukan peran: {[r.value for r in roles]}"
+                f"{get_label(ERR_UNAUTHORIZED)}. Memerlukan peran: {role_names}"
             )
         return user
     return role_checker

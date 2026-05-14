@@ -31,6 +31,10 @@ from app.features.auth.services.service import (
 )
 from app.shared.enums.user_roles import UserRole
 from app.shared.schemas.response import StandardResponse
+from app.shared.constants.errors import (
+    ERR_REFRESH_TOKEN_NOT_FOUND,
+    ERR_REFRESH_TOKEN_EXPIRED,
+)
 from app.shared.helpers.localization import get_label
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -104,11 +108,11 @@ async def refresh(
 ):
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
-        raise InvalidRefreshTokenException("Refresh token tidak ditemukan di cookies")
+        raise InvalidRefreshTokenException(get_label(ERR_REFRESH_TOKEN_NOT_FOUND))
 
     tokens = await refresh_access_token(db, refresh_token)
     if not tokens:
-        raise InvalidRefreshTokenException("Gagal memperbarui sesi, silakan login kembali")
+        raise InvalidRefreshTokenException(get_label(ERR_REFRESH_TOKEN_EXPIRED))
 
     response.set_cookie(
         key="refresh_token",

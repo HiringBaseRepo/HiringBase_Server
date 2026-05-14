@@ -77,6 +77,10 @@ from app.shared.constants.audit_entities import APPLICATION, CANDIDATE_SCORE
 from app.shared.enums.application_status import ApplicationStatus
 from app.shared.enums.knockout import KnockoutAction, KnockoutRuleType
 from app.shared.enums.risk_level import RiskLevel
+from app.shared.constants.errors import (
+    ERR_CANDIDATE_SCORE_NOT_FOUND,
+    MSG_SCREENING_QUEUED,
+)
 from app.shared.helpers.localization import get_label
 
 logger = structlog.get_logger(__name__)
@@ -127,7 +131,7 @@ async def queue_screening(
     message_key = (
         decision.reason
         if decision.reason
-        else "Proses screening telah dimasukkan dalam antrean"
+        else MSG_SCREENING_QUEUED
     )
     return ScreeningQueuedResponse(
         message=get_label(message_key),
@@ -475,7 +479,7 @@ async def manual_override_score(
         company_id=current_user.company_id,
     )
     if not score:
-        raise ApplicationNotFoundException("Skor kandidat tidak ditemukan")
+        raise ApplicationNotFoundException(get_label(ERR_CANDIDATE_SCORE_NOT_FOUND))
 
     old_values = get_model_snapshot(score)
     score.skill_match_score = _clamp_score(score.skill_match_score + skill_adjustment)

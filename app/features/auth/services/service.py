@@ -41,7 +41,14 @@ from app.shared.constants.audit_actions import (
     PASSWORD_RESET_REQUESTED,
 )
 from app.shared.constants.audit_entities import AUTH
-from app.shared.constants.scoring import APPLY_CODE_PREFIX
+from app.shared.constants.errors import (
+    ERR_TOKEN_ROTATION_FAILED,
+    ERR_TOKEN_INVALID_STRUCTURE,
+    ERR_TOKEN_MISSING_SUB,
+    ERR_TOKEN_INVALID_SUB,
+    ERR_TOKEN_REUSED_ALERT,
+)
+from app.shared.helpers.localization import get_label
 
 # Moved RefreshToken to top
 
@@ -168,16 +175,16 @@ async def refresh_access_token(
 
     payload = decode_token(refresh_token)
     if not payload or payload.get("type") != "refresh" or not payload.get("jti"):
-        raise InvalidRefreshTokenException("Struktur token tidak valid")
+        raise InvalidRefreshTokenException(get_label(ERR_TOKEN_INVALID_STRUCTURE))
 
     sub = payload.get("sub")
     if not sub:
-        raise InvalidRefreshTokenException("Token tidak memiliki identitas pengguna")
+        raise InvalidRefreshTokenException(get_label(ERR_TOKEN_MISSING_SUB))
         
     try:
         user_id = int(sub)
     except (ValueError, TypeError):
-        raise InvalidRefreshTokenException("Identitas pengguna tidak valid")
+        raise InvalidRefreshTokenException(get_label(ERR_TOKEN_INVALID_SUB))
         
     jti = payload.get("jti")
 
@@ -210,7 +217,7 @@ async def refresh_access_token(
         user.token_version += 1
         await delete_all_refresh_tokens_by_user_id(db, user.id)
         await db.commit()
-        raise SecurityAlertException("Peringatan Keamanan: Token telah digunakan. Sesi Anda dihentikan demi keamanan.")
+        raise SecurityAlertException(get_label(ERR_TOKEN_REUSED_ALERT))
 
     if token_record.expires_at < datetime.now(timezone.utc):
         raise RefreshTokenExpiredException()
@@ -222,7 +229,7 @@ async def refresh_access_token(
         # We don't commit yet, generate_token_pair will add the new one and commit
         tokens = await generate_token_pair(db, user)
         if not tokens:
-             raise TokenRotationFailedException("Gagal menghasilkan pasangan token baru")
+             raise TokenRotationFailedException(get_label(ERR_TOKEN_ROTATION_FAILED))
         return tokens
     except Exception as e:
         await db.rollback()
