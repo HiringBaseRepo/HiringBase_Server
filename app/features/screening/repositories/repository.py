@@ -1,5 +1,7 @@
 """Screening data access helpers."""
-from sqlalchemy import select
+from datetime import datetime
+
+from sqlalchemy import and_, case, or_, select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -141,3 +143,45 @@ async def get_pending_applications_for_batch(db: AsyncSession) -> list[tuple[int
     )
     result = await db.execute(stmt)
     return list(result.all())
+
+
+async def get_batch_screening_candidates(
+    db: AsyncSession,
+    *,
+    stale_before: datetime,
+    limit: int,
+) -> list[tuple[int, int | None, str]]:
+    """Get ordered candidates for hourly batch screening."""
+    from app.shared.enums.application_status import ApplicationStatus
+
+    priority = case(
+        (
+            Application.status.in_(
+                [ApplicationStatus.DOC_CHECK, ApplicationStatus.AI_PROCESSING]
+            ),
+            0,
+        ),
+        else_=1,
+    )
+    stmt = (
+        select(Application.id, Job.company_id, Application.status)
+        .join(Job)
+        .where(
+            or_(
+                Application.status == ApplicationStatus.APPLIED,
+                and_(
+                    Application.status.in_(
+                        [ApplicationStatus.DOC_CHECK, ApplicationStatus.AI_PROCESSING]
+                    ),
+                    Application.updated_at <= stale_before,
+                ),
+            )
+        )
+        .order_by(priority.asc(), Application.updated_at.asc(), Application.id.asc())
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    rows = []
+    for application_id, company_id, status in result.all():
+        rows.append((application_id, company_id, status.value))
+    return rows

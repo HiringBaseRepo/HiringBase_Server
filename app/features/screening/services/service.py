@@ -1,6 +1,7 @@
 """Screening business logic."""
 
 import json
+import re
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +20,7 @@ from app.core.exceptions import (
     MissingDocumentsException,
     RuleNotFoundException,
 )
+from app.core.utils.audit import get_model_snapshot
 from app.features.applications.models import ApplicationStatusLog
 from app.features.audit_logs.models import AuditLog
 from app.features.jobs.models import JobKnockoutRule, JobScoringTemplate
@@ -54,6 +56,10 @@ from app.features.screening.services.helpers import evaluate_knockout_rule
 from app.features.screening.services.parser import (
     _score_soft_skills,
     build_candidate_profile,
+)
+from app.features.screening.services.quota import (
+    clear_recovery_retry_count,
+    register_manual_screening_request,
 )
 from app.features.screening.services.validator_step import run_document_semantic_check
 from app.features.users.models import User
@@ -107,22 +113,61 @@ async def queue_screening(
     )
     if not application:
         raise ApplicationNotFoundException()
-    return ScreeningQueuedResponse(message=get_label("Proses screening telah dimasukkan dalam antrean"))
+    decision = await register_manual_screening_request(application_id)
+    message_key = (
+        decision.reason
+        if decision.reason
+        else "Proses screening telah dimasukkan dalam antrean"
+    )
+    return ScreeningQueuedResponse(
+        message=get_label(message_key),
+        queue_status=decision.queue_status,
+        task_enqueued=decision.task_enqueued,
+    )
 
 
 async def process_screening_with_exception_handling(
-    application_id: int, company_id: int | None, force_fallback: bool = False
-) -> None:
+    application_id: int,
+    company_id: int | None,
+    *,
+    trigger_source: str,
+    force_fallback: bool = False,
+) -> bool:
     """Wrapper for process_screening that handles exceptions in BackgroundTasks."""
     try:
-        await process_screening(application_id, company_id, force_fallback=force_fallback)
+        await process_screening(
+            application_id,
+            company_id,
+            trigger_source=trigger_source,
+            force_fallback=force_fallback,
+        )
+        return True
     except MissingDocumentsException:
         # Exception already handled in process_screening
-        pass
+        return True
+    except Exception as exc:
+        logger.exception(
+            "screening_processing_failed",
+            application_id=application_id,
+            company_id=company_id,
+            trigger_source=trigger_source,
+            error=str(exc),
+        )
+        await handle_screening_failure(
+            application_id=application_id,
+            company_id=company_id,
+            trigger_source=trigger_source,
+            reason=str(exc),
+        )
+        return False
 
 
 async def process_screening(
-    application_id: int, company_id: int | None, force_fallback: bool = False
+    application_id: int,
+    company_id: int | None,
+    *,
+    trigger_source: str,
+    force_fallback: bool = False,
 ) -> None:
     from app.core.database.session import get_session
 
@@ -144,6 +189,7 @@ async def process_screening(
                     from_status=previous_status.value if previous_status else None,
                     to_status=ApplicationStatus.DOC_CHECK.value,
                     reason="Screening dimulai: verifikasi dokumen",
+                    metadata_snapshot={"trigger_source": trigger_source},
                 ),
             )
             await db.commit()
@@ -197,9 +243,11 @@ async def process_screening(
                             from_status=ApplicationStatus.DOC_CHECK.value,
                             to_status=target_status.value,
                             reason=f"Gagal kualifikasi (Knockout): {rule.rule_name}",
+                            metadata_snapshot={"trigger_source": trigger_source},
                         ),
                     )
                     await db.commit()
+                    await clear_recovery_retry_count(application.id)
                     return
 
             application.status = ApplicationStatus.AI_PROCESSING
@@ -210,6 +258,7 @@ async def process_screening(
                     from_status=ApplicationStatus.DOC_CHECK.value,
                     to_status=ApplicationStatus.AI_PROCESSING.value,
                     reason="Dokumen valid, lanjut proses AI",
+                    metadata_snapshot={"trigger_source": trigger_source},
                 ),
             )
             await db.commit()
@@ -291,14 +340,12 @@ async def process_screening(
             )
             
             # Clean up AI thought tags
-            import re
             explanation = re.sub(r"<think>.*?</think>", "", explanation, flags=re.DOTALL).strip()
 
             # UPSERT LOGIC
             existing_score = await get_candidate_score_by_app_id(db, application.id)
             if existing_score:
                 # Capture snapshot for Audit Log
-                from app.core.utils.audit import get_model_snapshot
                 old_values = get_model_snapshot(existing_score)
                 
                 # Update existing
@@ -323,7 +370,11 @@ async def process_screening(
                         entity_type="candidate_score",
                         entity_id=existing_score.id,
                         old_values=old_values,
-                        new_values={"final_score": final, "risk_level": red_flags["risk_level"]},
+                        new_values={
+                            "final_score": final,
+                            "risk_level": red_flags["risk_level"],
+                            "trigger_source": trigger_source,
+                        },
                     )
                 )
             else:
@@ -359,9 +410,11 @@ async def process_screening(
                     from_status=ApplicationStatus.AI_PROCESSING.value,
                     to_status=application.status.value,
                     reason=get_label("screening_completed_reason", score=f"{final:.1f}"),
+                    metadata_snapshot={"trigger_source": trigger_source},
                 ),
             )
             await db.commit()
+            await clear_recovery_retry_count(application.id)
         except MissingDocumentsException as e:
             application.status = ApplicationStatus.DOC_FAILED
             await add_status_log(
@@ -371,9 +424,11 @@ async def process_screening(
                     from_status=ApplicationStatus.DOC_CHECK.value,
                     to_status=ApplicationStatus.DOC_FAILED.value,
                     reason=str(e),
+                    metadata_snapshot={"trigger_source": trigger_source},
                 ),
             )
             await db.commit()
+            await clear_recovery_retry_count(application.id)
 
 
 async def manual_override_score(
@@ -397,7 +452,6 @@ async def manual_override_score(
     if not score:
         raise ApplicationNotFoundException("Skor kandidat tidak ditemukan")
 
-    from app.core.utils.audit import get_model_snapshot
     old_values = get_model_snapshot(score)
     score.skill_match_score = _clamp_score(score.skill_match_score + skill_adjustment)
     score.experience_score = _clamp_score(
@@ -447,6 +501,64 @@ async def manual_override_score(
         new_final_score=round(score.final_score, 2),
         is_manual_override=True,
     )
+
+
+async def handle_screening_failure(
+    *,
+    application_id: int,
+    company_id: int | None,
+    trigger_source: str,
+    reason: str,
+) -> None:
+    """Move failed automatic screenings to safe manual review state."""
+    from app.core.database.session import get_session
+
+    async with get_session() as db:
+        application = await get_application_by_id(db, application_id)
+        if not application:
+            return
+
+        if application.status not in {
+            ApplicationStatus.APPLIED,
+            ApplicationStatus.DOC_CHECK,
+            ApplicationStatus.AI_PROCESSING,
+        }:
+            return
+
+        old_values = get_model_snapshot(application)
+        previous_status = application.status
+        application.status = ApplicationStatus.UNDER_REVIEW
+
+        await add_status_log(
+            db,
+            ApplicationStatusLog(
+                application_id=application.id,
+                from_status=previous_status.value if previous_status else None,
+                to_status=ApplicationStatus.UNDER_REVIEW.value,
+                reason=get_label("screening_fallback_under_review"),
+                metadata_snapshot={
+                    "trigger_source": trigger_source,
+                    "failure_reason": reason,
+                },
+            ),
+        )
+        await add_audit_log(
+            db,
+            AuditLog(
+                company_id=company_id,
+                user_id=None,
+                action="automated_screening_fallback",
+                entity_type="application",
+                entity_id=application.id,
+                old_values=old_values,
+                new_values={
+                    "status": ApplicationStatus.UNDER_REVIEW.value,
+                    "reason": reason,
+                    "trigger_source": trigger_source,
+                },
+            ),
+        )
+        await clear_recovery_retry_count(application.id)
 
 
 def _clamp_score(value: float) -> float:

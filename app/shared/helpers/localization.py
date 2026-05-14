@@ -114,6 +114,11 @@ INTERNAL_MESSAGES: Dict[str, str] = {
     "Screening completed": "Proses screening selesai",
     "Proses screening telah dimasukkan dalam antrean": "Proses screening telah dimasukkan dalam antrean",
     "screening_completed_reason": "Screening AI selesai. Skor akhir: {score}",
+    "screening_already_queued": "Screening sudah ada dalam antrean atau sedang diproses",
+    "screening_pending_quota": "Screening ditunda sementara karena batas kuota atau concurrency aktif",
+    "screening_fallback_under_review": "Screening AI dialihkan ke review manual karena proses otomatis gagal",
+    "screening_recovery_retry_reason": "Screening diproses ulang setelah status sebelumnya terdeteksi macet",
+    "screening_quota_deferred_reason": "Screening ditunda otomatis karena guard kuota aktif",
     
     # Validators
     "Validator skipped (no API key)": "Validasi dilewati (API Key tidak dikonfigurasi)",

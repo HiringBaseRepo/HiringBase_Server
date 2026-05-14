@@ -24,6 +24,8 @@ class KnockoutRuleDeletedResponse(BaseModel):
 
 class ScreeningQueuedResponse(BaseModel):
     message: str
+    queue_status: str = "queued"
+    task_enqueued: bool = True
 
 
 class ManualOverrideResponse(BaseModel):

@@ -4,6 +4,7 @@ import httpx
 import structlog
 from typing import Dict, Any
 from app.core.config import settings
+from app.ai.llm.client import get_groq_api_keys, post_groq_chat_completion
 from app.core.exceptions.custom_exceptions import AIAPIConnectionException, AIAPIServerException
 from app.shared.helpers.localization import get_label
 
@@ -22,7 +23,7 @@ async def validate_document_content(
     Returns:
         Dict: { "valid": bool, "reason": str, "confidence": float }
     """
-    if not settings.GROQ_API_KEY:
+    if not get_groq_api_keys():
         log.warning("GROQ_API_KEY not configured, skipping semantic document validation")
         return {"valid": True, "reason": get_label("Validator skipped (no API key)"), "confidence": 1.0}
     
@@ -64,13 +65,9 @@ async def validate_document_content(
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json={
+            resp = await post_groq_chat_completion(
+                client=client,
+                payload={
                     "model": settings.GROQ_MODEL,
                     "messages": [
                         {"role": "system", "content": "You are a professional HR document verifier. Output JSON only."},
@@ -80,6 +77,8 @@ async def validate_document_content(
                     "response_format": {"type": "json_object"}
                 },
             )
+            if resp is None:
+                return {"valid": True, "reason": get_label("Validator skipped (no API key)"), "confidence": 1.0}
             
             if resp.status_code == 200:
                 data = resp.json()

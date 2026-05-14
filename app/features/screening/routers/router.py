@@ -20,7 +20,6 @@ from app.features.screening.services.service import (
 )
 from app.features.screening.tasks import run_screening_task
 from app.shared.schemas.response import StandardResponse
-from app.shared.helpers.localization import get_label
 
 router = APIRouter(prefix="/screening", tags=["Screening Engine"])
 DbDep = Annotated[AsyncSession, Depends(get_db)]
@@ -77,11 +76,10 @@ async def run_screening(
     result = await queue_screening(
         db, current_user=current_user, application_id=application_id
     )
-    # Panggil task eksternal via Taskiq
-    await run_screening_task.kiq(
-        application_id=application_id,
-        company_id=current_user.company_id,
-    )
-    return StandardResponse.ok(
-        data=result, message=get_label("Screening started in background")
-    )
+    if result.task_enqueued:
+        await run_screening_task.kiq(
+            application_id=application_id,
+            company_id=current_user.company_id,
+            trigger_source="manual",
+        )
+    return StandardResponse.ok(data=result, message=result.message)

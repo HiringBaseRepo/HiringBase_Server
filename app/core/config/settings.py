@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     
     # GROQ
     GROQ_API_KEY: Optional[str] = None
+    GROQ_API_KEY_FALLBACK: Optional[str] = None
     GROQ_MODEL: str = "qwen/qwen3-32b"
 
     # MISTRAL
@@ -88,6 +89,18 @@ class Settings(BaseSettings):
 
     # RATE LIMITING
     RATE_LIMIT_PER_MINUTE: int = 60
+
+    # SCREENING BATCH / QUOTA GUARD
+    SCREENING_BATCH_MAX_PER_RUN: int = 5
+    SCREENING_MANUAL_MAX_PARALLEL: int = 1
+    SCREENING_MAX_PARALLEL_TOTAL: int = 2
+    SCREENING_MAX_PER_HOUR: int = 20
+    SCREENING_MAX_PER_DAY: int = 100
+    SCREENING_STALE_TIMEOUT_HOURS: int = 2
+    SCREENING_RECOVERY_RETRY_LIMIT: int = 2
+    SCREENING_ENQUEUE_COOLDOWN_SECONDS: int = 900
+    SCREENING_BATCH_ENQUEUE_DELAY_SECONDS: int = 3
+    SCREENING_PROCESSING_LOCK_SECONDS: int = 7200
 
 
 settings = Settings()
