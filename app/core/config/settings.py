@@ -43,11 +43,25 @@ class Settings(BaseSettings):
     # APP
     APP_NAME: str = DEFAULT_APP_NAME
     APP_ENV: str = DEFAULT_APP_ENV
-    DEBUG: bool = DEFAULT_DEBUG
+    DEBUG: Optional[bool] = None
     SECRET_KEY: str
     SETUP_TOKEN: Optional[str] = None
     API_V1_PREFIX: str = DEFAULT_API_V1_PREFIX
     BACKEND_CORS_ORIGINS: Any = Field(default_factory=lambda: list(DEFAULT_CORS_ORIGINS))
+
+    @field_validator("APP_ENV", mode="before")
+    @classmethod
+    def normalize_env(cls, v: Any) -> str:
+        if isinstance(v, str):
+            v = v.lower()
+            if v == "prod":
+                return "production"
+            if v == "test":
+                return "testing"
+            if v == "dev":
+                return "development"
+            return v
+        return v
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
@@ -143,9 +157,14 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def apply_derived_defaults(self) -> "Settings":
-        """Derive provider URLs from selected models when env var omitted."""
+        """Derive provider URLs and adjust DEBUG based on environment."""
         if not self.HF_LLM_API_URL:
             self.HF_LLM_API_URL = build_hf_inference_api_url(self.HF_LLM_MODEL)
+        
+        # Set default DEBUG based on environment if not explicitly provided
+        if self.DEBUG is None:
+            self.DEBUG = False if self.APP_ENV == "production" else DEFAULT_DEBUG
+            
         return self
 
     @computed_field
