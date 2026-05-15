@@ -80,6 +80,9 @@ Use string-literal relationships and `TYPE_CHECKING` hints when needed. Keep Ale
 - No CV parsing in scoring engine. Form answers in `ApplicationAnswer` are source of truth.
 - Application flow: `APPLIED -> DOC_CHECK -> AI_PROCESSING -> AI_PASSED/UNDER_REVIEW/KNOCKOUT -> INTERVIEW -> OFFERED -> HIRED`, with rejection and document-failed exits.
 - Public applicants have no login. Submission returns `TKT-YYYY-NNNNN`.
+- Notification v1 is internal in-app only for active `HR` and `SUPER_ADMIN` users. Applicants stay on email/ticket flow.
+- Notification delivery v1 uses polling REST, not WebSocket. Primary endpoints are list + unread summary.
+- Notification payload contract uses `entity_type` + `entity_id` for frontend navigation. `read_at` must be maintained with `is_read`.
 - Default scoring weights: Skill Match 40, Experience 20, Education 10, Portfolio 10, Soft Skill 10, Admin Complete 10.
 - Knockout actions: `auto_reject` or `pending_review`.
 - Dashboard ("Pulse") stays lightweight and real-time oriented. Reports ("Brain") can perform heavier historical aggregation with date filters.
