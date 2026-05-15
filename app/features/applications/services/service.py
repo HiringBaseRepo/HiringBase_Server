@@ -57,6 +57,7 @@ from app.features.applications.services.mapper import map_job_to_public_item
 from app.features.applications.services.validator import (
     validate_public_apply_requirements,
 )
+from app.features.notifications.services.service import create_notification_for_internal_audience
 from app.features.tickets.models import Ticket
 from app.features.users.models import User
 from app.shared.constants.storage import ALLOWED_EXTENSIONS, MAX_FILE_SIZE_MB, UPLOAD_PREFIX_PORTFOLIO, UPLOAD_PREFIX_DOCUMENT
@@ -67,6 +68,7 @@ from app.shared.constants.audit_actions import (
 from app.shared.constants.audit_entities import APPLICATION
 from app.shared.enums.application_status import ApplicationStatus
 from app.shared.enums.document_type import DocumentType
+from app.shared.enums.notification_type import NotificationType
 from app.shared.enums.ticket_status import TicketStatus
 from app.shared.enums.user_roles import UserRole
 from app.shared.helpers.storage import (
@@ -230,6 +232,19 @@ async def public_apply(
             },
         ),
     )
+    await create_notification_for_internal_audience(
+        db,
+        actor_user_id=applicant.id,
+        company_id=job.company_id if job else None,
+        notification_type=NotificationType.NEW_APPLICATION,
+        entity_type=APPLICATION,
+        entity_id=application.id,
+        message_params={
+            "applicant_name": applicant.full_name,
+            "job_title": job.title if job else "-",
+            "ticket_code": ticket.code,
+        },
+    )
 
     try:
         await db.commit()
@@ -385,6 +400,24 @@ async def update_application_status(
             new_values={"status": new_status.value, "reason": reason},
         ),
     )
+    status_notification_type = {
+        ApplicationStatus.OFFERED: NotificationType.APPLICATION_OFFERED,
+        ApplicationStatus.HIRED: NotificationType.APPLICATION_HIRED,
+        ApplicationStatus.REJECTED: NotificationType.APPLICATION_REJECTED,
+    }.get(new_status)
+    if status_notification_type:
+        await create_notification_for_internal_audience(
+            db,
+            actor_user_id=current_user.id,
+            company_id=current_user.company_id,
+            notification_type=status_notification_type,
+            entity_type=APPLICATION,
+            entity_id=application.id,
+            message_params={
+                "applicant_name": application.applicant.full_name if application.applicant else "-",
+                "job_title": application.job.title if application.job else "-",
+            },
+        )
     await db.commit()
     return ApplicationStatusUpdateResponse(
         application_id=application.id,

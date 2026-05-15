@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 from sqlalchemy import (
     BigInteger,
+    JSON,
     DateTime,
     Enum,
     ForeignKey,
@@ -26,6 +27,9 @@ class Notification(Base):
     type: Mapped[NotificationType] = mapped_column(Enum(NotificationType), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
+    entity_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    entity_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    message_params: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     link: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
     read_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

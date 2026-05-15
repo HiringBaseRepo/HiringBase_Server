@@ -181,7 +181,10 @@ async def get_application_for_company(
     company_id: int | None,
 ) -> Application | None:
     result = await db.execute(
-        select(Application).join(Job).where(
+        select(Application)
+        .options(selectinload(Application.applicant), selectinload(Application.job))
+        .join(Job)
+        .where(
             Application.id == application_id,
             Job.company_id == company_id,
         )

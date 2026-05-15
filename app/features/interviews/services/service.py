@@ -9,6 +9,7 @@ from app.features.interviews.repositories.repository import (
     get_interview_by_application_id,
     save_interview,
 )
+from app.features.notifications.services.service import create_notification_for_interviewers
 from app.features.interviews.schemas.schema import (
     InterviewDetailResponse,
     InterviewScheduledResponse,
@@ -18,6 +19,7 @@ from app.features.interviews.models import Interview
 from app.features.users.models import User
 from app.shared.constants.audit_actions import INTERVIEW_SCHEDULE
 from app.shared.constants.audit_entities import INTERVIEW
+from app.shared.enums.notification_type import NotificationType
 from app.shared.tasks.mail_tasks import send_interview_invite
 
 
@@ -62,6 +64,22 @@ async def schedule_interview(
                 "location_or_meeting_link": data.meeting_link or data.location,
             },
         ),
+    )
+    await create_notification_for_interviewers(
+        db,
+        actor_user_id=current_user.id,
+        company_id=current_user.company_id,
+        interviewer_ids=data.interviewer_ids,
+        fallback_user_id=current_user.id,
+        notification_type=NotificationType.INTERVIEW_SCHEDULED,
+        entity_type=INTERVIEW,
+        entity_id=interview.id,
+        message_params={
+            "applicant_name": application.applicant.full_name if application.applicant else "-",
+            "job_title": application.job.title if application.job else "-",
+            "scheduled_at": data.scheduled_at.isoformat(),
+            "application_id": data.application_id,
+        },
     )
     await db.commit()
 
