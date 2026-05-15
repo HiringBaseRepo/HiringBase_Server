@@ -25,6 +25,7 @@ from app.features.applications.models import ApplicationStatusLog
 from app.features.audit_logs.models import AuditLog
 from app.features.audit_logs.repositories.repository import create_audit_log
 from app.features.jobs.models import JobKnockoutRule, JobScoringTemplate
+from app.features.notifications.services.service import create_notification_for_internal_audience
 from app.features.screening.models import CandidateScore
 from app.features.screening.repositories.repository import (
     add_status_log,
@@ -76,6 +77,7 @@ from app.shared.constants.audit_actions import (
 from app.shared.constants.audit_entities import APPLICATION, CANDIDATE_SCORE
 from app.shared.enums.application_status import ApplicationStatus
 from app.shared.enums.knockout import KnockoutAction, KnockoutRuleType
+from app.shared.enums.notification_type import NotificationType
 from app.shared.enums.risk_level import RiskLevel
 from app.shared.constants.errors import (
     ERR_CANDIDATE_SCORE_NOT_FOUND,
@@ -260,6 +262,23 @@ async def process_screening(
                             metadata_snapshot={"trigger_source": trigger_source},
                         ),
                     )
+                    knockout_notification_type = (
+                        NotificationType.SCREENING_UNDER_REVIEW
+                        if target_status == ApplicationStatus.UNDER_REVIEW
+                        else NotificationType.SCREENING_REJECTED
+                    )
+                    await create_notification_for_internal_audience(
+                        db,
+                        actor_user_id=None,
+                        company_id=company_id,
+                        notification_type=knockout_notification_type,
+                        entity_type=APPLICATION,
+                        entity_id=application.id,
+                        message_params={
+                            "applicant_name": application.applicant.full_name if application.applicant else "-",
+                            "job_title": job.title if job else "-",
+                        },
+                    )
                     await db.commit()
                     await clear_recovery_retry_count(application.id)
                     return
@@ -442,6 +461,26 @@ async def process_screening(
                     metadata_snapshot={"trigger_source": trigger_source},
                 ),
             )
+            status_notification_type = None
+            if application.status == ApplicationStatus.AI_PASSED:
+                status_notification_type = NotificationType.SCREENING_PASSED
+            elif application.status == ApplicationStatus.UNDER_REVIEW:
+                status_notification_type = NotificationType.SCREENING_UNDER_REVIEW
+            elif application.status == ApplicationStatus.REJECTED:
+                status_notification_type = NotificationType.SCREENING_REJECTED
+            if status_notification_type:
+                await create_notification_for_internal_audience(
+                    db,
+                    actor_user_id=None,
+                    company_id=company_id,
+                    notification_type=status_notification_type,
+                    entity_type=APPLICATION,
+                    entity_id=application.id,
+                    message_params={
+                        "applicant_name": application.applicant.full_name if application.applicant else "-",
+                        "job_title": job.title if job else "-",
+                    },
+                )
             await db.commit()
             await clear_recovery_retry_count(application.id)
         except MissingDocumentsException as e:
@@ -455,6 +494,18 @@ async def process_screening(
                     reason=str(e),
                     metadata_snapshot={"trigger_source": trigger_source},
                 ),
+            )
+            await create_notification_for_internal_audience(
+                db,
+                actor_user_id=None,
+                company_id=company_id,
+                notification_type=NotificationType.DOCUMENT_FAILED,
+                entity_type=APPLICATION,
+                entity_id=application.id,
+                message_params={
+                    "applicant_name": application.applicant.full_name if application.applicant else "-",
+                    "job_title": job.title if job else "-",
+                },
             )
             await db.commit()
             await clear_recovery_retry_count(application.id)
