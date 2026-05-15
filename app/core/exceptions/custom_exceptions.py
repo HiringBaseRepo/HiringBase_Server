@@ -17,6 +17,7 @@ from app.shared.constants.errors import (
     ERR_INVALID_SETUP_TOKEN,
     ERR_JOB_NOT_FOUND,
     ERR_MISSING_DOCUMENTS,
+    ERR_NOTIFICATION_NOT_FOUND,
     ERR_PASSWORD_RESET_TOKEN_INVALID,
     ERR_REFRESH_TOKEN_EXPIRED,
     ERR_RULE_NOT_FOUND,
@@ -222,6 +223,14 @@ class FieldNotFoundException(BaseDomainException):
     """Raised when a form field is not found."""
 
     def __init__(self, message: str = get_label(ERR_FIELD_NOT_FOUND)):
+        self.message = message
+        super().__init__(self.message)
+
+
+class NotificationNotFoundException(BaseDomainException):
+    """Raised when a notification is not found."""
+
+    def __init__(self, message: str = get_label(ERR_NOTIFICATION_NOT_FOUND)):
         self.message = message
         super().__init__(self.message)
 

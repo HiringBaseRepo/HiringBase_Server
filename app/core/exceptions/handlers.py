@@ -85,6 +85,7 @@ async def domain_exception_handler(request: Request, exc: Exception) -> JSONResp
             cex.InterviewNotFoundException,
             cex.CompanyNotFoundException,
             cex.FieldNotFoundException,
+            cex.NotificationNotFoundException,
         ),
     ):
         status_code = status.HTTP_404_NOT_FOUND
