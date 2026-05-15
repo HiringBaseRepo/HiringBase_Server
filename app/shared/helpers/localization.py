@@ -53,6 +53,7 @@ from app.shared.constants.errors import (
     ERR_TOKEN_INVALID_SUB,
     ERR_TOKEN_REUSED_ALERT,
     ERR_CANDIDATE_SCORE_NOT_FOUND,
+    ERR_NOTIFICATION_NOT_FOUND,
     MSG_SCREENING_QUEUED,
 )
 from app.shared.constants.scoring import (
@@ -170,6 +171,7 @@ AUDIT_ACTION_LABELS: Dict[str, str] = {
     audit_actions.MANUAL_OVERRIDE_SCORE: "Melakukan Override Skor Manual",
     audit_actions.NOTIFICATION_MARK_READ: "Menandai Notifikasi Sudah Dibaca",
     audit_actions.NOTIFICATION_MARK_READ_ALL: "Menandai Semua Notifikasi Sudah Dibaca",
+    audit_actions.NOTIFICATION_CREATE: "Membuat Notifikasi",
 }
 
 
@@ -196,6 +198,24 @@ INTERNAL_MESSAGES: Dict[str, str] = {
     "screening_fallback_under_review": "Screening AI dialihkan ke review manual karena proses otomatis gagal",
     "screening_recovery_retry_reason": "Screening diproses ulang setelah status sebelumnya terdeteksi macet",
     "screening_quota_deferred_reason": "Screening ditunda otomatis karena guard kuota aktif",
+    "notification.new_application.title": "Lamaran Baru Masuk",
+    "notification.new_application.message": "{applicant_name} melamar posisi {job_title} (Tiket: {ticket_code})",
+    "notification.screening_passed.title": "Screening Lolos",
+    "notification.screening_passed.message": "Kandidat {applicant_name} lolos screening AI untuk {job_title}",
+    "notification.screening_under_review.title": "Screening Butuh Review",
+    "notification.screening_under_review.message": "Kandidat {applicant_name} masuk tahap review untuk {job_title}",
+    "notification.screening_rejected.title": "Kandidat Ditolak Screening",
+    "notification.screening_rejected.message": "Kandidat {applicant_name} tidak lolos screening untuk {job_title}",
+    "notification.document_failed.title": "Dokumen Kandidat Tidak Lengkap",
+    "notification.document_failed.message": "Dokumen kandidat {applicant_name} untuk {job_title} tidak lengkap",
+    "notification.interview_scheduled.title": "Wawancara Terjadwal",
+    "notification.interview_scheduled.message": "Wawancara {applicant_name} untuk {job_title} dijadwalkan pada {scheduled_at}",
+    "notification.application_offered.title": "Kandidat Diberi Penawaran",
+    "notification.application_offered.message": "Kandidat {applicant_name} menerima status penawaran untuk {job_title}",
+    "notification.application_hired.title": "Kandidat Diterima",
+    "notification.application_hired.message": "Kandidat {applicant_name} diterima untuk {job_title}",
+    "notification.application_rejected.title": "Kandidat Ditolak",
+    "notification.application_rejected.message": "Kandidat {applicant_name} ditolak untuk {job_title}",
     
     # Validators
     "Validator skipped (no API key)": "Validasi dilewati (API Key tidak dikonfigurasi)",
@@ -245,6 +265,7 @@ ERROR_MESSAGES: Dict[str, str] = {
     ERR_TOKEN_INVALID_SUB: "Identitas pengguna tidak valid",
     ERR_TOKEN_REUSED_ALERT: "Peringatan Keamanan: Token telah digunakan. Sesi Anda dihentikan demi keamanan.",
     ERR_CANDIDATE_SCORE_NOT_FOUND: "Skor kandidat tidak ditemukan",
+    ERR_NOTIFICATION_NOT_FOUND: "Notifikasi tidak ditemukan",
     MSG_SCREENING_QUEUED: "Proses screening telah dimasukkan dalam antrean",
 }
 
