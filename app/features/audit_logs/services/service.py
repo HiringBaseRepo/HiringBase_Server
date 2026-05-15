@@ -11,6 +11,16 @@ from app.shared.schemas.response import PaginatedResponse
 from app.shared.helpers.localization import get_label
 
 
+def _build_initials(full_name: str | None, fallback: str) -> str:
+    if not full_name:
+        return fallback
+
+    parts = [part[0] for part in full_name.split() if part]
+    if not parts:
+        return fallback
+    return "".join(parts[:2]).upper()
+
+
 async def list_audit_logs(
     db: AsyncSession,
     *,
@@ -42,10 +52,23 @@ async def list_audit_logs(
                 action_label=get_label(log.action),
                 entity_type=log.entity_type,
                 entity_id=log.entity_id,
-                user_name=log.user.full_name if log.user else "System",
-                user_initials="".join([n[0] for n in log.user.full_name.split()]) if log.user and log.user.full_name else "SY",
+                user_name=log.user.full_name if log.user else "System Administrator",
+                user_initials=_build_initials(
+                    log.user.full_name if log.user else None,
+                    "SA",
+                ),
+                actor_type="user" if log.user else "system",
+                actor_role_label=(
+                    get_label(log.user.role) if log.user else "Automated Process"
+                ),
                 ip_address=log.ip_address,
+                ip_address_display=log.ip_address or (
+                    "System Event" if not log.user else None
+                ),
                 user_agent=log.user_agent,
+                user_agent_display=log.user_agent or (
+                    "Background Worker" if not log.user else None
+                ),
                 old_values=log.old_values,
                 new_values=log.new_values,
                 created_at=log.created_at.isoformat() if log.created_at else None,
