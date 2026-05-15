@@ -1,5 +1,5 @@
-from typing import Optional
-from pydantic import Field, computed_field, model_validator
+from typing import Any, Optional, Union
+from pydantic import Field, computed_field, model_validator, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from app.shared.constants.ai import (
     DEFAULT_EMBEDDING_MODEL,
@@ -47,7 +47,25 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     SETUP_TOKEN: Optional[str] = None
     API_V1_PREFIX: str = DEFAULT_API_V1_PREFIX
-    BACKEND_CORS_ORIGINS: list[str] = Field(default_factory=lambda: list(DEFAULT_CORS_ORIGINS))
+    BACKEND_CORS_ORIGINS: Any = Field(default_factory=lambda: list(DEFAULT_CORS_ORIGINS))
+
+    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
+    @classmethod
+    def assemble_cors_origins(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            # Handle empty string
+            if not v:
+                return list(DEFAULT_CORS_ORIGINS)
+            # Handle JSON list string
+            if v.startswith("[") and v.endswith("]"):
+                import json
+                try:
+                    return json.loads(v)
+                except Exception:
+                    pass
+            # Handle comma-separated string
+            return [i.strip() for i in v.split(",") if i.strip()]
+        return v
 
     # DATABASE
     DATABASE_URL: str
