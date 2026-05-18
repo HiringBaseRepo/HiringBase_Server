@@ -3,11 +3,12 @@ Hiringbase — Main FastAPI Application
 """
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.core.config import settings
@@ -144,6 +145,18 @@ app.include_router(reports_router, prefix=settings.API_V1_PREFIX)
 app.include_router(interviews_router, prefix=settings.API_V1_PREFIX)
 app.include_router(audit_logs_router, prefix=settings.API_V1_PREFIX)
 app.include_router(manual_override_router, prefix=settings.API_V1_PREFIX)
+
+
+# Favicon Path
+BASE_DIR = Path(__file__).resolve().parent.parent
+FAVICON_PATH = BASE_DIR / "assets" / "favicon" / "fAVICON hR.png"
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    if not FAVICON_PATH.exists():
+        return PlainTextResponse("Favicon not found", status_code=404)
+    return FileResponse(FAVICON_PATH)
 
 
 @app.api_route("/", methods=["GET", "HEAD"], tags=["Health"])
