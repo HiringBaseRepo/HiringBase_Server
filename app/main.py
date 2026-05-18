@@ -55,7 +55,7 @@ import app.features.screening.tasks  # noqa: F401,E402
 import app.shared.tasks.mail_tasks  # noqa: F401,E402
 from app.core.cache.client import redis_client  # noqa: E402
 
-_BANNER = r
+_BANNER = r"""
 ╔══════════════════════════════════════════════════════╗
 ║                                                      ║
 ║      █░█ █ █▀█ █ █▄░█ █▀▀ █▄▄ ▄▀█ █▀ █▀▀             ║
