@@ -62,7 +62,7 @@ _BANNER = r"""
 ║      █▀█ █ █▀▄ █ █░▀█ █▄█ █▄█ █▀█ ▄█ ██▄             ║
 ║                                                      ║
 ║          HiringBase AI Recruitment System            ║
-║                Backend API v1.0                      ║
+║                Backend A                  ║
 ║                                                      ║
 ╚══════════════════════════════════════════════════════╝
 """
