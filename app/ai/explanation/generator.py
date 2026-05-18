@@ -13,13 +13,14 @@ async def generate_explanation(
     admin_score: float,
     final_score: float,
     red_flags: Dict[str, Any] = None,
+    scoring_breakdown: Dict[str, Any] | None = None,
 ) -> str:
     """Generate human-readable explanation for candidate score using LLM with Template Fallback."""
     
     # Try LLM first
     llm_explanation = await _generate_llm_explanation(
         match_result, exp_score, edu_score, portfolio_score, 
-        soft_skill_score, admin_score, final_score, red_flags
+        soft_skill_score, admin_score, final_score, red_flags, scoring_breakdown
     )
     if llm_explanation:
         return llm_explanation
@@ -27,7 +28,7 @@ async def generate_explanation(
     # Fallback to Template
     return _generate_template_explanation(
         match_result, exp_score, edu_score, portfolio_score, 
-        soft_skill_score, admin_score, final_score, red_flags
+        soft_skill_score, admin_score, final_score, red_flags, scoring_breakdown
     )
 
 
@@ -40,8 +41,20 @@ async def _generate_llm_explanation(
     admin_score: float,
     final_score: float,
     red_flags: Dict = None,
+    scoring_breakdown: Dict | None = None,
 ) -> Optional[str]:
     """Generate natural language explanation using LLM (Groq) in Indonesian."""
+    confidence_note = ""
+    gate_reasons = []
+    if scoring_breakdown:
+        gate_reasons = scoring_breakdown.get("gates", {}).get("reasons", [])
+        components = scoring_breakdown.get("components", {})
+        skill_component = components.get("skill_match", {})
+        confidence_note = (
+            f"- Confidence Skill Match: {skill_component.get('confidence', 0)}\n"
+            f"- Gate Review: {', '.join(gate_reasons) if gate_reasons else 'tidak ada'}\n"
+        )
+
     prompt = f"""
     Task: Berikan ringkasan evaluasi kandidat untuk HR dalam 2-3 kalimat (Bahasa Indonesia).
     
@@ -53,12 +66,14 @@ async def _generate_llm_explanation(
     - Soft Skill: {soft_skill_score}
     - Administrasi: {admin_score}
     - SKOR AKHIR TOTAL: {final_score}
+    {confidence_note}
     
     Anomali/Red Flags: {red_flags.get('red_flags', []) if red_flags else 'Tidak ada'}
     
     Instruksi:
     - Fokus pada kekuatan utama dan alasan pemberian skor akhir.
     - Sebutkan jika ada red flag (risiko) yang serius.
+    - Jika confidence skill rendah atau requirement skill tidak terstruktur, sebutkan perlunya review manual.
     - Gunakan nada profesional, lugas, dan ringkas.
     - Output HANYA teks ringkasan summary.
     """
@@ -78,6 +93,7 @@ def _generate_template_explanation(
     admin_score: float,
     final_score: float,
     red_flags: Dict = None,
+    scoring_breakdown: Dict | None = None,
 ) -> str:
     """Generate human-readable explanation using rule-based template in Indonesian."""
     parts = []
@@ -108,6 +124,14 @@ def _generate_template_explanation(
         parts.append("Dapat dipertimbangkan untuk review lebih lanjut.")
     else:
         parts.append("Memerlukan tinjauan manual HR sebelum diputuskan.")
+
+    gate_reasons = []
+    if scoring_breakdown:
+        gate_reasons = scoring_breakdown.get("gates", {}).get("reasons", [])
+    if "low_skill_match_confidence" in gate_reasons:
+        parts.append("Confidence skill match rendah sehingga kandidat perlu review manual HR.")
+    if "insufficient_structured_skill_requirements" in gate_reasons:
+        parts.append("Requirement skill terstruktur pada lowongan belum cukup kuat sehingga hasil scoring perlu ditinjau manual.")
 
     if red_flags and red_flags.get("red_flags"):
         # Handle both dict and legacy string flags

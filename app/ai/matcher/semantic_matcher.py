@@ -1,4 +1,4 @@
-"""Semantic skill matching engine menggunakan sentence-transformers.
+"""Semantic skill matching engine menggunakan Hugging Face Inference API.
 
 Layer 2 — NLP / Embedding Engine:
 - Exact match (cepat, priority 1)
@@ -151,6 +151,8 @@ async def match_candidate_to_job(
     """
     from app.core.config import settings
 
+    del job_description, force_fallback
+
     raw_candidate_skills: List[str] = candidate_data.get("skills", [])
     candidate_skills_lower = set(s.lower() for s in raw_candidate_skills)
     candidate_skills_list = [s.lower() for s in raw_candidate_skills]
@@ -167,28 +169,20 @@ async def match_candidate_to_job(
         elif isinstance(req, dict) and req.get("category") == "skill":
             required_skills.append(req.get("name", "").lower())
 
-    # Fallback: ambil kata signifikan dari job description
-    if not required_skills and job_description:
-        words = [w.lower() for w in job_description.split() if len(w) > 4]
-        # Deduplicate + limit
-        seen: set[str] = set()
-        for w in words:
-            if w not in seen:
-                required_skills.append(w)
-                seen.add(w)
-            if len(required_skills) >= 20:
-                break
-
     if not required_skills:
         return {
             "match_percentage": 0.0,
             "matched_skills": [],
             "missing_skills": [],
-            "confidence_score": 0.0,
+            "confidence_score": 0.2,
+            "requirement_count": 0,
+            "insufficient_requirements": True,
+            "match_strategy": "structured_requirements_only",
         }
 
     matched: List[str] = []
     missing: List[str] = []
+    semantic_matches = 0
 
     for req_skill in required_skills:
         # Layer 1 & 2: exact + synonym
@@ -200,6 +194,7 @@ async def match_candidate_to_job(
         if hf_token and candidate_skills_list:
             if await _semantic_match(req_skill, candidate_skills_list, hf_token):
                 matched.append(f"{req_skill} (semantic)")
+                semantic_matches += 1
                 continue
 
         missing.append(req_skill)
@@ -207,12 +202,25 @@ async def match_candidate_to_job(
     total = len(required_skills)
     match_pct = (len(matched) / total) * 100.0 if total > 0 else 0.0
 
-    # Confidence lebih tinggi jika HF API tersedia
-    confidence = 0.90 if hf_token else 0.70
+    confidence = 0.9
+    if not hf_token:
+        confidence -= 0.15
+    if not raw_candidate_skills:
+        confidence -= 0.35
+    if semantic_matches > 0:
+        confidence -= 0.05
+    if total < 2:
+        confidence -= 0.1
+    if match_pct < 40:
+        confidence -= 0.1
+    confidence = max(0.2, min(0.95, round(confidence, 2)))
 
     return {
         "match_percentage": round(min(match_pct, 100.0), 2),
         "matched_skills": matched,
         "missing_skills": missing,
         "confidence_score": confidence,
+        "requirement_count": total,
+        "insufficient_requirements": False,
+        "match_strategy": "structured_requirements_only",
     }
