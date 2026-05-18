@@ -4,7 +4,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Groq](https://img.shields.io/badge/AI-Groq%20Qwen3-orange?style=flat-square)](https://groq.com/)
 
-**HiringBase** is an AI-powered recruitment assistant that streamlines the hiring process through automated document validation, semantic skill matching, and deterministic weighted scoring.
+**HiringBase** is AI-powered recruitment assistant that streamlines hiring through ticket-based applications, async AI screening, document validation, semantic skill matching, and deterministic weighted scoring.
 
 ---
 
@@ -62,11 +62,35 @@ We use a 3-layer intelligence strategy to ensure both accuracy and explainabilit
 | Layer | Technology | Purpose |
 | :--- | :--- | :--- |
 | **Layer 1: Deterministic** | Rule Engine | Knockout rules, scoring formula, ranking. |
-| **Layer 2: Semantic** | Sentence-Transformers | Semantic skill matching & synonym detection. |
-| **Layer 3: Reasoning** | Groq (Qwen3-32B) | Document validation & HR explanation generation. |
+| **Layer 2: Semantic** | Hugging Face Inference API + keyword logic | Semantic skill matching, synonym detection, soft skill baseline. |
+| **Layer 3: Reasoning** | Groq + Mistral OCR | Document validation, red-flag analysis, HR explanation generation. |
 
 > [!IMPORTANT]
 > **Scoring Philosophy**: The LLM is never used to compute the final score. Scores are calculated using a deterministic, weighted formula based on verified form data.
+
+### Actual AI Workflow
+
+```text
+Public apply
+  -> save applicant + answers + documents + ticket
+  -> status = APPLIED
+  -> no direct AI call
+
+Manual trigger or hourly batch
+  -> Redis dedupe + quota guard
+  -> Taskiq worker
+  -> DOC_CHECK
+  -> knockout validation
+  -> AI_PROCESSING
+  -> OCR (Mistral)
+  -> semantic doc validation (Groq)
+  -> semantic skill match (HF Inference API)
+  -> deterministic scoring
+  -> red flag detection
+  -> explanation generation
+  -> CandidateScore saved
+  -> AI_PASSED / UNDER_REVIEW / REJECTED
+```
 
 ---
 
@@ -74,7 +98,8 @@ We use a 3-layer intelligence strategy to ensure both accuracy and explainabilit
 
 - **Ticket-Based Public Flow**: No applicant login required; track status via `TKT-YYYY-NNNNN`.
 - **Custom Form Builder**: Create job-specific forms with varied field types and knockout logic.
-- **Semantic Document Validation**: Groq-powered verification of KTP, Ijazah, and Certifications.
+- **Async Screening Pipeline**: Taskiq worker + scheduler with Redis quota guard, retry, and stale recovery flow.
+- **Semantic Document Validation**: Mistral OCR + Groq verification for KTP, Ijazah, and SKCK-class admin docs.
 - **Advanced Auth Security**: Stateful JWT with rotation, reuse detection, and global kill-switch.
 - **Structured Logging**: JSON-based logging via `structlog` for easy monitoring.
 
@@ -84,7 +109,8 @@ We use a 3-layer intelligence strategy to ensure both accuracy and explainabilit
 
 - **Core**: FastAPI (Async), Pydantic v2
 - **Persistence**: PostgreSQL, SQLAlchemy 2.0 (Async), Alembic
-- **AI/ML**: EasyOCR, pdfplumber, Sentence-Transformers, Groq Cloud
+- **AI/ML**: Mistral OCR API, Hugging Face Inference API, Groq Cloud
+- **Queue/Cache**: Upstash Redis, Taskiq
 - **Infrastructure**: Cloudflare R2 (S3-compatible storage)
 - **Security**: python-jose, passlib (bcrypt)
 
@@ -132,8 +158,9 @@ Currently, there are **107+ unit and integration tests** covering:
 - **Pydantic**: v2
 - **SQLAlchemy**: 2.0 (Async)
 - **Alembic**: Latest
-- **Groq**: For LLM-based document validation
-- **Sentence-Transformers**: For semantic skill matching
+- **Groq**: For document validation, explanation, soft skill enhancement, and red-flag analysis
+- **Mistral OCR**: For OCR extraction from PDF/image documents
+- **Hugging Face Inference API**: For semantic skill matching
 
 ---
 
