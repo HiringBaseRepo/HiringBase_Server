@@ -139,3 +139,6 @@ HireBase_API_Testing.json
 *mini*model*
 paraphrase-multilingual-MiniLM-L12-v2/
 skills-lock.json
+
+# Accidental browser config directory
+~/

@@ -48,6 +48,7 @@ from app.shared.constants.errors import (
     ERR_TOKEN_INVALID_SUB,
     ERR_TOKEN_REUSED_ALERT,
 )
+from app.shared.constants.scoring import APPLY_CODE_PREFIX
 from app.shared.helpers.localization import get_label
 
 # Moved RefreshToken to top

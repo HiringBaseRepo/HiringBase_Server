@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.core.config import settings
@@ -54,9 +55,22 @@ import app.features.screening.tasks  # noqa: F401,E402
 import app.shared.tasks.mail_tasks  # noqa: F401,E402
 from app.core.cache.client import redis_client  # noqa: E402
 
+_BANNER = r"""
+
+    __  ___      _           ____
+   / / / (_)____(_)___  ____/ __ )____ _________
+  / /_/ / / ___/ / __ \/ __ / __  / __ `/ ___/ _ \
+ / __  / / /  / / / / / /_/ / /_/ / /_/ (__  )  __/
+/_/ /_/_/_/  /_/_/ /_/\__, /_____/\__,_/____/\___/
+                     /____/
+            AI-Powered Recruitment Platform v1.0
+"""
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
+    print(_BANNER)
     # Startup Redis
     await redis_client.connect()
     
@@ -134,7 +148,7 @@ app.include_router(manual_override_router, prefix=settings.API_V1_PREFIX)
 
 @app.api_route("/", methods=["GET", "HEAD"], tags=["Health"])
 async def root():
-    return StandardResponse.ok(data={"app": settings.APP_NAME, "version": "1.0.0"})
+    return PlainTextResponse(_BANNER)
 
 
 @app.api_route("/health", methods=["GET", "HEAD"], tags=["Health"])
