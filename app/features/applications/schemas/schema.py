@@ -97,6 +97,7 @@ class CandidateScoreResponse(BaseModel):
     explanation: Optional[str]
     red_flags: Optional[List[dict]]
     risk_level: Optional[RiskLevel]
+    scoring_breakdown: Optional[dict] = None
 
 
 class ApplicationDetailResponse(BaseModel):

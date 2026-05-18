@@ -33,6 +33,7 @@ class CandidateScore(Base):
     explanation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     red_flags: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     risk_level: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    scoring_breakdown: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     is_manual_override: Mapped[bool] = mapped_column(Boolean, default=False)
     manual_override_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     manual_override_by: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
