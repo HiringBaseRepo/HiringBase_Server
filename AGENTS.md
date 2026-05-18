@@ -78,6 +78,11 @@ Use string-literal relationships and `TYPE_CHECKING` hints when needed. Keep Ale
 ## Core Domain Rules
 - AI architecture has 3 layers: deterministic scoring, NLP/embedding matching, and LLM explanation/red-flag analysis.
 - No CV parsing in scoring engine. Form answers in `ApplicationAnswer` are source of truth.
+- Skill matching must use structured `JobRequirement` only. Never infer skill requirements from `job.description`.
+- `confidence_score` is governance signal, not direct numeric penalty. Low confidence or insufficient structured skill requirements must force `UNDER_REVIEW`.
+- Component scoring uses anchored internal ratings `1-5`, mapped deterministically to `20-100`, then combined by weighted final score.
+- Education and experience relevance must come from structured `JobRequirement`, not free-text description fallback.
+- `CandidateScore.scoring_breakdown` is required explainability payload for current scoring flow.
 - Application flow: `APPLIED -> DOC_CHECK -> AI_PROCESSING -> AI_PASSED/UNDER_REVIEW/KNOCKOUT -> INTERVIEW -> OFFERED -> HIRED`, with rejection and document-failed exits.
 - Public applicants have no login. Submission returns `TKT-YYYY-NNNNN`.
 - Notification v1 is internal in-app only for active `HR` and `SUPER_ADMIN` users. Applicants stay on email/ticket flow.
@@ -104,6 +109,10 @@ Before finishing any task, verify:
 - exceptions use domain exceptions, not `HTTPException`
 - async safety and audit requirements remain intact
 - domain flows, AI fallbacks, and localization rules still match project rules
+- scoring changes do not reintroduce CV-centric parsing path
+- scoring changes preserve `scoring_breakdown` explainability payload
+- skill scoring never falls back to `job.description`
+- low confidence / insufficient structured requirements still map to `UNDER_REVIEW`
 
 ## AI Context Map
 - Main workflow guide: `.ai-context/agent-rules/agent-instructions.md`

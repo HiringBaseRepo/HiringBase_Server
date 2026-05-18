@@ -85,7 +85,8 @@ Manual trigger or hourly batch
   -> OCR (Mistral)
   -> semantic doc validation (Groq)
   -> semantic skill match (HF Inference API)
-  -> deterministic scoring
+  -> anchored component scoring
+  -> deterministic weighted scoring
   -> red flag detection
   -> explanation generation
   -> CandidateScore saved
@@ -100,6 +101,7 @@ Manual trigger or hourly batch
 - **Custom Form Builder**: Create job-specific forms with varied field types and knockout logic.
 - **Async Screening Pipeline**: Taskiq worker + scheduler with Redis quota guard, retry, and stale recovery flow.
 - **Semantic Document Validation**: Mistral OCR + Groq verification for KTP, Ijazah, and SKCK-class admin docs.
+- **Anchored Scoring Governance**: component rating 1-5 mapped to deterministic 0-100, plus confidence-based review gate.
 - **Advanced Auth Security**: Stateful JWT with rotation, reuse detection, and global kill-switch.
 - **Structured Logging**: JSON-based logging via `structlog` for easy monitoring.
 
