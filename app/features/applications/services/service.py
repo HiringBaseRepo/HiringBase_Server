@@ -508,6 +508,7 @@ async def get_application_detail(
             explanation=s.explanation,
             red_flags=s.red_flags,
             risk_level=s.risk_level,
+            scoring_breakdown=s.scoring_breakdown,
         )
 
     return ApplicationDetailResponse(
