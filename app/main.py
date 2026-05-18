@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import FileResponse, PlainTextResponse
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
@@ -101,8 +102,8 @@ app = FastAPI(
     title=settings.APP_NAME,
     description="AI-Based Recruitment Assistant Backend API",
     version="1.0.0",
-    docs_url="/docs" if settings.DEBUG else None,
-    redoc_url="/redoc" if settings.DEBUG else None,
+    docs_url=None,
+    redoc_url=None,
     openapi_url="/openapi.json" if settings.DEBUG else None,
     lifespan=lifespan,
 )
@@ -147,6 +148,7 @@ app.include_router(audit_logs_router, prefix=settings.API_V1_PREFIX)
 app.include_router(manual_override_router, prefix=settings.API_V1_PREFIX)
 
 
+# Favicon Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 FAVICON_PATH = BASE_DIR / "assets" / "favicon" / "fAVICON hR.png"
 FAVICON_EXISTS = FAVICON_PATH.exists()
@@ -157,6 +159,25 @@ async def favicon():
     if not FAVICON_EXISTS:
         return PlainTextResponse("Favicon not found", status_code=404)
     return FileResponse(FAVICON_PATH)
+
+
+if settings.DEBUG:
+    @app.get("/docs", include_in_schema=False)
+    async def custom_swagger_ui_html():
+        return get_swagger_ui_html(
+            openapi_url=app.openapi_url,  # type: ignore
+            title=app.title + " - Swagger UI",
+            oauth2_redirect_url=app.swagger_ui_oauth2_redirect_url,
+            swagger_favicon_url="/favicon.ico?v=1",
+        )
+
+    @app.get("/redoc", include_in_schema=False)
+    async def custom_redoc_html():
+        return get_redoc_html(
+            openapi_url=app.openapi_url,  # type: ignore
+            title=app.title + " - ReDoc",
+            redoc_favicon_url="/favicon.ico?v=1",
+        )
 
 
 @app.api_route("/", methods=["GET", "HEAD"], tags=["Health"])
