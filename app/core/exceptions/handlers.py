@@ -72,6 +72,7 @@ async def domain_exception_handler(request: Request, exc: Exception) -> JSONResp
     """Handle custom domain exceptions."""
     status_code = status.HTTP_400_BAD_REQUEST
     message = str(exc)
+    errors = None
 
     if isinstance(
         exc,
@@ -104,6 +105,9 @@ async def domain_exception_handler(request: Request, exc: Exception) -> JSONResp
         status_code = status.HTTP_401_UNAUTHORIZED
     elif isinstance(exc, cex.DuplicateApplicationException):
         status_code = status.HTTP_409_CONFLICT
+    elif isinstance(exc, cex.ValidationError):
+        status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+        errors = exc.errors if exc.errors else []
     elif isinstance(
         exc,
         (
@@ -126,6 +130,7 @@ async def domain_exception_handler(request: Request, exc: Exception) -> JSONResp
         status_code=status_code,
         content=StandardResponse.error(
             message=message,
+            errors=errors,
             status_code=status_code
         ).model_dump(),
     )

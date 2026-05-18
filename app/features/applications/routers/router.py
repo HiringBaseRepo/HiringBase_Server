@@ -3,6 +3,7 @@
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, Form, Request
+from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.base import get_db
@@ -92,13 +93,22 @@ async def public_apply(
                     )
             documents_data.append({"type": doc_type, "file": value})
     
-    command = PublicApplyCommand(
-        job_id=job_id,
-        email=email,
-        full_name=full_name,
-        phone=phone,
-        answers_json=answers_json,
-    )
+    try:
+        command = PublicApplyCommand(
+            job_id=job_id,
+            email=email,
+            full_name=full_name,
+            phone=phone,
+            answers_json=answers_json,
+        )
+    except PydanticValidationError as exc:
+        raise ValidationError(
+            "Terjadi kesalahan validasi",
+            errors=[
+                {"loc": list(error["loc"]), "msg": error["msg"]}
+                for error in exc.errors()
+            ],
+        ) from exc
     result = await public_apply_service(db, data=command, documents_data=documents_data)
     return StandardResponse.ok(
         data=result, message=get_label("Application submitted successfully")
