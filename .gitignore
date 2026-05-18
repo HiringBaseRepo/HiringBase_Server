@@ -142,3 +142,7 @@ skills-lock.json
 
 # Accidental browser config directory
 ~/
+
+# Test assets
+assets/test/
+
