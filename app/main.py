@@ -67,7 +67,6 @@ _BANNER = r"""
 ╚══════════════════════════════════════════════════════╝
 """
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
