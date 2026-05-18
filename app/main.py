@@ -147,14 +147,14 @@ app.include_router(audit_logs_router, prefix=settings.API_V1_PREFIX)
 app.include_router(manual_override_router, prefix=settings.API_V1_PREFIX)
 
 
-# Favicon Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 FAVICON_PATH = BASE_DIR / "assets" / "favicon" / "fAVICON hR.png"
+FAVICON_EXISTS = FAVICON_PATH.exists()
 
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
-    if not FAVICON_PATH.exists():
+    if not FAVICON_EXISTS:
         return PlainTextResponse("Favicon not found", status_code=404)
     return FileResponse(FAVICON_PATH)
 
