@@ -9,11 +9,9 @@ from app.ai.explanation.generator import generate_explanation
 from app.ai.matcher.semantic_matcher import match_candidate_to_job
 from app.ai.redflag.detector import detect_red_flags
 from app.ai.scoring.engine import (
+    build_scoring_breakdown,
     calculate_final_score,
     get_application_status,
-    score_education,
-    score_experience,
-    score_portfolio,
 )
 from app.core.exceptions import (
     ApplicationNotFoundException,
@@ -204,7 +202,7 @@ async def process_screening(
                     application_id=application.id,
                     from_status=previous_status.value if previous_status else None,
                     to_status=ApplicationStatus.DOC_CHECK.value,
-                    reason="Screening dimulai: verifikasi dokumen",
+                    reason=get_label("screening_doc_check_started"),
                     metadata_snapshot={"trigger_source": trigger_source},
                 ),
             )
@@ -258,7 +256,10 @@ async def process_screening(
                             application_id=application.id,
                             from_status=ApplicationStatus.DOC_CHECK.value,
                             to_status=target_status.value,
-                            reason=f"Gagal kualifikasi (Knockout): {rule.rule_name}",
+                            reason=get_label(
+                                "screening_knockout_failed_reason",
+                                rule_name=rule.rule_name,
+                            ),
                             metadata_snapshot={"trigger_source": trigger_source},
                         ),
                     )
@@ -290,7 +291,7 @@ async def process_screening(
                     application_id=application.id,
                     from_status=ApplicationStatus.DOC_CHECK.value,
                     to_status=ApplicationStatus.AI_PROCESSING.value,
-                    reason="Dokumen valid, lanjut proses AI",
+                    reason=get_label("screening_ai_processing_started"),
                     metadata_snapshot={"trigger_source": trigger_source},
                 ),
             )
@@ -306,12 +307,7 @@ async def process_screening(
             # Build parsed_data from form answers
             parsed_data = build_candidate_profile(application, answers)
 
-            # Combine all text answers into one 'text' for soft skill analysis
-            text_parts = []
-            for ans in answers:
-                if ans.value_text:
-                    text_parts.append(ans.value_text)
-            text = "\n".join(text_parts)
+            text = parsed_data.get("text_blob", "")
 
             template = await get_scoring_template_by_job_id(
                 db, job.id
@@ -320,31 +316,27 @@ async def process_screening(
             match_result = await match_candidate_to_job(
                 parsed_data, requirements, job.description, force_fallback=force_fallback
             )
-            exp_score = score_experience(
-                parsed_data.get("total_years_experience", 0),
-                next(
-                    (req.value for req in requirements if req.category == "experience"),
-                    "0",
-                ),
+            soft_skill_payload = await _score_soft_skills(
+                text, force_fallback=force_fallback
             )
-            edu_score = score_education(
-                parsed_data.get("education", []),
-                next(
-                    (req.value for req in requirements if req.category == "education"),
-                    "",
-                ),
+            scoring_breakdown = build_scoring_breakdown(
+                match_result=match_result,
+                parsed_data=parsed_data,
+                requirements=requirements,
+                soft_skill_payload=soft_skill_payload,
+                text=text,
+                document_count=len(docs),
+                doc_validation_flags=doc_validation_flags,
             )
-            portfolio_score = score_portfolio(parsed_data)
-            soft_skill_score = await _score_soft_skills(text, force_fallback=force_fallback)
-            admin_score = 100.0
-            # Step 2: Document check flags
-            if doc_validation_flags:
-                # If high risk document flags exist, set admin score to 0
-                if any(f.get("risk_level") == RiskLevel.HIGH.value for f in doc_validation_flags if isinstance(f, dict)):
-                    admin_score = 0.0
+            exp_score = scoring_breakdown["components"]["experience"]["score"]
+            edu_score = scoring_breakdown["components"]["education"]["score"]
+            portfolio_score = scoring_breakdown["components"]["portfolio"]["score"]
+            soft_skill_score = scoring_breakdown["components"]["soft_skill"]["score"]
+            admin_score = scoring_breakdown["components"]["administrative"]["score"]
+            skill_match_score = scoring_breakdown["components"]["skill_match"]["score"]
 
             final = calculate_final_score(
-                skill_match_score=match_result["match_percentage"],
+                skill_match_score=skill_match_score,
                 experience_score=exp_score,
                 education_score=edu_score,
                 portfolio_score=portfolio_score,
@@ -359,7 +351,16 @@ async def process_screening(
             )
 
             # Merge all red flags using helper
-            red_flags = await _merge_red_flags(parsed_data, text, ocr_results, doc_validation_flags, force_fallback=force_fallback)
+            red_flags = await _merge_red_flags(
+                parsed_data,
+                text,
+                ocr_results,
+                doc_validation_flags,
+                force_fallback=force_fallback,
+                extra_flags=_build_scoring_gate_flags(scoring_breakdown),
+            )
+            scoring_breakdown["final_score"] = round(final, 2)
+            scoring_breakdown["risk_level"] = red_flags["risk_level"]
             
             explanation = await generate_explanation(
                 match_result,
@@ -370,6 +371,7 @@ async def process_screening(
                 admin_score,
                 final,
                 red_flags,
+                scoring_breakdown,
             )
             
             # Clean up AI thought tags
@@ -382,7 +384,7 @@ async def process_screening(
                 old_values = get_model_snapshot(existing_score)
                 
                 # Update existing
-                existing_score.skill_match_score = match_result["match_percentage"]
+                existing_score.skill_match_score = skill_match_score
                 existing_score.experience_score = exp_score
                 existing_score.education_score = edu_score
                 existing_score.portfolio_score = portfolio_score
@@ -392,6 +394,7 @@ async def process_screening(
                 existing_score.explanation = explanation
                 existing_score.red_flags = red_flags["red_flags"]
                 existing_score.risk_level = red_flags["risk_level"]
+                existing_score.scoring_breakdown = scoring_breakdown
                 
                 # Create Audit Log for automated update
                 await create_audit_log(
@@ -406,6 +409,7 @@ async def process_screening(
                         new_values={
                             "final_score": final,
                             "risk_level": red_flags["risk_level"],
+                            "gates": scoring_breakdown["gates"]["reasons"],
                             "trigger_source": trigger_source,
                         },
                     )
@@ -416,7 +420,7 @@ async def process_screening(
                     db,
                     CandidateScore(
                         application_id=application.id,
-                        skill_match_score=match_result["match_percentage"],
+                        skill_match_score=skill_match_score,
                         experience_score=exp_score,
                         education_score=edu_score,
                         portfolio_score=portfolio_score,
@@ -426,6 +430,7 @@ async def process_screening(
                         explanation=explanation,
                         red_flags=red_flags["red_flags"],
                         risk_level=red_flags["risk_level"],
+                        scoring_breakdown=scoring_breakdown,
                     ),
                 )
                 await create_audit_log(
@@ -439,6 +444,7 @@ async def process_screening(
                         new_values={
                             "final_score": final,
                             "risk_level": red_flags["risk_level"],
+                            "gates": scoring_breakdown["gates"]["reasons"],
                             "trigger_source": trigger_source,
                         },
                     ),
@@ -446,6 +452,8 @@ async def process_screening(
             # Final status mapping
             if red_flags.get("risk_level") == RiskLevel.HIGH.value:
                 application.status = ApplicationStatus.REJECTED
+            elif scoring_breakdown["gates"]["force_under_review"]:
+                application.status = ApplicationStatus.UNDER_REVIEW
             else:
                 calculated_status = get_application_status(final)
                 if calculated_status == ApplicationStatus.APPLIED:
@@ -491,7 +499,7 @@ async def process_screening(
                     application_id=application.id,
                     from_status=ApplicationStatus.DOC_CHECK.value,
                     to_status=ApplicationStatus.DOC_FAILED.value,
-                    reason=str(e),
+                    reason=get_label("screening_missing_documents_reason"),
                     metadata_snapshot={"trigger_source": trigger_source},
                 ),
             )
@@ -560,6 +568,13 @@ async def manual_override_score(
         + (score.soft_skill_score * template.soft_skill_weight / 100.0)
         + (score.administrative_score * template.administrative_weight / 100.0)
     )
+    if isinstance(score.scoring_breakdown, dict):
+        score.scoring_breakdown["final_score"] = round(score.final_score, 2)
+        score.scoring_breakdown["manual_override"] = {
+            "applied": True,
+            "reason": reason,
+            "by_user_id": current_user.id,
+        }
     score.is_manual_override = True
     score.manual_override_reason = reason
     score.manual_override_by = current_user.id
@@ -650,6 +665,7 @@ async def _merge_red_flags(
     text: str, 
     ocr_results: dict, 
     doc_validation_flags: list[dict],
+    extra_flags: list[dict] | None = None,
     force_fallback: bool = False
 ) -> dict:
     """Helper to merge all red flags from different sources."""
@@ -674,5 +690,32 @@ async def _merge_red_flags(
         # If any doc flag is high, ensure overall risk is high
         if any(f.get("risk_level") == RiskLevel.HIGH.value for f in doc_validation_flags if isinstance(f, dict)):
             red_flags["risk_level"] = RiskLevel.HIGH.value
+
+    if extra_flags:
+        for flag in extra_flags:
+            if flag not in red_flags["red_flags"]:
+                red_flags["red_flags"].append(flag)
             
     return red_flags
+
+
+def _build_scoring_gate_flags(scoring_breakdown: dict) -> list[dict]:
+    gate_reasons = scoring_breakdown.get("gates", {}).get("reasons", [])
+    flags: list[dict] = []
+    if "low_skill_match_confidence" in gate_reasons:
+        flags.append(
+            {
+                "message": get_label("screening_low_skill_confidence_flag"),
+                "risk_level": RiskLevel.MEDIUM.value,
+                "type": "scoring",
+            }
+        )
+    if "insufficient_structured_skill_requirements" in gate_reasons:
+        flags.append(
+            {
+                "message": get_label("screening_insufficient_requirements_flag"),
+                "risk_level": RiskLevel.MEDIUM.value,
+                "type": "system",
+            }
+        )
+    return flags
