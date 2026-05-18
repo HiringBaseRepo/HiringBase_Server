@@ -74,6 +74,7 @@ from app.shared.constants.audit_actions import (
 )
 from app.shared.constants.audit_entities import APPLICATION, CANDIDATE_SCORE
 from app.shared.enums.application_status import ApplicationStatus
+from app.shared.enums.document_type import DocumentType
 from app.shared.enums.knockout import KnockoutAction, KnockoutRuleType
 from app.shared.enums.notification_type import NotificationType
 from app.shared.enums.risk_level import RiskLevel
@@ -298,7 +299,7 @@ async def process_screening(
             await db.commit()
 
             # Langkah 2 & 3: OCR JIT & Validasi Semantik Dokumen Berbasis LLM
-            doc_validation_flags, ocr_results = await run_document_semantic_check(
+            doc_validation_flags, ocr_results, administrative_hard_fail = await run_document_semantic_check(
                 docs, application.applicant, force_fallback=force_fallback
             )
 
@@ -335,6 +336,26 @@ async def process_screening(
             admin_score = scoring_breakdown["components"]["administrative"]["score"]
             skill_match_score = scoring_breakdown["components"]["skill_match"]["score"]
 
+            if administrative_hard_fail:
+                admin_score = 0.0
+                scoring_breakdown["components"]["administrative"]["score"] = 0.0
+                scoring_breakdown["components"]["administrative"]["raw_score"] = 0.0
+                scoring_breakdown["components"]["administrative"]["rating"] = 1
+                scoring_breakdown["components"]["administrative"]["rubric"] = get_label(
+                    "screening_administrative_hard_fail_rubric"
+                )
+                scoring_breakdown["components"]["administrative"]["evidence"]["hard_fail"] = {
+                    "active": True,
+                    "reason": get_label(
+                        "screening_document_name_mismatch_flag",
+                        document_type=_get_document_type_label(
+                            administrative_hard_fail["document_type"]
+                        ),
+                    ),
+                    "document_type": administrative_hard_fail["document_type"],
+                    "validator_reason": administrative_hard_fail["reason"],
+                }
+
             final = calculate_final_score(
                 skill_match_score=skill_match_score,
                 experience_score=exp_score,
@@ -357,10 +378,15 @@ async def process_screening(
                 ocr_results,
                 doc_validation_flags,
                 force_fallback=force_fallback,
-                extra_flags=_build_scoring_gate_flags(scoring_breakdown),
+                extra_flags=_build_scoring_gate_flags(
+                    scoring_breakdown,
+                    administrative_hard_fail=administrative_hard_fail,
+                ),
             )
             scoring_breakdown["final_score"] = round(final, 2)
             scoring_breakdown["risk_level"] = red_flags["risk_level"]
+            if administrative_hard_fail:
+                scoring_breakdown["gates"]["administrative_hard_fail"] = True
             
             explanation = await generate_explanation(
                 match_result,
@@ -450,7 +476,9 @@ async def process_screening(
                     ),
                 )
             # Final status mapping
-            if red_flags.get("risk_level") == RiskLevel.HIGH.value:
+            if administrative_hard_fail:
+                application.status = ApplicationStatus.REJECTED
+            elif red_flags.get("risk_level") == RiskLevel.HIGH.value:
                 application.status = ApplicationStatus.REJECTED
             elif scoring_breakdown["gates"]["force_under_review"]:
                 application.status = ApplicationStatus.UNDER_REVIEW
@@ -699,7 +727,10 @@ async def _merge_red_flags(
     return red_flags
 
 
-def _build_scoring_gate_flags(scoring_breakdown: dict) -> list[dict]:
+def _build_scoring_gate_flags(
+    scoring_breakdown: dict,
+    administrative_hard_fail: dict | None = None,
+) -> list[dict]:
     gate_reasons = scoring_breakdown.get("gates", {}).get("reasons", [])
     flags: list[dict] = []
     if "low_skill_match_confidence" in gate_reasons:
@@ -718,4 +749,24 @@ def _build_scoring_gate_flags(scoring_breakdown: dict) -> list[dict]:
                 "type": "system",
             }
         )
+    if administrative_hard_fail:
+        flags.append(
+            {
+                "message": get_label(
+                    "screening_document_name_mismatch_flag",
+                    document_type=_get_document_type_label(
+                        administrative_hard_fail["document_type"]
+                    ),
+                ),
+                "risk_level": RiskLevel.HIGH.value,
+                "type": "document",
+            }
+        )
     return flags
+
+
+def _get_document_type_label(document_type: str) -> str:
+    for enum_value in DocumentType:
+        if enum_value.value == document_type:
+            return get_label(enum_value)
+    return document_type

@@ -199,6 +199,8 @@ INTERNAL_MESSAGES: Dict[str, str] = {
     "screening_missing_documents_reason": "Dokumen wajib belum lengkap untuk melanjutkan screening",
     "screening_low_skill_confidence_flag": "Confidence skill matching rendah sehingga hasil screening perlu review manual.",
     "screening_insufficient_requirements_flag": "Requirement skill terstruktur belum memadai sehingga scoring AI perlu review manual.",
+    "screening_document_name_mismatch_flag": "Nama pada dokumen {document_type} tidak sesuai dengan data pelamar. Kandidat otomatis ditolak pada pemeriksaan administrasi.",
+    "screening_administrative_hard_fail_rubric": "Administrasi gagal keras karena nama dokumen tidak sesuai dengan data pelamar.",
     "screening_completed_reason": "Screening AI selesai. Skor akhir: {score}",
     "screening_already_queued": "Screening sudah ada dalam antrean atau sedang diproses",
     "screening_pending_quota": "Screening ditunda sementara karena batas kuota atau concurrency aktif",
