@@ -354,16 +354,25 @@ def build_soft_skill_component(
 
 def build_administrative_component(
     document_count: int,
+    requirements: list[Any],
     doc_validation_flags: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    if document_count <= 0:
-        raw_score = 20.0
-    elif any(flag.get("risk_level") == "high" for flag in doc_validation_flags if isinstance(flag, dict)):
+    required_document_requirements = _extract_category_requirements(requirements, "document")
+    required_document_count = len(required_document_requirements)
+    has_required_documents = required_document_count > 0
+
+    if any(flag.get("risk_level") == "high" for flag in doc_validation_flags if isinstance(flag, dict)):
         raw_score = 20.0
     elif doc_validation_flags:
         raw_score = 60.0
-    else:
+    elif not has_required_documents and document_count == 0:
         raw_score = 100.0
+    elif has_required_documents and document_count >= required_document_count:
+        raw_score = 100.0
+    elif document_count > 0:
+        raw_score = 60.0
+    else:
+        raw_score = 20.0
 
     rating = _safe_rating_from_score(raw_score)
     return {
@@ -374,6 +383,7 @@ def build_administrative_component(
         "confidence": 0.9,
         "evidence": {
             "document_count": document_count,
+            "required_document_count": required_document_count,
             "validation_flags": doc_validation_flags,
         },
     }
@@ -399,7 +409,11 @@ def build_scoring_breakdown(
             text,
             int(parsed_data.get("text_answer_count", 0) or 0),
         ),
-        "administrative": build_administrative_component(document_count, doc_validation_flags),
+        "administrative": build_administrative_component(
+            document_count,
+            requirements,
+            doc_validation_flags,
+        ),
     }
 
     gate_reasons: list[str] = []
