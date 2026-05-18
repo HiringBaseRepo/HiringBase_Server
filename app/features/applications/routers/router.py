@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.base import get_db
 from app.core.exceptions import ValidationError
-from app.shared.constants.errors import ERR_INVALID_UPLOAD_KEY
+from app.shared.constants.errors import ERR_INVALID_UPLOAD_KEY, ERR_VALIDATION_FAILED
 from app.core.utils.pagination import PaginationParams
 from app.features.applications.schemas.schema import (
     ApplicationListItem,
@@ -103,7 +103,7 @@ async def public_apply(
         )
     except PydanticValidationError as exc:
         raise ValidationError(
-            "Terjadi kesalahan validasi",
+            get_label(ERR_VALIDATION_FAILED),
             errors=[
                 {"loc": list(error["loc"]), "msg": error["msg"]}
                 for error in exc.errors()

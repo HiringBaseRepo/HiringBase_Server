@@ -7,6 +7,8 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.core.config import settings
 from app.core.exceptions import custom_exceptions as cex
+from app.shared.constants.errors import ERR_VALIDATION_FAILED
+from app.shared.helpers.localization import get_label
 from app.shared.schemas.response import StandardResponse
 import structlog
 
@@ -21,7 +23,7 @@ async def validation_exception_handler(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content=StandardResponse(
             success=False,
-            message="Terjadi kesalahan validasi",
+            message=get_label(ERR_VALIDATION_FAILED),
             errors=[{"loc": list(e["loc"]), "msg": e["msg"]} for e in exc.errors()],
         ).model_dump(),
     )

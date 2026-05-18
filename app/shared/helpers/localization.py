@@ -40,6 +40,7 @@ from app.shared.constants.errors import (
     ERR_UNAUTHORIZED,
     ERR_USER_INACTIVE,
     ERR_USER_NOT_FOUND,
+    ERR_VALIDATION_FAILED,
     ERR_INVALID_KNOCKOUT_OPERATOR,
     ERR_FIELD_REQUIRED,
     ERR_OTHERS_UPLOAD_NOT_ALLOWED,
@@ -266,6 +267,7 @@ ERROR_MESSAGES: Dict[str, str] = {
     ERR_TOKEN_REUSED_ALERT: "Peringatan Keamanan: Token telah digunakan. Sesi Anda dihentikan demi keamanan.",
     ERR_CANDIDATE_SCORE_NOT_FOUND: "Skor kandidat tidak ditemukan",
     ERR_NOTIFICATION_NOT_FOUND: "Notifikasi tidak ditemukan",
+    ERR_VALIDATION_FAILED: "Terjadi kesalahan validasi",
     MSG_SCREENING_QUEUED: "Proses screening telah dimasukkan dalam antrean",
 }
 
