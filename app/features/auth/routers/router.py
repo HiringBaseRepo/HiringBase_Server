@@ -26,8 +26,8 @@ from app.features.auth.services.service import (
     authenticate_user,
     confirm_password_reset,
     create_company_and_hr,
-    create_user,
     generate_token_pair,
+    register_initial_super_admin,
     refresh_access_token,
     request_password_reset,
     logout as logout_service,
@@ -105,7 +105,7 @@ async def register_super_admin(
     if not settings.SETUP_TOKEN or setup_token != settings.SETUP_TOKEN:
         raise InvalidSetupTokenException()
         
-    user = await create_user(db, data, role=UserRole.SUPER_ADMIN)
+    user = await register_initial_super_admin(db, data)
     return StandardResponse.ok(
         data=UserResponse.model_validate(user), message=get_label("Super admin registered")
     )

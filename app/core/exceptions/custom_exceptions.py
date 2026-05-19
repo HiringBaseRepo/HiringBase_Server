@@ -15,7 +15,9 @@ from app.shared.constants.errors import (
     ERR_INVALID_REQUEST_ORIGIN,
     ERR_INVALID_REFRESH_TOKEN,
     ERR_INVALID_SETUP_TOKEN,
+    ERR_SUPER_ADMIN_ALREADY_EXISTS,
     ERR_JOB_NOT_FOUND,
+    ERR_USER_EMAIL_ALREADY_EXISTS,
     ERR_MISSING_DOCUMENTS,
     ERR_NOTIFICATION_NOT_FOUND,
     ERR_PASSWORD_RESET_TOKEN_INVALID,
@@ -67,6 +69,14 @@ class UserNotFoundException(BaseDomainException):
     """Raised when a user is not found."""
 
     def __init__(self, message: str = get_label(ERR_USER_NOT_FOUND)):
+        self.message = message
+        super().__init__(self.message)
+
+
+class UserEmailAlreadyExistsException(BaseDomainException):
+    """Raised when a user email is already registered."""
+
+    def __init__(self, message: str = get_label(ERR_USER_EMAIL_ALREADY_EXISTS)):
         self.message = message
         super().__init__(self.message)
 
@@ -150,6 +160,14 @@ class InvalidSetupTokenException(BaseDomainException):
     """Raised when setup token for super admin registration is invalid."""
 
     def __init__(self, message: str = get_label(ERR_INVALID_SETUP_TOKEN)):
+        self.message = message
+        super().__init__(self.message)
+
+
+class SuperAdminAlreadyExistsException(BaseDomainException):
+    """Raised when initial super admin bootstrap is attempted more than once."""
+
+    def __init__(self, message: str = get_label(ERR_SUPER_ADMIN_ALREADY_EXISTS)):
         self.message = message
         super().__init__(self.message)
 

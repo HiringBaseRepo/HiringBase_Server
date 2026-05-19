@@ -21,6 +21,13 @@ async def get_user_by_id(db: AsyncSession, user_id: int) -> User | None:
     return result.scalar_one_or_none()
 
 
+async def get_user_by_role(db: AsyncSession, role: str) -> User | None:
+    result = await db.execute(
+        select(User).where(User.role == role, User.deleted_at.is_(None))
+    )
+    return result.scalars().first()
+
+
 async def save_user(db: AsyncSession, user: User) -> User:
     db.add(user)
     await db.flush()
