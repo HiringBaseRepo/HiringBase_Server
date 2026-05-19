@@ -4,8 +4,12 @@ Berisi semua fungsi evaluasi rule yang TIDAK bergantung pada FastAPI context.
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Any
 from app.shared.enums.knockout import KnockoutOperator, KnockoutRuleType
+from app.ai.redflag.detector import detect_red_flags
+from app.shared.enums.risk_level import RiskLevel
+from app.shared.enums.document_type import DocumentType
+from app.shared.helpers.localization import get_label
 
 
 def evaluate_knockout_rule(rule, application, docs: list, answers: list = None) -> bool:
@@ -143,3 +147,87 @@ def normalize_knockout_operator(operator: str) -> str:
     if normalized in {item.value for item in KnockoutOperator}:
         return normalized
     return alias_map.get(normalized, normalized)
+
+
+async def merge_red_flags(
+    parsed_data: dict, 
+    text: str, 
+    ocr_results: dict, 
+    doc_validation_flags: list[dict],
+    extra_flags: list[dict] | None = None,
+    force_fallback: bool = False
+) -> dict:
+    """Helper to merge all red flags from different sources."""
+    # Base red flags from detector
+    red_flags = await detect_red_flags(
+        parsed_data, text, doc_ocr_results=ocr_results, force_fallback=force_fallback
+    )
+    
+    # Merge document validation flags
+    if doc_validation_flags:
+        for flag in doc_validation_flags:
+            if isinstance(flag, dict):
+                red_flags["red_flags"].append(flag)
+            else:
+                # Fallback for legacy string flags
+                red_flags["red_flags"].append({
+                    "message": str(flag),
+                    "risk_level": RiskLevel.HIGH.value,
+                    "type": "document"
+                })
+        
+        # If any doc flag is high, ensure overall risk is high
+        if any(f.get("risk_level") == RiskLevel.HIGH.value for f in doc_validation_flags if isinstance(f, dict)):
+            red_flags["risk_level"] = RiskLevel.HIGH.value
+
+    if extra_flags:
+        for flag in extra_flags:
+            if flag not in red_flags["red_flags"]:
+                red_flags["red_flags"].append(flag)
+            
+    return red_flags
+
+
+def build_scoring_gate_flags(
+    scoring_breakdown: dict,
+    administrative_hard_fail: dict | None = None,
+) -> list[dict]:
+    gate_reasons = scoring_breakdown.get("gates", {}).get("reasons", [])
+    flags: list[dict] = []
+    if "low_skill_match_confidence" in gate_reasons:
+        flags.append(
+            {
+                "message": get_label("screening_low_skill_confidence_flag"),
+                "risk_level": RiskLevel.MEDIUM.value,
+                "type": "scoring",
+            }
+        )
+    if "insufficient_structured_skill_requirements" in gate_reasons:
+        flags.append(
+            {
+                "message": get_label("screening_insufficient_requirements_flag"),
+                "risk_level": RiskLevel.MEDIUM.value,
+                "type": "system",
+            }
+        )
+    if administrative_hard_fail:
+        flags.append(
+            {
+                "message": get_label(
+                    "screening_document_name_mismatch_flag",
+                    document_type=get_document_type_label(
+                        administrative_hard_fail["document_type"]
+                    ),
+                ),
+                "risk_level": RiskLevel.HIGH.value,
+                "type": "document",
+            }
+        )
+    return flags
+
+
+def get_document_type_label(document_type: str) -> str:
+    for enum_value in DocumentType:
+        if enum_value.value == document_type:
+            return get_label(enum_value)
+    return document_type
