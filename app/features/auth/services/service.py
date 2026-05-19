@@ -18,6 +18,7 @@ from app.features.auth.repositories.repository import (
     get_refresh_token_by_jti,
     get_user_by_email,
     get_user_by_id,
+    get_user_by_role,
     save_company,
     save_refresh_token_record,
     save_user,
@@ -29,6 +30,7 @@ from app.features.users.models import RefreshToken, User
 from app.shared.enums.user_roles import UserRole
 from app.core.exceptions import (
     InvalidCredentialsException,
+    SuperAdminAlreadyExistsException,
     UserInactiveException,
     UserNotFoundException,
 )
@@ -106,6 +108,16 @@ async def create_user(
     user = await save_user(db, user)
     await db.commit()
     return user
+
+
+async def register_initial_super_admin(
+    db: AsyncSession,
+    data: RegisterRequest,
+) -> User:
+    existing_super_admin = await get_user_by_role(db, UserRole.SUPER_ADMIN.value)
+    if existing_super_admin:
+        raise SuperAdminAlreadyExistsException()
+    return await create_user(db, data, role=UserRole.SUPER_ADMIN)
 
 
 async def create_company_and_hr(
