@@ -6,8 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database.base import get_db
 from app.features.auth.dependencies.auth import require_super_admin, get_current_user
 from app.features.users.models import User
-from app.features.users.schemas.schema import CreateHRAccountRequest, UserCreatedResponse, UserListItem, UpdateUserRequest
-from app.features.users.services.service import create_hr_account as create_hr_account_service, get_users_stats as get_users_stats_service, update_user as update_user_service, delete_user as delete_user_service, get_user as get_user_service
+from app.features.users.schemas.schema import CreateHRAccountRequest, CreateSuperAdminAccountRequest, UserCreatedResponse, UserListItem, UpdateUserRequest
+from app.features.users.services.service import create_hr_account as create_hr_account_service, create_super_admin_account as create_super_admin_account_service, get_users_stats as get_users_stats_service, update_user as update_user_service, delete_user as delete_user_service, get_user as get_user_service
 from app.features.users.services.service import list_users as list_users_service
 from app.shared.schemas.response import StandardResponse, PaginatedResponse
 from app.core.utils.pagination import PaginationParams
@@ -33,6 +33,20 @@ async def create_hr_account(
 ):
     user = await create_hr_account_service(
         db, data, current_user=current_user
+    )
+    return StandardResponse.ok(data=user)
+
+
+@router.post("/super-admin", response_model=StandardResponse[UserCreatedResponse])
+async def create_super_admin_account(
+    data: CreateSuperAdminAccountRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    user = await create_super_admin_account_service(
+        db,
+        data,
+        current_user=current_user,
     )
     return StandardResponse.ok(data=user)
 

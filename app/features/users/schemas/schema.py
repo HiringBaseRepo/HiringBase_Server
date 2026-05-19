@@ -13,6 +13,13 @@ class CreateHRAccountRequest(BaseModel):
     avatar_url: Optional[str] = None
 
 
+class CreateSuperAdminAccountRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+    full_name: str = Field(min_length=2, max_length=255)
+    avatar_url: Optional[str] = None
+
+
 class UpdateUserRequest(BaseModel):
     full_name: Optional[str] = None
     is_active: Optional[bool] = None
