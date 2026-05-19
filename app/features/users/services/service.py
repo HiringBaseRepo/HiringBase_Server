@@ -4,19 +4,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security.hashing import get_password_hash
 from app.core.utils.pagination import PaginationParams
 from app.features.users.models import User
-from app.features.users.repositories.repository import list_users as list_users_query, get_users_stats as get_users_stats_query, get_user_by_id, delete_user as delete_user_repo
+from app.features.users.repositories.repository import list_users as list_users_query, get_users_stats as get_users_stats_query, get_user_by_email, get_user_by_id, delete_user as delete_user_repo
 from app.features.users.repositories.repository import save_user, update_user_repo
-from app.features.users.schemas.schema import CreateHRAccountRequest, UserCreatedResponse, UserListItem, UpdateUserRequest
+from app.features.users.schemas.schema import CreateHRAccountRequest, CreateSuperAdminAccountRequest, UserCreatedResponse, UserListItem, UpdateUserRequest
 from app.shared.enums.user_roles import UserRole
 from app.shared.schemas.response import PaginatedResponse
 from app.features.audit_logs.models import AuditLog
 from app.features.audit_logs.repositories.repository import create_audit_log
 from app.shared.constants.audit_actions import (
     CREATE_HR_ACCOUNT,
+    CREATE_SUPER_ADMIN_ACCOUNT,
     DELETE_USER,
     UPDATE_USER,
 )
 from app.shared.constants.audit_entities import USER
+from app.core.exceptions import UserEmailAlreadyExistsException
 
 
 async def create_hr_account(
@@ -25,6 +27,10 @@ async def create_hr_account(
     *,
     current_user: User
 ) -> UserCreatedResponse:
+    existing_user = await get_user_by_email(db, data.email)
+    if existing_user:
+        raise UserEmailAlreadyExistsException()
+
     user = User(
         email=data.email,
         password_hash=get_password_hash(data.password),
@@ -48,6 +54,42 @@ async def create_hr_account(
         )
     )
     
+    await db.commit()
+    return UserCreatedResponse.model_validate(user)
+
+
+async def create_super_admin_account(
+    db: AsyncSession,
+    data: CreateSuperAdminAccountRequest,
+    *,
+    current_user: User,
+) -> UserCreatedResponse:
+    existing_user = await get_user_by_email(db, data.email)
+    if existing_user:
+        raise UserEmailAlreadyExistsException()
+
+    user = User(
+        email=data.email,
+        password_hash=get_password_hash(data.password),
+        full_name=data.full_name,
+        company_id=None,
+        avatar_url=data.avatar_url,
+        role=UserRole.SUPER_ADMIN,
+    )
+    user = await save_user(db, user)
+
+    await create_audit_log(
+        db,
+        AuditLog(
+            company_id=current_user.company_id,
+            user_id=current_user.id,
+            action=CREATE_SUPER_ADMIN_ACCOUNT,
+            entity_type=USER,
+            entity_id=user.id,
+            new_values=data.model_dump(exclude={"password"}),
+        )
+    )
+
     await db.commit()
     return UserCreatedResponse.model_validate(user)
 
