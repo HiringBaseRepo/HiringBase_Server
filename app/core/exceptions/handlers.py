@@ -105,7 +105,7 @@ async def domain_exception_handler(request: Request, exc: Exception) -> JSONResp
         ),
     ):
         status_code = status.HTTP_401_UNAUTHORIZED
-    elif isinstance(exc, cex.DuplicateApplicationException):
+    elif isinstance(exc, (cex.DuplicateApplicationException, cex.UserEmailAlreadyExistsException)):
         status_code = status.HTTP_409_CONFLICT
     elif isinstance(exc, cex.ValidationError):
         status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
