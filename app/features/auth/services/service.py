@@ -267,6 +267,10 @@ async def request_password_reset_otp(db: AsyncSession, email: str) -> None:
         # Obfuscation: return silently
         return
 
+    if user.role != UserRole.HR:
+        # Hanya HR yang diperbolehkan reset password via OTP
+        return
+
     if not user.password_hash:
         # User has no password (e.g. placeholder/defensive)
         return
@@ -318,7 +322,7 @@ async def confirm_password_reset_otp(
     otp_hash = hashlib.sha256(otp.encode()).hexdigest()
 
     user = await get_user_by_email(db, email)
-    if not user:
+    if not user or user.role != UserRole.HR:
         raise PasswordResetOtpInvalidException()
 
     record = await find_password_reset_otp(db, user.id, otp_hash)
