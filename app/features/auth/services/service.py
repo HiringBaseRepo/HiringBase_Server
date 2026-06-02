@@ -291,11 +291,12 @@ async def request_password_reset_otp(db: AsyncSession, email: str) -> None:
         )
     )
 
+    full_name = user.full_name
     await db.commit()
 
     # Queue email task
     from app.shared.tasks.mail_tasks import send_password_reset_otp_email
-    await send_password_reset_otp_email.kiq(email, user.full_name, otp)
+    await send_password_reset_otp_email.kiq(email, full_name, otp)
 
 
 async def confirm_password_reset_otp(
