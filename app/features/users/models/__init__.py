@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from app.features.applications.models import Application
     from app.features.notifications.models import Notification
     from app.features.audit_logs.models import AuditLog
+    from app.features.auth.models import PasswordResetOtp
 
 class User(Base):
     __tablename__ = "users"
@@ -52,6 +53,9 @@ class User(Base):
     notifications: Mapped[List["Notification"]] = relationship("Notification", back_populates="user")
     audit_logs: Mapped[List["AuditLog"]] = relationship("AuditLog", back_populates="user")
     refresh_tokens: Mapped[List["RefreshToken"]] = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
+    password_reset_otp: Mapped[Optional["PasswordResetOtp"]] = relationship(
+        "PasswordResetOtp", back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )
 
 class RefreshToken(Base):
     __tablename__ = "refresh_tokens"

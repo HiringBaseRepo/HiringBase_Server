@@ -58,3 +58,28 @@ async def send_interview_invite(
     except Exception as e:
         logger.error("interview_invite_failed", email=email, job=job_title, error=str(e))
         raise e
+
+@broker.task
+async def send_password_reset_otp_email(email: str, full_name: str, otp: str) -> None:
+    """Send 6-digit OTP code to user for password reset."""
+    subject = "Reset Password - HiringBase"
+    body = f"""
+    <html>
+        <body>
+            <h3>Halo {full_name},</h3>
+            <p>Anda telah meminta pengaturan ulang kata sandi di HiringBase.</p>
+            <p>Gunakan kode OTP 6-digit berikut untuk melanjutkan reset kata sandi Anda:</p>
+            <p style="font-size: 24px; font-weight: bold; letter-spacing: 5px; color: #4A90E2;">{otp}</p>
+            <p>Kode OTP ini berlaku selama 15 menit. Jika Anda tidak merasa meminta ini, abaikan email ini.</p>
+            <br>
+            <p>Salam,</p>
+            <p>Tim HR</p>
+        </body>
+    </html>
+    """
+    try:
+        await send_email_async(subject, [email], body)
+        logger.info("password_reset_otp_email_sent", email=email)
+    except Exception as e:
+        logger.error("password_reset_otp_email_failed", email=email, error=str(e))
+        raise e

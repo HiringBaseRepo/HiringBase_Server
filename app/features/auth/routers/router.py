@@ -11,28 +11,27 @@ from app.core.exceptions import (
     InvalidRequestOriginException,
     InvalidRefreshTokenException,
     InvalidSetupTokenException,
-    PasswordResetTokenInvalidException,
 )
 from app.features.auth.dependencies.auth import CurrentUserDep, DbDep
 from app.features.auth.schemas.schema import (
     AccessTokenResponse,
     LoginRequest,
-    PasswordResetConfirm,
+    PasswordResetConfirmOtp,
     PasswordResetRequest,
+    PasswordResetResponse,
     RegisterRequest,
     UserResponse,
 )
 from app.features.auth.services.service import (
     authenticate_user,
-    confirm_password_reset,
+    confirm_password_reset_otp,
     create_company_and_hr,
     generate_token_pair,
     register_initial_super_admin,
     refresh_access_token,
-    request_password_reset,
+    request_password_reset_otp,
     logout as logout_service,
 )
-from app.shared.enums.user_roles import UserRole
 from app.shared.schemas.response import StandardResponse
 from app.shared.constants.errors import (
     ERR_REFRESH_TOKEN_NOT_FOUND,
@@ -212,26 +211,32 @@ async def me(current_user: CurrentUserDep):
 async def password_reset_request(
     data: PasswordResetRequest, db: DbDep
 ):
-    """Request password reset token."""
-    token = await request_password_reset(db, data.email)
-    response_data: dict = {"message": "Jika email terdaftar, link reset akan dikirim"}
-    if token:
-        import structlog
-        log = structlog.get_logger("auth.password_reset")
-        log.info(
-            "Password reset token generated (dev only)", email=data.email, token=token
-        )
-    return StandardResponse.ok(data=response_data)
-
-
-@router.post("/password-reset/confirm", response_model=StandardResponse[dict])
-async def password_reset_confirm(
-    data: PasswordResetConfirm, db: DbDep
-):
-    """Konfirmasi reset password menggunakan token."""
-    success = await confirm_password_reset(db, data.token, data.new_password)
-    if not success:
-        raise PasswordResetTokenInvalidException()
+    """Request password reset OTP."""
+    await request_password_reset_otp(db, data.email)
+    msg = get_label("otp_reset_email_sent")
     return StandardResponse.ok(
-        data={"message": "Password berhasil direset, silahkan login kembali"}
+        data={"message": msg},
+        message=msg,
+    )
+
+
+@router.post("/password-reset/confirm", response_model=StandardResponse[PasswordResetResponse])
+async def password_reset_confirm(
+    data: PasswordResetConfirmOtp, response: Response, db: DbDep
+):
+    """Confirm password reset using OTP and auto-login."""
+    tokens = await confirm_password_reset_otp(db, data.email, data.otp, data.new_password)
+    
+    response.set_cookie(
+        key="refresh_token",
+        value=tokens.refresh_token,
+        **_refresh_cookie_kwargs(),
+    )
+    
+    return StandardResponse.ok(
+        data=PasswordResetResponse(
+            access_token=tokens.access_token,
+            expires_in=tokens.expires_in,
+        ),
+        message=get_label("password_reset_success"),
     )

@@ -25,6 +25,7 @@ from app.features.notifications.models import Notification
 from app.features.screening.models import CandidateScore
 from app.features.tickets.models import Ticket
 from app.features.users.models import RefreshToken, User
+from app.features.auth.models import PasswordResetOtp
 
 # Re-export models from feature-based modules
 

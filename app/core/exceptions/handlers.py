@@ -117,6 +117,8 @@ async def domain_exception_handler(request: Request, exc: Exception) -> JSONResp
             cex.FileTooLargeException,
             cex.WeightTotalInvalidException,
             cex.PasswordResetTokenInvalidException,
+            cex.PasswordResetOtpInvalidException,
+            cex.PasswordResetOtpExpiredException,
         ),
     ):
         status_code = status.HTTP_400_BAD_REQUEST

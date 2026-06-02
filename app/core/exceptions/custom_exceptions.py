@@ -21,6 +21,8 @@ from app.shared.constants.errors import (
     ERR_MISSING_DOCUMENTS,
     ERR_NOTIFICATION_NOT_FOUND,
     ERR_PASSWORD_RESET_TOKEN_INVALID,
+    ERR_PASSWORD_RESET_OTP_INVALID,
+    ERR_PASSWORD_RESET_OTP_EXPIRED,
     ERR_REFRESH_TOKEN_EXPIRED,
     ERR_RULE_NOT_FOUND,
     ERR_SCORING_TEMPLATE_MISSING,
@@ -152,6 +154,22 @@ class PasswordResetTokenInvalidException(BaseDomainException):
         self,
         message: str = get_label(ERR_PASSWORD_RESET_TOKEN_INVALID),
     ):
+        self.message = message
+        super().__init__(self.message)
+
+
+class PasswordResetOtpInvalidException(BaseDomainException):
+    """Raised when a password reset OTP is invalid."""
+
+    def __init__(self, message: str = get_label(ERR_PASSWORD_RESET_OTP_INVALID)):
+        self.message = message
+        super().__init__(self.message)
+
+
+class PasswordResetOtpExpiredException(BaseDomainException):
+    """Raised when a password reset OTP is expired."""
+
+    def __init__(self, message: str = get_label(ERR_PASSWORD_RESET_OTP_EXPIRED)):
         self.message = message
         super().__init__(self.message)
 

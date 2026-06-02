@@ -91,6 +91,7 @@ Use string-literal relationships and `TYPE_CHECKING` hints when needed. Keep Ale
 - Default scoring weights: Skill Match 40, Experience 20, Education 10, Portfolio 10, Soft Skill 10, Admin Complete 10.
 - Knockout actions: `auto_reject` or `pending_review`.
 - Dashboard ("Pulse") stays lightweight and real-time oriented. Reports ("Brain") can perform heavier historical aggregation with date filters.
+- Password reset uses a 2-stage OTP flow: request (6-digit OTP generated, hashed in `PasswordResetOtp` table, and sent via Taskiq) and confirm (verifies OTP, resets password, increments user `token_version` to invalidate old sessions, and auto-logins user).
 
 ## AI, Storage, and Security Constraints
 - Use deterministic fallbacks on final retry instead of hard failure.

@@ -142,7 +142,7 @@ async def create_company_and_hr(
     return hr, company
 
 
-async def generate_token_pair(db: AsyncSession, user: User) -> TokenPair:
+async def _build_token_pair(db: AsyncSession, user: User) -> TokenPair:
     jti = str(uuid.uuid4())
     payload_access = {
         "sub": str(user.id),
@@ -166,13 +166,18 @@ async def generate_token_pair(db: AsyncSession, user: User) -> TokenPair:
 
     refresh_token_record = RefreshToken(user_id=user.id, jti=jti, expires_at=expires_at)
     await save_refresh_token_record(db, refresh_token_record)
-    await db.commit()
 
     return TokenPair(
         access_token=access,
         refresh_token=refresh,
         expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
+
+
+async def generate_token_pair(db: AsyncSession, user: User) -> TokenPair:
+    tokens = await _build_token_pair(db, user)
+    await db.commit()
+    return tokens
 
 
 async def refresh_access_token(
@@ -252,34 +257,27 @@ async def refresh_access_token(
         raise TokenRotationFailedException()
 
 
-async def request_password_reset(db: AsyncSession, email: str) -> str | None:
-    """Generate password reset token dan simpan hash ke DB.
-
-    Returns:
-        Plain token (to be sent via email), or None if user not found.
-    """
+async def request_password_reset_otp(db: AsyncSession, email: str) -> None:
+    """Generate 6-digit OTP code and send to user via email."""
     import hashlib
     import secrets
 
     user = await get_user_by_email(db, email)
     if not user:
-        # Do not leak whether email exists
-        return None
+        # Obfuscation: return silently
+        return
 
-    # Generate secure token
-    token = secrets.token_urlsafe(32)
-    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    if not user.password_hash:
+        # User has no password (e.g. placeholder/defensive)
+        return
 
-    # Store hash in temporary notes field (MVP — ideally use password_reset_tokens table)
-    # Format: "PWRESET:<hash>:<expiry_unix>"
-    import time
+    otp = "".join([str(secrets.randbelow(10)) for _ in range(6)])
+    otp_hash = hashlib.sha256(otp.encode()).hexdigest()
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
 
-    expiry = int(time.time()) + 3600  # 1 hour
-    user.notes = f"PWRESET:{token_hash}:{expiry}" if hasattr(user, "notes") else None  # type: ignore
+    from app.features.auth.repositories.otp_repository import upsert_password_reset_otp
+    await upsert_password_reset_otp(db, user.id, otp_hash, expires_at)
 
-    # Note: Production solution requires password_reset_tokens table.
-    # MVP: Return token to be logged to console in the endpoint.
-    
     # Audit Log
     await create_audit_log(
         db,
@@ -292,24 +290,71 @@ async def request_password_reset(db: AsyncSession, email: str) -> str | None:
             new_values={"email": email}
         )
     )
-    
+
     await db.commit()
-    return token
+
+    # Queue email task
+    from app.shared.tasks.mail_tasks import send_password_reset_otp_email
+    await send_password_reset_otp_email.kiq(email, user.full_name, otp)
 
 
-async def confirm_password_reset(
-    db: AsyncSession, token: str, new_password: str
-) -> bool:
-    """Verify reset token and update user password.
+async def confirm_password_reset_otp(
+    db: AsyncSession, email: str, otp: str, new_password: str
+) -> TokenPair:
+    """Verify OTP and reset user password."""
+    import hashlib
+    from app.core.exceptions import (
+        PasswordResetOtpInvalidException,
+        PasswordResetOtpExpiredException,
+    )
+    from app.core.utils.audit import get_model_snapshot
+    from app.features.auth.repositories.otp_repository import (
+        find_password_reset_otp,
+        delete_password_reset_otp,
+    )
+    from app.shared.constants.audit_actions import PASSWORD_RESET_CONFIRMED
 
-    MVP: Since there is no dedicated table, this would match via secure query.
-    Returns: True if successful, False if token invalid/expired.
-    """
-    # NOTE: Production implementation requires password_reset_tokens table with:
-    # user_id, token_hash, expires_at, used_at
-    # This MVP is a safe placeholder returning False
-    # until the table is created via Alembic migration.
-    return False
+    otp_hash = hashlib.sha256(otp.encode()).hexdigest()
+
+    user = await get_user_by_email(db, email)
+    if not user:
+        raise PasswordResetOtpInvalidException()
+
+    record = await find_password_reset_otp(db, user.id, otp_hash)
+    if not record:
+        raise PasswordResetOtpInvalidException()
+
+    if record.expires_at <= datetime.now(timezone.utc):
+        raise PasswordResetOtpExpiredException()
+
+    snapshot_old = get_model_snapshot(user)
+    
+    # Update password and version
+    user.password_hash = get_password_hash(new_password)
+    user.token_version += 1
+
+    await delete_password_reset_otp(db, user.id)
+    await delete_all_refresh_tokens_by_user_id(db, user.id)
+
+    # Generate new token pair (does not commit)
+    tokens = await _build_token_pair(db, user)
+
+    # Audit Log
+    await create_audit_log(
+        db,
+        AuditLog(
+            company_id=user.company_id,
+            user_id=user.id,
+            action=PASSWORD_RESET_CONFIRMED,
+            entity_type=AUTH,
+            entity_id=user.id,
+            old_values=snapshot_old,
+            new_values={"email": email}
+        )
+    )
+
+    await db.commit()
+    return tokens
 
 
 async def revoke_all_sessions(db: AsyncSession, user_id: int) -> bool:

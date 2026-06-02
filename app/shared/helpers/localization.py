@@ -31,6 +31,8 @@ from app.shared.constants.errors import (
     ERR_USER_EMAIL_ALREADY_EXISTS,
     ERR_MISSING_DOCUMENTS,
     ERR_PASSWORD_RESET_TOKEN_INVALID,
+    ERR_PASSWORD_RESET_OTP_INVALID,
+    ERR_PASSWORD_RESET_OTP_EXPIRED,
     ERR_REFRESH_TOKEN_EXPIRED,
     ERR_RULE_NOT_FOUND,
     ERR_SCORING_TEMPLATE_MISSING,
@@ -146,6 +148,7 @@ AUDIT_ACTION_LABELS: Dict[str, str] = {
     audit_actions.LOGIN_FAILURE: "Login Gagal",
     audit_actions.LOGIN_SUCCESS: "Login Berhasil",
     audit_actions.PASSWORD_RESET_REQUESTED: "Meminta Reset Kata Sandi",
+    audit_actions.PASSWORD_RESET_CONFIRMED: "Konfirmasi Reset Kata Sandi",
     audit_actions.LOGOUT: "Keluar dari Sistem",
     audit_actions.CREATE_HR_ACCOUNT: "Membuat Akun HR",
     audit_actions.CREATE_SUPER_ADMIN_ACCOUNT: "Membuat Akun Administrator Utama",
@@ -234,6 +237,8 @@ INTERNAL_MESSAGES: Dict[str, str] = {
     "OCR text is too short or unreadable": "Teks dokumen tidak terbaca atau terlalu pendek",
     "API Error (Fallback to Pass)": "Kesalahan API (Dilewati otomatis)",
     "Internal validator error": "Kesalahan internal pada sistem validasi",
+    "otp_reset_email_sent": "Jika email terdaftar, kode OTP telah dikirim ke email Anda",
+    "password_reset_success": "Password berhasil direset, Anda sudah otomatis login",
 }
 
 ERROR_MESSAGES: Dict[str, str] = {
@@ -282,6 +287,8 @@ ERROR_MESSAGES: Dict[str, str] = {
     ERR_NOTIFICATION_NOT_FOUND: "Notifikasi tidak ditemukan",
     ERR_VALIDATION_FAILED: "Terjadi kesalahan validasi",
     MSG_SCREENING_QUEUED: "Proses screening telah dimasukkan dalam antrean",
+    ERR_PASSWORD_RESET_OTP_INVALID: "Kode OTP tidak valid",
+    ERR_PASSWORD_RESET_OTP_EXPIRED: "Kode OTP sudah kedaluwarsa, silakan minta ulang",
 }
 
 
