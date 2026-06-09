@@ -114,6 +114,7 @@ class JobDetailResponse(BaseModel):
     requirements: list[JobRequirementItem]
     form_fields: list[JobFormFieldItem]
     knockout_rules: list[JobKnockoutRuleItem]
+    apply_code: str | None = None
 
 
 class JobCloseResponse(BaseModel):

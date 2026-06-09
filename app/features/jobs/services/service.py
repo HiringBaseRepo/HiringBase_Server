@@ -274,6 +274,7 @@ async def get_job_detail(
         requirements=[map_requirement_to_item(item) for item in requirements],
         form_fields=[map_form_field_to_item(item) for item in form_fields],
         knockout_rules=[map_knockout_rule_to_item(item) for item in knockout_rules],
+        apply_code=job.apply_code,
     )
 
 
