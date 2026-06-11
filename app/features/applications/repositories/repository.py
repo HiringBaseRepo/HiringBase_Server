@@ -25,6 +25,17 @@ async def list_public_jobs(
     q: str | None = None,
     location: str | None = None,
 ) -> tuple[list[Job], int]:
+    # If q is provided and matches an apply_code, allow returning that specific private/public job
+    if q and len(q) >= 4:
+        code_stmt = select(Job).where(
+            Job.apply_code == q,
+            Job.deleted_at.is_(None),
+        )
+        code_result = await db.execute(code_stmt)
+        matched = list(code_result.scalars().all())
+        if matched:
+            return matched, len(matched)
+
     stmt = select(Job).where(
         Job.status == JobStatus.PUBLISHED,
         Job.is_public,
@@ -61,7 +72,11 @@ async def get_public_job_by_id(db: AsyncSession, job_id: int) -> Job | None:
 
 async def get_published_job_by_id(db: AsyncSession, job_id: int) -> Job | None:
     result = await db.execute(
-        select(Job).where(Job.id == job_id, Job.status == JobStatus.PUBLISHED, Job.deleted_at.is_(None))
+        select(Job).where(
+            Job.id == job_id,
+            Job.status.in_([JobStatus.PUBLISHED, JobStatus.PRIVATE]),
+            Job.deleted_at.is_(None),
+        )
     )
     return result.scalar_one_or_none()
 
