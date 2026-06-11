@@ -88,7 +88,11 @@ async def list_users(
     total_result = await db.execute(select(func.count()).select_from(stmt.subquery()))
     total = total_result.scalar_one()
 
-    result = await db.execute(stmt.offset(pagination.offset).limit(pagination.limit))
+    result = await db.execute(
+        stmt.order_by(User.created_at.desc())
+        .offset(pagination.offset)
+        .limit(pagination.limit)
+    )
     return list(result.scalars().all()), total
 
 
