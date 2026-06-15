@@ -85,9 +85,9 @@ async def public_apply(
             doc_type = DocumentType.OTHERS
             if key.startswith("file_"):
                 enum_key = key.replace("file_", "")
-                if enum_key in DocumentType._member_names_:
-                    doc_type = DocumentType[enum_key]
-                else:
+                try:
+                    doc_type = DocumentType(enum_key)
+                except ValueError:
                     raise ValidationError(
                         get_label(ERR_INVALID_UPLOAD_KEY, key=key)
                     )

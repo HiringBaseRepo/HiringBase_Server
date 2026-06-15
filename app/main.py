@@ -72,7 +72,10 @@ _BANNER = r"""
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
-    print(_BANNER)
+    try:
+        print(_BANNER)
+    except Exception:
+        print("HiringBase Backend API v1.0")
     # Startup Redis
     await redis_client.connect()
     
