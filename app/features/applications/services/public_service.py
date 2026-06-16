@@ -173,6 +173,24 @@ async def public_apply(
             val = data.phone
         elif field.field_key in ("work_experience", "experience"):
             val = answers.get("experience") or answers.get("work_experience")
+        elif field.field_key in ("ijazah", "ijazah_terakhir"):
+            doc = next((d for d in (documents_data or []) if d["type"].value == "degree"), None)
+            val = doc["file"].filename if doc else None
+        elif field.field_key == "ktp":
+            doc = next((d for d in (documents_data or []) if d["type"].value == "identity_card"), None)
+            val = doc["file"].filename if doc else None
+        elif field.field_key == "skck":
+            doc = next((d for d in (documents_data or []) if d["type"].value == "criminal_record"), None)
+            val = doc["file"].filename if doc else None
+        elif field.field_key in ("surat_sehat", "surat_keterangan_sehat"):
+            doc = next((d for d in (documents_data or []) if d["type"].value == "health_certificate"), None)
+            val = doc["file"].filename if doc else None
+        elif field.field_key in ("sertifikat", "sertifikat_keahlian"):
+            doc = next((d for d in (documents_data or []) if d["type"].value == "certificate"), None)
+            val = doc["file"].filename if doc else None
+        elif field.field_key in ("cv", "portfolio", "portofolio"):
+            doc = next((d for d in (documents_data or []) if d["type"].value == "portfolio"), None)
+            val = doc["file"].filename if doc else None
         else:
             val = answers.get(field.field_key)
 
