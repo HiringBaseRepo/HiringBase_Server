@@ -47,7 +47,19 @@ async def validate_public_apply_requirements(
     form_fields = await get_form_fields_by_job_id(db, job_id=data.job_id)
     answers = json.loads(data.answers_json) if data.answers_json else {}
     for field in form_fields:
-        if field.is_required and not answers.get(field.field_key):
+        val = None
+        if field.field_key == "full_name":
+            val = data.full_name
+        elif field.field_key in ("email", "email_address"):
+            val = data.email
+        elif field.field_key in ("phone", "phone_number", "whatsapp"):
+            val = data.phone
+        elif field.field_key in ("work_experience", "experience"):
+            val = answers.get("experience") or answers.get("work_experience")
+        else:
+            val = answers.get(field.field_key)
+
+        if field.is_required and not val:
             raise ValidationError(get_label(ERR_FIELD_REQUIRED, field=field.label))
 
     # VALIDATION 2: Required Documents

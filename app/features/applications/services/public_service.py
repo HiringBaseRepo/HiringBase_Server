@@ -159,22 +159,32 @@ async def public_apply(
 
     uploaded_keys: list[str] = []
     if data.answers_json:
-        answers = json.loads(data.answers_json)
-        
-        # Save as metadata in application.notes for safety
         application.notes = data.answers_json
-        
-        for key, value in answers.items():
-            field = await get_form_field_by_key(db, job_id=data.job_id, field_key=key)
-            if field:
-                await add_answer(
-                    db,
-                    ApplicationAnswer(
-                        application_id=application.id,
-                        form_field_id=field.id,
-                        value_text=str(value) if value is not None else None,
-                    ),
-                )
+
+    answers = json.loads(data.answers_json) if data.answers_json else {}
+    form_fields = await get_form_fields_by_job_id(db, job_id=data.job_id)
+    for field in form_fields:
+        val = None
+        if field.field_key == "full_name":
+            val = data.full_name
+        elif field.field_key in ("email", "email_address"):
+            val = data.email
+        elif field.field_key in ("phone", "phone_number", "whatsapp"):
+            val = data.phone
+        elif field.field_key in ("work_experience", "experience"):
+            val = answers.get("experience") or answers.get("work_experience")
+        else:
+            val = answers.get(field.field_key)
+
+        if val is not None:
+            await add_answer(
+                db,
+                ApplicationAnswer(
+                    application_id=application.id,
+                    form_field_id=field.id,
+                    value_text=str(val),
+                ),
+            )
     for item in documents_data or []:
         upload = item["file"]
         doc_type = item["type"]
