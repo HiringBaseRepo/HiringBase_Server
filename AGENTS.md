@@ -92,6 +92,9 @@ Use string-literal relationships and `TYPE_CHECKING` hints when needed. Keep Ale
 - Knockout actions: `auto_reject` or `pending_review`.
 - Dashboard ("Pulse") stays lightweight and real-time oriented. Reports ("Brain") can perform heavier historical aggregation with date filters.
 - Password reset uses a 2-stage OTP flow: request (6-digit OTP generated, hashed in `PasswordResetOtp` table, and sent via Taskiq) and confirm (verifies OTP, resets password, increments user `token_version` to invalidate old sessions, and auto-logins user).
+- Private job access is supported via a unique `apply_code`. If a public applicant searches using an exact `apply_code` (as query `q`), the system will return the matching private job.
+- Document upload validation uses case-insensitive enum value mapping (matching lowercase values of `DocumentType` like `identity_card`, `degree`, etc.) when receiving files prefixed with `file_`.
+- User and Company pagination queries must always return results ordered by `created_at` in descending order by default.
 
 ## AI, Storage, and Security Constraints
 - Use deterministic fallbacks on final retry instead of hard failure.
