@@ -56,6 +56,18 @@ async def validate_public_apply_requirements(
             val = data.phone
         elif field.field_key in ("work_experience", "experience"):
             val = answers.get("experience") or answers.get("work_experience")
+        elif field.field_key in ("ijazah", "ijazah_terakhir"):
+            val = next((doc for doc in (documents_data or []) if doc["type"].value == "degree"), None)
+        elif field.field_key == "ktp":
+            val = next((doc for doc in (documents_data or []) if doc["type"].value == "identity_card"), None)
+        elif field.field_key == "skck":
+            val = next((doc for doc in (documents_data or []) if doc["type"].value == "criminal_record"), None)
+        elif field.field_key in ("surat_sehat", "surat_keterangan_sehat"):
+            val = next((doc for doc in (documents_data or []) if doc["type"].value == "health_certificate"), None)
+        elif field.field_key in ("sertifikat", "sertifikat_keahlian"):
+            val = next((doc for doc in (documents_data or []) if doc["type"].value == "certificate"), None)
+        elif field.field_key in ("cv", "portfolio", "portofolio"):
+            val = next((doc for doc in (documents_data or []) if doc["type"].value == "portfolio"), None)
         else:
             val = answers.get(field.field_key)
 
