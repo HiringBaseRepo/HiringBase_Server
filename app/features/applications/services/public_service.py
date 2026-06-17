@@ -113,6 +113,15 @@ async def get_public_job_detail(
         location=job.location,
         company_name=company.name if company else None,
         employment_type_label=get_label(job.employment_type),
+        requirements=[
+            PublicJobRequirement(
+                category=req.category,
+                name=req.name,
+                value=req.value,
+                is_required=req.is_required,
+            )
+            for req in (job.requirements or [])
+        ],
         form_fields=[
             PublicJobFormField(
                 field_key=field.field_key,

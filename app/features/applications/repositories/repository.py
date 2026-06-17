@@ -72,7 +72,9 @@ async def get_public_job_by_id(db: AsyncSession, job_id: int) -> Job | None:
 
 async def get_published_job_by_id(db: AsyncSession, job_id: int) -> Job | None:
     result = await db.execute(
-        select(Job).where(
+        select(Job)
+        .options(selectinload(Job.requirements))
+        .where(
             Job.id == job_id,
             Job.status.in_([JobStatus.PUBLISHED, JobStatus.PRIVATE]),
             Job.deleted_at.is_(None),

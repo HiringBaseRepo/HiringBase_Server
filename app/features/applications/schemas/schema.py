@@ -27,6 +27,13 @@ class PublicJobFormField(BaseModel):
     is_required: bool
 
 
+class PublicJobRequirement(BaseModel):
+    category: str
+    name: str
+    value: str
+    is_required: bool
+
+
 class PublicJobDetailResponse(BaseModel):
     id: int
     title: str
@@ -37,6 +44,7 @@ class PublicJobDetailResponse(BaseModel):
     location: str | None
     company_name: str | None
     employment_type_label: str | None = None
+    requirements: list[PublicJobRequirement]
     form_fields: list[PublicJobFormField]
 
 
