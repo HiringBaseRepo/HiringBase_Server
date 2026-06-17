@@ -229,6 +229,14 @@ async def get_application_detail(
             scoring_breakdown=s.scoring_breakdown,
         )
 
+    rejection_reason = None
+    if application.status_logs:
+        rejected_logs = [log for log in application.status_logs if log.to_status == "rejected"]
+        if rejected_logs:
+            # Sort by created_at desc or use last if created_at is not null
+            rejected_logs.sort(key=lambda x: x.created_at or datetime.min, reverse=True)
+            rejection_reason = rejected_logs[0].reason
+
     return ApplicationDetailResponse(
         id=application.id,
         job_id=application.job_id,
@@ -241,4 +249,5 @@ async def get_application_detail(
         answers=answers,
         documents=documents,
         score=score,
+        rejection_reason=rejection_reason,
     )

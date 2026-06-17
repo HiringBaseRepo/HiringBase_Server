@@ -41,6 +41,8 @@ async def list_jobs(
     status: JobStatus | None = None,
     q: str | None = None,
 ) -> tuple[list[Job], int]:
+    from app.features.applications.models import Application
+
     stmt = select(Job).where(Job.company_id == company_id, Job.deleted_at.is_(None))
     if status:
         stmt = stmt.where(Job.status == status)
@@ -50,10 +52,34 @@ async def list_jobs(
     total_result = await db.execute(select(func.count()).select_from(stmt.subquery()))
     total = total_result.scalar_one()
 
-    result = await db.execute(
-        stmt.order_by(Job.created_at.desc()).offset(pagination.offset).limit(pagination.limit)
+    # Select Job along with count of applications
+    stmt_with_count = (
+        select(Job, func.count(Application.id).label("applicant_count"))
+        .select_from(Job)
+        .outerjoin(Application, Job.id == Application.job_id)
+        .where(Job.company_id == company_id, Job.deleted_at.is_(None))
     )
-    return list(result.scalars().all()), total
+    if status:
+        stmt_with_count = stmt_with_count.where(Job.status == status)
+    if q:
+        stmt_with_count = stmt_with_count.where(Job.title.ilike(f"%{q}%"))
+
+    stmt_with_count = (
+        stmt_with_count.group_by(Job.id)
+        .order_by(Job.created_at.desc())
+        .offset(pagination.offset)
+        .limit(pagination.limit)
+    )
+
+    result = await db.execute(stmt_with_count)
+    rows = result.all()
+    
+    jobs = []
+    for job, count in rows:
+        job.applicant_count = count
+        jobs.append(job)
+
+    return jobs, total
 
 
 async def get_requirements_by_job_id(db: AsyncSession, job_id: int) -> list[JobRequirement]:
