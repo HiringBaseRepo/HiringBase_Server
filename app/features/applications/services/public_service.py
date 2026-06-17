@@ -39,6 +39,7 @@ from app.features.applications.schemas.schema import (
     PublicJobFormField,
     PublicJobItem,
     PublicJobDetailResponse,
+    PublicJobRequirement,
     PublicApplyCommand,
     PublicApplyResponse,
 )
