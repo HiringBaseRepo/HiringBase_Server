@@ -92,4 +92,14 @@ async def run_screening(
             company_id=current_user.company_id,
             trigger_source="manual",
         )
+        # Trigger immediate in-process fallback
+        import asyncio
+        from app.features.screening.services.orchestrator import process_screening_with_exception_handling
+        asyncio.create_task(
+            process_screening_with_exception_handling(
+                application_id=application_id,
+                company_id=current_user.company_id,
+                trigger_source="manual",
+            )
+        )
     return StandardResponse.ok(data=result, message=result.message)
