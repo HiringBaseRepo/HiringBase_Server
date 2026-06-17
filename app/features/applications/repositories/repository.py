@@ -231,6 +231,7 @@ async def get_application_detail(
             selectinload(Application.answers).joinedload(ApplicationAnswer.form_field),
             selectinload(Application.documents),
             selectinload(Application.scores),
+            selectinload(Application.status_logs),
         )
         .join(Job)
         .where(
