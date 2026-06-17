@@ -287,17 +287,6 @@ async def public_apply(
         ticket_number=ticket.code
     )
 
-    # Trigger AI Screening immediately in-process
-    import asyncio
-    from app.features.screening.services.orchestrator import process_screening_with_exception_handling
-    asyncio.create_task(
-        process_screening_with_exception_handling(
-            application_id=application.id,
-            company_id=job.company_id if job else None,
-            trigger_source="public_apply",
-        )
-    )
-
     return PublicApplyResponse(
         application_id=application.id,
         ticket_code=ticket.code,
