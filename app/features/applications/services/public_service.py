@@ -147,6 +147,11 @@ async def public_apply(
                 role=UserRole.APPLICANT,
             ),
         )
+    else:
+        if data.full_name and applicant.full_name != data.full_name:
+            applicant.full_name = data.full_name
+        if data.phone and applicant.phone != data.phone:
+            applicant.phone = data.phone
 
     application = await save_application(
         db,
@@ -280,6 +285,17 @@ async def public_apply(
         email=applicant.email,
         name=applicant.full_name,
         ticket_number=ticket.code
+    )
+
+    # Trigger AI Screening immediately in-process
+    import asyncio
+    from app.features.screening.services.orchestrator import process_screening_with_exception_handling
+    asyncio.create_task(
+        process_screening_with_exception_handling(
+            application_id=application.id,
+            company_id=job.company_id if job else None,
+            trigger_source="public_apply",
+        )
     )
 
     return PublicApplyResponse(
