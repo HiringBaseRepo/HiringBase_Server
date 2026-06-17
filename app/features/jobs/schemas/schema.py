@@ -82,6 +82,7 @@ class JobListItem(BaseModel):
     apply_code: str | None
     published_at: str | None
     created_at: str | None
+    applicant_count: int = 0
 
 
 class JobRequirementItem(BaseModel):

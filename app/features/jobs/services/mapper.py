@@ -34,6 +34,7 @@ def map_job_to_list_item(job: Any) -> JobListItem:
         apply_code=job.apply_code,
         published_at=job.published_at.isoformat() if job.published_at else None,
         created_at=job.created_at.isoformat() if job.created_at else None,
+        applicant_count=getattr(job, "applicant_count", 0),
     )
 
 
