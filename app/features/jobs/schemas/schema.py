@@ -121,3 +121,4 @@ class JobDetailResponse(BaseModel):
 class JobCloseResponse(BaseModel):
     job_id: int
     status: JobStatus
+    status_label: str | None = None

@@ -112,5 +112,6 @@ class ApplicationDetailResponse(BaseModel):
     answers: List[ApplicationAnswerResponse]
     documents: List[ApplicationDocumentResponse]
     score: Optional[CandidateScoreResponse] = None
+    rejection_reason: Optional[str] = None
 
     model_config = {"from_attributes": True}
