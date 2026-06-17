@@ -62,6 +62,7 @@ class ApplicationListItem(BaseModel):
     status: str
     status_label: str | None = None
     created_at: str | None
+    applicant_name: str | None = None
 
     model_config = {"from_attributes": True}
 

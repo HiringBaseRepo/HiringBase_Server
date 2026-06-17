@@ -170,9 +170,14 @@ async def list_applications(
     status: ApplicationStatus | None = None,
     q: str | None = None,
 ) -> tuple[list[Application], int]:
-    stmt = select(Application).join(Job).where(
-        Job.company_id == company_id,
-        Application.deleted_at.is_(None),
+    stmt = (
+        select(Application)
+        .options(joinedload(Application.applicant))
+        .join(Job)
+        .where(
+            Job.company_id == company_id,
+            Application.deleted_at.is_(None),
+        )
     )
     if job_id:
         stmt = stmt.where(Application.job_id == job_id)
