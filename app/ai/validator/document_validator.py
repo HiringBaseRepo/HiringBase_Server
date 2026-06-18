@@ -1,6 +1,7 @@
 """Semantic Document Validator using LLM (Groq)."""
 
 import json
+import html
 from typing import Any, Dict
 
 import httpx
@@ -49,6 +50,9 @@ async def validate_document_content(
             }
         )
 
+    # Clean OCR text from HTML/XML entities (e.g., &amp; -> &)
+    cleaned_ocr = html.unescape(ocr_text)
+
     prompt = f"""
     Task: HR document validation (Hiring Assistant).
     Compare the OCR text from the {doc_type} document with the applicant's profile data.
@@ -59,11 +63,12 @@ async def validate_document_content(
 
     OCR Text from {doc_type}:
     ---
-    {ocr_text[:4000]}
+    {cleaned_ocr[:4000]}
     ---
 
     Instructions:
-    1. Check if the Name in the document matches the Applicant Name. The matching should be CASE-INSENSITIVE (e.g., "ABDEL MUWAFFAQ NOURI" matches "Abdel Muwaffaq Nouri"). Do not flag it as a mismatch just because of all-caps vs title-case. Also allow minor formatting/title differences (like academic titles "S.Kom.", "M.T.", etc.). Only set valid to false if it is a completely different name or has a severe spelling mismatch.
+    1. Check if the Name in the document matches the Applicant Name. The matching should be CASE-INSENSITIVE (e.g., "ABDEL MUWAFFAQ NOURI" matches "Abdel Muwaffaq Nouri"). Do not flag it as a mismatch just because of all-caps vs title-case. Also allow minor formatting/title differences (like academic titles "S.Kom.", "M.T.", etc.).
+       CRITICAL: Ignore minor OCR typos, character/scanning artifacts (for example, if the letter 'Q' is scanned as '&' or '&amp;', or there's a missing/extra character, but the rest of the name matches). If it is clearly the same person with a slight OCR scanning error, set "name_match" to true in checks and "valid" to true, explaining the minor OCR noise in the "reason". Only set "valid" or "name_match" to false if it is a completely different person's name (e.g., "JUJANTI JIMAMORA" vs "Isa").
     2. Verify if the document type being read is indeed a {doc_type}.
     3. Check the document's validity period (if any). Ensure it is still active or valid for life.
     4. Check for a valid document number format (e.g., ID number, Certificate number).
