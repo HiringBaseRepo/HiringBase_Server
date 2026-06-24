@@ -26,6 +26,7 @@ from app.shared.constants.errors import (
     ERR_REFRESH_TOKEN_EXPIRED,
     ERR_RULE_NOT_FOUND,
     ERR_SCORING_TEMPLATE_MISSING,
+    ERR_SCREENING_ALREADY_COMPLETED,
     ERR_SECURITY_ALERT,
     ERR_TICKET_NOT_FOUND,
     ERR_TOKEN_REVOKED,
@@ -322,6 +323,14 @@ class InvalidRequestOriginException(BaseDomainException):
     """Raised when a cookie-auth request comes from an untrusted origin."""
 
     def __init__(self, message: str = get_label(ERR_INVALID_REQUEST_ORIGIN)):
+        self.message = message
+        super().__init__(self.message)
+
+
+class ScreeningAlreadyCompletedException(BaseDomainException):
+    """Raised when attempting to run screening on an already-screened application."""
+
+    def __init__(self, message: str = get_label(ERR_SCREENING_ALREADY_COMPLETED)):
         self.message = message
         super().__init__(self.message)
 

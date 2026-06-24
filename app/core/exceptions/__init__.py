@@ -22,6 +22,7 @@ from app.core.exceptions.custom_exceptions import (
     PasswordResetOtpExpiredException,
     RefreshTokenExpiredException,
     RuleNotFoundException,
+    ScreeningAlreadyCompletedException,
     SecurityAlertException,
     SuperAdminAlreadyExistsException,
     TemplateNotFoundException,
@@ -71,5 +72,6 @@ __all__ = [
     "WeightTotalInvalidException",
     "UnauthenticatedException",
     "UnauthorizedException",
+    "ScreeningAlreadyCompletedException",
     "UserEmailAlreadyExistsException",
 ]

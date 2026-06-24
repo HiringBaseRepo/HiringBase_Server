@@ -186,7 +186,7 @@ async def list_applications(
     if status:
         stmt = stmt.where(Application.status == status)
     if q:
-        stmt = stmt.join(User).where(User.full_name.ilike(f"%{q}%"))
+        stmt = stmt.join(Application.applicant).where(User.full_name.ilike(f"%{q}%"))
 
     total_result = await db.execute(select(func.count()).select_from(stmt.subquery()))
     total = total_result.scalar_one()

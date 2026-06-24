@@ -28,6 +28,7 @@ from app.features.applications.repositories.repository import (
     get_company_by_id,
     get_form_field_by_key,
     get_form_fields_by_job_id,
+    get_knockout_rules_by_job_id,
     get_published_job_by_id,
     get_user_by_email,
     list_public_jobs as list_public_jobs_query,
@@ -56,6 +57,7 @@ from app.shared.constants.audit_actions import APPLICATION_SUBMIT
 from app.shared.constants.audit_entities import APPLICATION
 from app.shared.enums.application_status import ApplicationStatus
 from app.shared.enums.document_type import DocumentType
+from app.shared.enums.knockout import KnockoutRuleType
 from app.shared.enums.notification_type import NotificationType
 from app.shared.enums.ticket_status import TicketStatus
 from app.shared.enums.user_roles import UserRole
@@ -104,6 +106,14 @@ async def get_public_job_detail(
         raise JobNotFoundException()
     company = await get_company_by_id(db, job.company_id)
     form_fields = await get_form_fields_by_job_id(db, job_id)
+    knockout_rules = await get_knockout_rules_by_job_id(db, job_id)
+
+    required_documents = [
+        r.target_value.lower()
+        for r in knockout_rules
+        if r.rule_type == KnockoutRuleType.DOCUMENT.value and r.is_active
+    ]
+
     return PublicJobDetailResponse(
         id=job.id,
         title=job.title,
@@ -132,6 +142,7 @@ async def get_public_job_detail(
             )
             for field in form_fields
         ],
+        required_documents=required_documents,
     )
 
 

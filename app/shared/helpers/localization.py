@@ -59,6 +59,8 @@ from app.shared.constants.errors import (
     ERR_TOKEN_REUSED_ALERT,
     ERR_CANDIDATE_SCORE_NOT_FOUND,
     ERR_NOTIFICATION_NOT_FOUND,
+    ERR_RATE_LIMIT,
+    ERR_SCREENING_ALREADY_COMPLETED,
     MSG_SCREENING_QUEUED,
 )
 from app.shared.constants.scoring import (
@@ -286,9 +288,11 @@ ERROR_MESSAGES: Dict[str, str] = {
     ERR_CANDIDATE_SCORE_NOT_FOUND: "Skor kandidat tidak ditemukan",
     ERR_NOTIFICATION_NOT_FOUND: "Notifikasi tidak ditemukan",
     ERR_VALIDATION_FAILED: "Terjadi kesalahan validasi",
+    ERR_SCREENING_ALREADY_COMPLETED: "Screening sudah pernah dilakukan untuk kandidat ini",
     MSG_SCREENING_QUEUED: "Proses screening telah dimasukkan dalam antrean",
     ERR_PASSWORD_RESET_OTP_INVALID: "Kode OTP tidak valid",
     ERR_PASSWORD_RESET_OTP_EXPIRED: "Kode OTP sudah kedaluwarsa, silakan minta ulang",
+    ERR_RATE_LIMIT: "Terlalu banyak permintaan, coba lagi dalam 1 menit",
 }
 
 

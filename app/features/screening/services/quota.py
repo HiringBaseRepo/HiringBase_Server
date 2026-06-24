@@ -92,6 +92,51 @@ async def register_manual_screening_request(application_id: int) -> ScreeningEnq
     return ScreeningEnqueueDecision(queue_status="queued", task_enqueued=True)
 
 
+async def register_batch_screening_request(application_id: int) -> ScreeningEnqueueDecision:
+    """Prepare batch screening request — skips manual parallel limit."""
+    if await is_screening_queued_or_processing(application_id):
+        return ScreeningEnqueueDecision(
+            queue_status="duplicate",
+            task_enqueued=False,
+            reason="screening_already_queued",
+        )
+
+    if not await has_batch_capacity():
+        return ScreeningEnqueueDecision(
+            queue_status="pending_quota",
+            task_enqueued=False,
+            reason="screening_pending_quota",
+        )
+
+    marked = await mark_screening_queued(application_id)
+    if not marked:
+        return ScreeningEnqueueDecision(
+            queue_status="duplicate",
+            task_enqueued=False,
+            reason="screening_already_queued",
+        )
+
+    return ScreeningEnqueueDecision(queue_status="queued", task_enqueued=True)
+
+
+async def has_batch_capacity() -> bool:
+    """Capacity check for batch screening — no manual_parallel limit."""
+    redis = redis_client.redis
+    if not redis:
+        return True
+
+    now = _utc_now()
+    total_parallel = await _get_int(_parallel_counter_key("total"))
+    hourly = await _get_int(_hourly_counter_key(now))
+    daily = await _get_int(_daily_counter_key(now))
+
+    return (
+        total_parallel < settings.SCREENING_MAX_PARALLEL_TOTAL
+        and hourly < settings.SCREENING_MAX_PER_HOUR
+        and daily < settings.SCREENING_MAX_PER_DAY
+    )
+
+
 async def has_manual_capacity() -> bool:
     """Cheap capacity check to avoid manual enqueue spam."""
     redis = redis_client.redis

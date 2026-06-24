@@ -229,6 +229,7 @@ async def get_application_detail(
             red_flags=s.red_flags,
             risk_level=s.risk_level,
             scoring_breakdown=s.scoring_breakdown,
+            is_manual_override=s.is_manual_override,
         )
 
     rejection_reason = None

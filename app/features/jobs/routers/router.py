@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database.base import get_db
 from app.features.auth.dependencies.auth import require_hr
 from app.features.jobs.schemas.schema import (
+    AddJobKnockoutRulesRequest,
     AddJobRequirementsRequest,
     CreateJobStep1Request,
     JobCloseResponse,
@@ -17,6 +18,7 @@ from app.features.jobs.schemas.schema import (
     SetupJobFormRequest,
 )
 from app.features.jobs.services.service import (
+    add_job_knockout_rules as add_job_knockout_rules_service,
     add_job_requirements as add_job_requirements_service,
     close_job as close_job_service,
     create_job_step1 as create_job_step1_service,
@@ -71,6 +73,22 @@ async def setup_job_form(
     current_user=Depends(require_hr),
 ):
     result = await setup_job_form_service(
+        db,
+        current_user=current_user,
+        job_id=job_id,
+        data=data,
+    )
+    return StandardResponse.ok(data=result)
+
+
+@router.post("/{job_id}/step3-knockout-rules", response_model=StandardResponse[JobStepResponse])
+async def add_knockout_rules(
+    job_id: int,
+    data: AddJobKnockoutRulesRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_hr),
+):
+    result = await add_job_knockout_rules_service(
         db,
         current_user=current_user,
         job_id=job_id,

@@ -49,6 +49,17 @@ class SetupJobFormRequest(BaseModel):
     fields: list[JobFormFieldInput]
 
 
+class JobKnockoutRuleInput(BaseModel):
+    rule_name: str
+    rule_type: str
+    target_value: str
+    is_active: bool = True
+
+
+class AddJobKnockoutRulesRequest(BaseModel):
+    knockout_rules: list[JobKnockoutRuleInput]
+
+
 class PublishJobRequest(BaseModel):
     mode: PublishMode = PublishMode.PUBLIC
     scheduled_at: datetime | None = None

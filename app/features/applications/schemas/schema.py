@@ -46,6 +46,7 @@ class PublicJobDetailResponse(BaseModel):
     employment_type_label: str | None = None
     requirements: list[PublicJobRequirement]
     form_fields: list[PublicJobFormField]
+    required_documents: list[str] = []
 
 
 class PublicApplyCommand(BaseModel):
@@ -107,6 +108,7 @@ class CandidateScoreResponse(BaseModel):
     red_flags: Optional[List[dict]]
     risk_level: Optional[RiskLevel]
     scoring_breakdown: Optional[dict] = None
+    is_manual_override: bool = False
 
 
 class ApplicationDetailResponse(BaseModel):
