@@ -1,6 +1,7 @@
 """Knockout + Administrative Screening + AI Scoring Engine."""
 
-from typing import Annotated, Optional
+import asyncio
+from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +12,9 @@ from app.shared.helpers.localization import get_label
 from app.shared.constants.errors import ERR_INVALID_KNOCKOUT_OPERATOR
 from app.features.auth.dependencies.auth import HrUserDep
 from app.features.screening.schemas.schema import (
+    BatchScreeningRequest,
+    BatchScreeningResponse,
+    BatchScreeningItem,
     KnockoutRuleCreateCommand,
     KnockoutRuleCreatedResponse,
     KnockoutRuleDeletedResponse,
@@ -22,6 +26,7 @@ from app.features.screening.services.service import (
     queue_screening,
 )
 from app.features.screening.services.helpers import normalize_knockout_operator
+from app.features.screening.services.quota import register_batch_screening_request
 from app.features.screening.tasks import run_screening_task
 from app.shared.enums.knockout import KnockoutAction, KnockoutOperator, KnockoutRuleType
 from app.shared.schemas.response import StandardResponse
@@ -92,14 +97,93 @@ async def run_screening(
             company_id=current_user.company_id,
             trigger_source="manual",
         )
-        # Trigger immediate in-process fallback
-        import asyncio
-        from app.features.screening.services.orchestrator import process_screening_with_exception_handling
-        asyncio.create_task(
-            process_screening_with_exception_handling(
+    return StandardResponse.ok(data=result, message=result.message)
+
+
+@router.post(
+    "/batch/run",
+    response_model=StandardResponse[BatchScreeningResponse],
+)
+async def run_batch_screening(
+    body: BatchScreeningRequest,
+    db: DbDep,
+    current_user: HrUserDep,
+):
+    from app.core.config.settings import settings
+    from app.features.screening.repositories.repository import (
+        get_application_for_company,
+        get_candidate_score_by_app_id,
+    )
+    from app.core.exceptions import ApplicationNotFoundException
+
+    results: List[BatchScreeningItem] = []
+    queued = 0
+    duplicates = 0
+    quota_blocked = 0
+    skipped = 0
+
+    for application_id in body.application_ids:
+        application = await get_application_for_company(
+            db,
+            application_id=application_id,
+            company_id=current_user.company_id,
+        )
+        if not application:
+            skipped += 1
+            results.append(
+                BatchScreeningItem(
+                    application_id=application_id,
+                    queue_status="skipped",
+                    task_enqueued=False,
+                )
+            )
+            await asyncio.sleep(settings.SCREENING_BATCH_ENQUEUE_DELAY_SECONDS)
+            continue
+
+        existing_score = await get_candidate_score_by_app_id(db, application_id)
+        if existing_score is not None:
+            skipped += 1
+            results.append(
+                BatchScreeningItem(
+                    application_id=application_id,
+                    queue_status="duplicate",
+                    task_enqueued=False,
+                )
+            )
+            await asyncio.sleep(settings.SCREENING_BATCH_ENQUEUE_DELAY_SECONDS)
+            continue
+
+        result = await register_batch_screening_request(application_id)
+
+        if result.task_enqueued:
+            await run_screening_task.kiq(
                 application_id=application_id,
                 company_id=current_user.company_id,
-                trigger_source="manual",
+                trigger_source="batch",
+            )
+            queued += 1
+        elif result.queue_status == "duplicate":
+            duplicates += 1
+        else:
+            quota_blocked += 1
+
+        results.append(
+            BatchScreeningItem(
+                application_id=application_id,
+                queue_status=result.queue_status,
+                task_enqueued=result.task_enqueued,
             )
         )
-    return StandardResponse.ok(data=result, message=result.message)
+
+        await asyncio.sleep(settings.SCREENING_BATCH_ENQUEUE_DELAY_SECONDS)
+
+    return StandardResponse.ok(
+        data=BatchScreeningResponse(
+            total=len(body.application_ids),
+            queued=queued,
+            duplicates=duplicates,
+            quota_blocked=quota_blocked,
+            results=results,
+        ),
+        message=f"Batch screening queued: {queued} of {len(body.application_ids)}",
+    )

@@ -1,6 +1,7 @@
 """Screening schemas."""
 
 from pydantic import BaseModel
+from typing import List
 from app.shared.enums.knockout import KnockoutAction, KnockoutOperator, KnockoutRuleType
 
 
@@ -33,3 +34,18 @@ class ManualOverrideResponse(BaseModel):
     application_id: int
     new_final_score: float
     is_manual_override: bool
+
+class BatchScreeningRequest(BaseModel):
+    application_ids: List[int]
+
+class BatchScreeningItem(BaseModel):
+    application_id: int
+    queue_status: str
+    task_enqueued: bool
+
+class BatchScreeningResponse(BaseModel):
+    total: int
+    queued: int
+    duplicates: int
+    quota_blocked: int
+    results: List[BatchScreeningItem]

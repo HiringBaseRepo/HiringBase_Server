@@ -2,13 +2,17 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ApplicationNotFoundException
+from app.core.exceptions import (
+    ApplicationNotFoundException,
+    ScreeningAlreadyCompletedException,
+)
 from app.core.utils.audit import get_model_snapshot
 from app.features.audit_logs.models import AuditLog
 from app.features.audit_logs.repositories.repository import create_audit_log
 from app.features.jobs.models import JobScoringTemplate
 from app.features.screening.repositories.repository import (
     get_application_for_company,
+    get_candidate_score_by_app_id,
     get_candidate_score_for_company,
     get_application_by_id,
     get_scoring_template_by_job_id,
@@ -26,6 +30,7 @@ from app.shared.constants.audit_actions import MANUAL_OVERRIDE_SCORE
 from app.shared.constants.audit_entities import CANDIDATE_SCORE
 from app.shared.constants.errors import (
     ERR_CANDIDATE_SCORE_NOT_FOUND,
+    ERR_SCREENING_ALREADY_COMPLETED,
     MSG_SCREENING_QUEUED,
 )
 from app.shared.helpers.localization import get_label
@@ -47,6 +52,12 @@ async def queue_screening(
     )
     if not application:
         raise ApplicationNotFoundException()
+
+    # Prevent re-screening if a score already exists
+    existing_score = await get_candidate_score_by_app_id(db, application_id)
+    if existing_score is not None:
+        raise ScreeningAlreadyCompletedException()
+
     decision = await register_manual_screening_request(application_id)
     message_key = (
         decision.reason
@@ -65,12 +76,12 @@ async def manual_override_score(
     *,
     current_user: User,
     application_id: int,
-    skill_adjustment: float = 0.0,
-    experience_adjustment: float = 0.0,
-    education_adjustment: float = 0.0,
-    portfolio_adjustment: float = 0.0,
-    soft_skill_adjustment: float = 0.0,
-    admin_adjustment: float = 0.0,
+    skill_match_score: float = 0.0,
+    experience_score: float = 0.0,
+    education_score: float = 0.0,
+    portfolio_score: float = 0.0,
+    soft_skill_score: float = 0.0,
+    administrative_score: float = 0.0,
     reason: str = "",
 ) -> ManualOverrideResponse:
     score = await get_candidate_score_for_company(
@@ -82,18 +93,12 @@ async def manual_override_score(
         raise ApplicationNotFoundException(get_label(ERR_CANDIDATE_SCORE_NOT_FOUND))
 
     old_values = get_model_snapshot(score)
-    score.skill_match_score = _clamp_score(score.skill_match_score + skill_adjustment)
-    score.experience_score = _clamp_score(
-        score.experience_score + experience_adjustment
-    )
-    score.education_score = _clamp_score(score.education_score + education_adjustment)
-    score.portfolio_score = _clamp_score(score.portfolio_score + portfolio_adjustment)
-    score.soft_skill_score = _clamp_score(
-        score.soft_skill_score + soft_skill_adjustment
-    )
-    score.administrative_score = _clamp_score(
-        score.administrative_score + admin_adjustment
-    )
+    score.skill_match_score = _clamp_score(skill_match_score)
+    score.experience_score = _clamp_score(experience_score)
+    score.education_score = _clamp_score(education_score)
+    score.portfolio_score = _clamp_score(portfolio_score)
+    score.soft_skill_score = _clamp_score(soft_skill_score)
+    score.administrative_score = _clamp_score(administrative_score)
 
     # Ambil template bobot dari Job
     application = await get_application_by_id(db, application_id)
