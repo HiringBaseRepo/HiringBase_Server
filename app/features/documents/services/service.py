@@ -17,7 +17,7 @@ from app.features.applications.models import ApplicationDocument
 from app.features.users.models import User
 from app.shared.constants.storage import ALLOWED_EXTENSIONS, MAX_FILE_SIZE_MB, UPLOAD_PREFIX_PORTFOLIO, UPLOAD_PREFIX_DOCUMENT
 from app.shared.enums.document_type import DocumentType
-from app.shared.helpers.storage import build_public_url, generate_filename, get_s3_client
+from app.shared.helpers.storage import build_public_url, generate_filename, get_s3_client, upload_file_async
 
 
 async def upload_document(
@@ -46,19 +46,17 @@ async def upload_document(
 
     prefix = UPLOAD_PREFIX_PORTFOLIO if document_type == DocumentType.PORTFOLIO else UPLOAD_PREFIX_DOCUMENT
     key = generate_filename(file.filename, prefix)
-    s3 = get_s3_client()
-    s3.put_object(
-        Bucket=settings.R2_BUCKET_NAME,
-        Key=key,
-        Body=content,
-        ContentType=file.content_type or "application/pdf",
+    file_url = await upload_file_async(
+        content=content,
+        key=key,
+        content_type=file.content_type or "application/pdf",
     )
 
     document = ApplicationDocument(
         application_id=application_id,
         document_type=document_type,
         file_name=file.filename,
-        file_url=build_public_url(key),
+        file_url=file_url,
         file_size=len(content),
         mime_type=file.content_type or "application/pdf",
     )
