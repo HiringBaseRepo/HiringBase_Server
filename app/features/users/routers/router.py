@@ -118,3 +118,21 @@ async def upload_user_avatar(
     from app.features.companies.services.service import upload_logo as upload_to_r2
     url = await upload_to_r2(db, file)
     return StandardResponse.ok(data={"avatar_url": url})
+
+
+@router.post("/me/avatar", response_model=StandardResponse[dict])
+async def upload_my_avatar(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Upload logged-in user's avatar to Cloudflare R2 and update database."""
+    from app.features.companies.services.service import upload_logo as upload_to_r2
+    from app.features.users.repositories.repository import update_user_repo
+    url = await upload_to_r2(db, file)
+    
+    current_user.avatar_url = url
+    await update_user_repo(db, current_user)
+    await db.commit()
+    
+    return StandardResponse.ok(data={"avatar_url": url}, message="Avatar updated successfully")

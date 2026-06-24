@@ -72,6 +72,7 @@ class UserResponse(BaseModel):
     role: UserRole
     company_id: Optional[int]
     is_active: bool
+    avatar_url: Optional[str] = None
     created_at: datetime
 
 
