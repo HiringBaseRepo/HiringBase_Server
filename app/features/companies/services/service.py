@@ -23,6 +23,7 @@ from app.shared.helpers.storage import (
     build_public_url,
     generate_filename,
     get_s3_client,
+    upload_file_async,
 )
 from app.shared.constants.storage import UPLOAD_PREFIX_COMPANY_LOGO
 from app.core.config import settings
@@ -137,14 +138,12 @@ async def get_company_by_id(db: AsyncSession, company_id: int) -> CompanyDetailR
 async def upload_logo(db: AsyncSession, file: UploadFile) -> str:
     content = await file.read()
     key = generate_filename(file.filename, UPLOAD_PREFIX_COMPANY_LOGO)
-    s3 = get_s3_client()
-    s3.put_object(
-        Bucket=settings.R2_BUCKET_NAME,
-        Key=key,
-        Body=content,
-        ContentType=file.content_type or "image/png",
+    url = await upload_file_async(
+        content=content,
+        key=key,
+        content_type=file.content_type or "image/png",
     )
-    return build_public_url(key)
+    return url
 
 
 async def update_company(
