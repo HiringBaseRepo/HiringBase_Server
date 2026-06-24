@@ -7,7 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import JobNotFoundException
 from app.core.utils.pagination import PaginationParams
 from app.core.utils.ticket import generate_apply_code
-from app.features.jobs.models import Job, JobFormField, JobRequirement
+from app.features.jobs.models import (
+    Job,
+    JobFormField,
+    JobKnockoutRule,
+    JobRequirement,
+)
 from app.features.jobs.repositories.repository import (
     get_form_fields_by_job_id,
     get_job_for_company,
@@ -15,6 +20,7 @@ from app.features.jobs.repositories.repository import (
     get_requirements_by_job_id,
     save_form_fields,
     save_job,
+    save_knockout_rules,
     save_requirements,
 )
 from app.features.audit_logs.models import AuditLog
@@ -23,6 +29,7 @@ from app.features.jobs.repositories.repository import (
     list_jobs as list_jobs_query,
 )
 from app.features.jobs.schemas.schema import (
+    AddJobKnockoutRulesRequest,
     AddJobRequirementsRequest,
     CreateJobStep1Request,
     JobCloseResponse,
@@ -144,6 +151,12 @@ async def setup_job_form(
     if not job:
         raise JobNotFoundException()
 
+    # Delete existing form fields before inserting (prevents UniqueConstraint violation
+    # when HR navigates back to step 3 and re-submits)
+    existing = await get_form_fields_by_job_id(db, job_id)
+    for field in existing:
+        await db.delete(field)
+
     fields = [_build_form_field(job_id, item) for item in data.fields]
     await save_form_fields(db, fields)
     
@@ -162,6 +175,33 @@ async def setup_job_form(
     
     await db.commit()
     return JobStepResponse(job_id=job_id, form_fields_added=len(fields))
+
+
+async def add_job_knockout_rules(
+    db: AsyncSession,
+    *,
+    current_user: User,
+    job_id: int,
+    data: AddJobKnockoutRulesRequest,
+) -> JobStepResponse:
+    job = await get_job_for_company(db, job_id, current_user.company_id)
+    if not job:
+        raise JobNotFoundException()
+
+    rules = [
+        JobKnockoutRule(
+            job_id=job_id,
+            rule_name=item.rule_name,
+            rule_type=item.rule_type,
+            target_value=item.target_value,
+            operator="eq",
+            is_active=item.is_active,
+        )
+        for item in data.knockout_rules
+    ]
+    await save_knockout_rules(db, rules)
+    await db.commit()
+    return JobStepResponse(job_id=job_id)
 
 
 def _build_form_field(job_id: int, item: JobFormFieldInput) -> JobFormField:

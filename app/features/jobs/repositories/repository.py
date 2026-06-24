@@ -26,6 +26,12 @@ async def save_form_fields(db: AsyncSession, fields: list[JobFormField]) -> None
     await db.flush()
 
 
+async def save_knockout_rules(db: AsyncSession, rules: list[JobKnockoutRule]) -> None:
+    for rule in rules:
+        db.add(rule)
+    await db.flush()
+
+
 async def get_job_for_company(db: AsyncSession, job_id: int, company_id: int | None) -> Job | None:
     result = await db.execute(
         select(Job).where(Job.id == job_id, Job.company_id == company_id)
