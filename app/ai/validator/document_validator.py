@@ -42,6 +42,14 @@ async def validate_document_content(
         )
 
     if not ocr_text or len(ocr_text.strip()) < 10:
+        if force_fallback:
+            return _normalize_document_validation_result(
+                {
+                    "valid": True,
+                    "reason": get_label("OCR text too short (fallback mode — accepting on best effort)"),
+                    "confidence": 0.5,
+                }
+            )
         return _normalize_document_validation_result(
             {
                 "valid": False,
