@@ -174,7 +174,10 @@ async def list_applications(
 ) -> tuple[list[Application], int]:
     stmt = (
         select(Application)
-        .options(joinedload(Application.applicant))
+        .options(
+            joinedload(Application.applicant),
+            joinedload(Application.scores)
+        )
         .join(Job)
         .where(
             Job.company_id == company_id,

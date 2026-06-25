@@ -72,6 +72,7 @@ class ApplicationListItem(BaseModel):
     status_label: str | None = None
     created_at: str | None
     applicant_name: str | None = None
+    score: Optional[int] = None
 
     model_config = {"from_attributes": True}
 
