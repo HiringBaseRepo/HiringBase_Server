@@ -67,6 +67,7 @@ async def list_applications(
             "status_label": get_label(app.status),
             "created_at": app.created_at.isoformat() if app.created_at else None,
             "applicant_name": app.applicant.full_name if app.applicant else None,
+            "score": int(round(app.scores.final_score)) if app.scores else 0,
         }
         items.append(ApplicationListItem.model_validate(item_data))
 
