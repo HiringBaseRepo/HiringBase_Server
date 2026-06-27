@@ -36,5 +36,10 @@ async def save_interview(db: AsyncSession, interview: Interview) -> Interview:
 
 
 async def get_interview_by_application_id(db: AsyncSession, application_id: int) -> Interview | None:
-    result = await db.execute(select(Interview).where(Interview.application_id == application_id))
-    return result.scalar_one_or_none()
+    result = await db.execute(
+        select(Interview)
+        .where(Interview.application_id == application_id)
+        .order_by(Interview.id.desc())
+    )
+    return result.scalars().first()
+
