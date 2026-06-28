@@ -136,3 +136,43 @@ async def upload_my_avatar(
     await db.commit()
     
     return StandardResponse.ok(data={"avatar_url": url}, message="Avatar updated successfully")
+
+
+@router.get("/avatar/{filename}")
+async def get_avatar(filename: str):
+    """Serve user avatar from Cloudflare R2 proxying the request to bypass CORS."""
+    from fastapi.responses import StreamingResponse
+    from fastapi import HTTPException
+    from app.shared.helpers.storage import get_s3_client
+    from app.core.config import settings
+    
+    s3 = get_s3_client()
+    key = f"company-logos/{filename}"
+    try:
+        response = s3.get_object(Bucket=settings.R2_BUCKET_NAME, Key=key)
+        content_type = response.get('ContentType', 'image/png')
+        # Fix generic content types to prevent browser rendering issues
+        if content_type == 'application/octet-stream' or not content_type:
+            ext = filename.split('.')[-1].lower()
+            if ext in ('jpg', 'jpeg'):
+                content_type = 'image/jpeg'
+            elif ext == 'png':
+                content_type = 'image/png'
+            elif ext == 'gif':
+                content_type = 'image/gif'
+            elif ext == 'webp':
+                content_type = 'image/webp'
+            else:
+                content_type = 'image/png'
+        
+        return StreamingResponse(
+            response['Body'], 
+            media_type=content_type,
+            headers={
+                "Cache-Control": "public, max-age=31536000, immutable",
+                "Access-Control-Allow-Origin": "*",
+            }
+        )
+    except Exception:
+        raise HTTPException(status_code=404, detail="File not found")
+
