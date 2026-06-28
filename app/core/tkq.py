@@ -9,8 +9,11 @@ from app.core.config import settings
 # Menambahkan SmartRetryMiddleware untuk menangani kegagalan API eksternal dengan exponential backoff
 broker = ListQueueBroker(
     url=settings.REDIS_URL,
-    socket_timeout=60.0,
+    socket_timeout=300.0,
     socket_connect_timeout=30.0,
+    socket_keepalive=True,
+    retry_on_timeout=True,
+    health_check_interval=30,
 ).with_middlewares(
     SmartRetryMiddleware(
         default_retry_count=3,
