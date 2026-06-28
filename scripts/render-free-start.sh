@@ -1,56 +1,53 @@
 #!/bin/sh
 
-set -eu
-
 WORKER_CMD="taskiq worker app.core.tkq:broker app.main"
 SCHEDULER_CMD="taskiq scheduler app.core.tkq:scheduler app.main"
 API_CMD="uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000}"
 
 cleanup() {
-  if [ -n "${API_PID:-}" ] && kill -0 "$API_PID" 2>/dev/null; then
-    kill "$API_PID" 2>/dev/null || trueuvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000}
-  fi
-  if [ -n "${WORKER_PID:-}" ] && kill -0 "$WORKER_PID" 2>/dev/null; then
-    kill "$WORKER_PID" 2>/dev/null || true
-  fi
-  if [ -n "${SCHEDULER_PID:-}" ] && kill -0 "$SCHEDULER_PID" 2>/dev/null; then
-    kill "$SCHEDULER_PID" 2>/dev/null || true
-  fi
+  echo "[startup] Cleaning up all processes..."
+  for pid in "$WORKER_PID" "$SCHEDULER_PID" "$API_PID"; do
+    if [ -n "${pid:-}" ] && kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+      wait "$pid" 2>/dev/null || true
+    fi
+  done
 }
 
-trap cleanup INT TERM EXIT
-
-sh -c "$WORKER_CMD" &
-WORKER_PID=$!
-
-sh -c "$SCHEDULER_CMD" &
-SCHEDULER_PID=$!
+trap cleanup INT TERM
 
 sh -c "$API_CMD" &
 API_PID=$!
+echo "[startup] API started with PID $API_PID"
 
-while kill -0 "$API_PID" 2>/dev/null && kill -0 "$WORKER_PID" 2>/dev/null && kill -0 "$SCHEDULER_PID" 2>/dev/null; do
-  sleep 5
-done
+# Worker: auto-restart on crash
+(
+  while true; do
+    echo "[startup] Starting worker..."
+    sh -c "$WORKER_CMD"
+    EXIT_CODE=$?
+    echo "[startup] Worker exited with code $EXIT_CODE. Restarting in 3s..."
+    sleep 3
+  done
+) &
+WORKER_PID=$!
+echo "[startup] Worker supervisor started with PID $WORKER_PID"
 
-if ! kill -0 "$API_PID" 2>/dev/null; then
-  wait "$API_PID" || true
-  exit 1
-fi
+# Scheduler: auto-restart on crash
+(
+  while true; do
+    echo "[startup] Starting scheduler..."
+    sh -c "$SCHEDULER_CMD"
+    EXIT_CODE=$?
+    echo "[startup] Scheduler exited with code $EXIT_CODE. Restarting in 3s..."
+    sleep 3
+  done
+) &
+SCHEDULER_PID=$!
+echo "[startup] Scheduler supervisor started with PID $SCHEDULER_PID"
 
-if ! kill -0 "$WORKER_PID" 2>/dev/null; then
-  wait "$WORKER_PID" || true
-  kill "$SCHEDULER_PID" 2>/dev/null || true
-  kill "$API_PID" 2>/dev/null || true
-  wait "$API_PID" || true
-  exit 1
-fi
-
-if ! kill -0 "$SCHEDULER_PID" 2>/dev/null; then
-  wait "$SCHEDULER_PID" || true
-  kill "$WORKER_PID" 2>/dev/null || true
-  wait "$WORKER_PID" || true
-  kill "$API_PID" 2>/dev/null || true
-  wait "$API_PID" || true
-  exit 1
-fi
+# If API dies, shut everything down
+wait "$API_PID" 2>/dev/null
+echo "[startup] API process died. Shutting down..."
+cleanup
+exit 1
