@@ -1,0 +1,46 @@
+name: Scrape HiringBase Jobs
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: scrape-jobs
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Server Repo
+        uses: actions/checkout@v4
+        with:
+          path: server
+
+      - name: Checkout Scraper Repo
+        uses: actions/checkout@v4
+        with:
+          repository: HiringBaseRepo/Big_Data_HiringBase
+          token: ${{ secrets.SCRAPER_PAT }}
+          path: Big_Data_HiringBase
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'Big_Data_HiringBase/big_data_scraper/requirements.txt'
+
+      - name: Install Scraper Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r Big_Data_HiringBase/big_data_scraper/requirements.txt
+
+      - name: Run Scraper
+        env:
+          MONGODB_URL: ${{ secrets.MONGODB_URL }}
+        run: |
+          # Add the workspace root to Python path so Big_Data_HiringBase can be imported
+          export PYTHONPATH="${PYTHONPATH}:${{ github.workspace }}"
+          python -m Big_Data_HiringBase.big_data_scraper.main
