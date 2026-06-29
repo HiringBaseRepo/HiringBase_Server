@@ -95,6 +95,9 @@ Use string-literal relationships and `TYPE_CHECKING` hints when needed. Keep Ale
 - Private job access is supported via a unique `apply_code`. If a public applicant searches using an exact `apply_code` (as query `q`), the system will return the matching private job.
 - Document upload validation uses case-insensitive enum value mapping (matching lowercase values of `DocumentType` like `identity_card`, `degree`, etc.) when receiving files prefixed with `file_`.
 - User and Company pagination queries must always return results ordered by `created_at` in descending order by default.
+- Big Data Market Intelligence endpoints require `SUPER_ADMIN` privileges.
+- MongoDB operations must be async using Motor client, and fail gracefully with default empty responses if MongoDB is not configured or offline.
+- Manual scraper refresh triggers GitHub Action `scrape-jobs.yml` workflow_dispatch using `GITHUB_PAT` and `GITHUB_REPO` environment variables.
 
 ## AI, Storage, and Security Constraints
 - Use deterministic fallbacks on final retry instead of hard failure.

@@ -96,3 +96,10 @@ Local users (non-public applicants) can reset their password via a 2-stage OTP f
   - `SuperAdminDep`
 - Router imports: `app.features.<feature>.routers.router`
 - Auth dependencies: `app.features.auth.dependencies.auth`
+
+## Big Data Market Intelligence Rules
+- **Access Control**: Limited to `SUPER_ADMIN` (`require_super_admin`).
+- **Database Engine**: Async MongoDB via `motor` client. Scrape jobs are stored in `hiringbase_bigdata.jobs`.
+- **Fault Tolerance**: If `MONGODB_URL` is not defined or MongoDB is offline, database helpers must catch the exception, log it, and return a clean default response (e.g. empty lists) instead of crashing.
+- **Scraper Scheduling**: Triggered every 6 hours via GitHub Actions workflow `scrape-jobs.yml` inside the server repo.
+- **Manual Refresh**: Invoked via `POST /big-data/refresh` which triggers a GitHub API `workflow_dispatch` call using `GITHUB_PAT` and `GITHUB_REPO` credentials.
