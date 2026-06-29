@@ -97,7 +97,7 @@ Use string-literal relationships and `TYPE_CHECKING` hints when needed. Keep Ale
 - User and Company pagination queries must always return results ordered by `created_at` in descending order by default.
 - Big Data Market Intelligence endpoints require `SUPER_ADMIN` privileges.
 - MongoDB operations must be async using Motor client, and fail gracefully with default empty responses if MongoDB is not configured or offline.
-- Manual scraper refresh triggers GitHub Action `scrape-jobs.yml` workflow_dispatch using `GITHUB_PAT` and `GITHUB_REPO` environment variables.
+- Manual scraper refresh triggers GitHub Action `scrape-jobs.yml` workflow_dispatch using `SCRAPER_PAT` and `GITHUB_REPO` environment variables.
 
 ## AI, Storage, and Security Constraints
 - Use deterministic fallbacks on final retry instead of hard failure.
