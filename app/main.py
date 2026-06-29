@@ -47,6 +47,7 @@ from app.features.screening.routers.manual_override import (
 from app.features.screening.routers.router import router as screening_router
 from app.features.tickets.routers.router import router as tickets_router
 from app.features.users.routers.router import router as users_router
+from app.features.big_data.routers.router import router as big_data_router
 from app.shared.schemas.response import StandardResponse
 
 # Initialize Logging
@@ -83,6 +84,10 @@ async def lifespan(app: FastAPI):
     if not broker.is_worker_process:
         await broker.startup()
 
+    # Startup MongoDB
+    from app.core.database.mongo import connect_mongo, disconnect_mongo
+    await connect_mongo()
+
     if settings.APP_ENV == "development":
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
@@ -95,6 +100,9 @@ async def lifespan(app: FastAPI):
 
     # Shutdown Redis
     await redis_client.disconnect()
+
+    # Shutdown MongoDB
+    await disconnect_mongo()
 
     if settings.APP_ENV != "testing":
         await engine.dispose()
@@ -149,6 +157,7 @@ app.include_router(reports_router, prefix=settings.API_V1_PREFIX)
 app.include_router(interviews_router, prefix=settings.API_V1_PREFIX)
 app.include_router(audit_logs_router, prefix=settings.API_V1_PREFIX)
 app.include_router(manual_override_router, prefix=settings.API_V1_PREFIX)
+app.include_router(big_data_router, prefix=settings.API_V1_PREFIX)
 
 
 

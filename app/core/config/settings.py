@@ -140,6 +140,13 @@ class Settings(BaseSettings):
     UPSTASH_REDIS_REST_URL: Optional[str] = None
     UPSTASH_REDIS_REST_TOKEN: Optional[str] = None
 
+    # MONGODB
+    MONGODB_URL: Optional[str] = None
+
+    # GITHUB (For Market Intel Scraper manual refresh)
+    SCRAPER_PAT: Optional[str] = None
+    GITHUB_REPO: Optional[str] = None
+
     # RATE LIMITING
     RATE_LIMIT_PER_MINUTE: int = DEFAULT_RATE_LIMIT_PER_MINUTE
 
