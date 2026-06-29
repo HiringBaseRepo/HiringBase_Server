@@ -124,7 +124,7 @@ outputs/
 .ruff_cache/
 .agents/
 # .ai-context/
-.github/
+# .github/
 .zed/
 .python-version
 .idea/
