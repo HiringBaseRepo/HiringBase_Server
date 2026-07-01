@@ -138,6 +138,7 @@ async def get_job_detail(job_id: int, db: AsyncSession = Depends(get_db), curren
 
 
 @router.patch("/{job_id}/close", response_model=StandardResponse[JobCloseResponse])
+@router.post("/{job_id}/close", response_model=StandardResponse[JobCloseResponse])
 async def close_job(job_id: int, db: AsyncSession = Depends(get_db), current_user=Depends(require_hr)):
     result = await close_job_service(db, current_user=current_user, job_id=job_id)
     return StandardResponse.ok(data=result)
