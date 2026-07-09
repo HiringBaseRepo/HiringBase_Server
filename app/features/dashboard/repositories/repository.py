@@ -19,7 +19,7 @@ async def get_dashboard_stats(db: AsyncSession) -> dict:
     total_hr_users = (await db.execute(total_hr_users_stmt)).scalar_one()
 
     # Active Jobs
-    active_jobs_stmt = select(func.count(Job.id)).where(Job.status == JobStatus.PUBLISHED, Job.deleted_at.is_(None))
+    active_jobs_stmt = select(func.count(Job.id)).where(Job.status.in_([JobStatus.PUBLISHED, JobStatus.PRIVATE]), Job.deleted_at.is_(None))
     active_jobs = (await db.execute(active_jobs_stmt)).scalar_one()
 
     # Total Applicants

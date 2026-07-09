@@ -51,7 +51,10 @@ async def list_jobs(
 
     stmt = select(Job).where(Job.company_id == company_id, Job.deleted_at.is_(None))
     if status:
-        stmt = stmt.where(Job.status == status)
+        if status == JobStatus.PUBLISHED:
+            stmt = stmt.where(Job.status.in_([JobStatus.PUBLISHED, JobStatus.PRIVATE]))
+        else:
+            stmt = stmt.where(Job.status == status)
     if q:
         stmt = stmt.where(Job.title.ilike(f"%{q}%"))
 
@@ -66,7 +69,10 @@ async def list_jobs(
         .where(Job.company_id == company_id, Job.deleted_at.is_(None))
     )
     if status:
-        stmt_with_count = stmt_with_count.where(Job.status == status)
+        if status == JobStatus.PUBLISHED:
+            stmt_with_count = stmt_with_count.where(Job.status.in_([JobStatus.PUBLISHED, JobStatus.PRIVATE]))
+        else:
+            stmt_with_count = stmt_with_count.where(Job.status == status)
     if q:
         stmt_with_count = stmt_with_count.where(Job.title.ilike(f"%{q}%"))
 
