@@ -16,6 +16,7 @@ class PublicJobItem(BaseModel):
     description: str
     apply_code: str | None
     company_name: str | None
+    company_logo: str | None = None
     published_at: str | None
     employment_type_label: str | None = None
 
@@ -43,6 +44,9 @@ class PublicJobDetailResponse(BaseModel):
     employment_type: str
     location: str | None
     company_name: str | None
+    company_logo: str | None = None
+    salary_min: int | None = None
+    salary_max: int | None = None
     employment_type_label: str | None = None
     requirements: list[PublicJobRequirement]
     form_fields: list[PublicJobFormField]

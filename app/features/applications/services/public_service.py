@@ -123,6 +123,9 @@ async def get_public_job_detail(
         employment_type=job.employment_type.value,
         location=job.location,
         company_name=company.name if company else None,
+        company_logo=company.logo_url if company else None,
+        salary_min=job.salary_min,
+        salary_max=job.salary_max,
         employment_type_label=get_label(job.employment_type),
         requirements=[
             PublicJobRequirement(

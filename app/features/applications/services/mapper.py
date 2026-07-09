@@ -27,6 +27,7 @@ def map_job_to_public_item(job: Any, company: Any) -> PublicJobItem:
         description=job.description,
         apply_code=job.apply_code,
         company_name=company.name if company else None,
+        company_logo=company.logo_url if company else None,
         published_at=job.published_at.isoformat() if job.published_at else None,
     )
 
