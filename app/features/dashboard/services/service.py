@@ -66,6 +66,6 @@ async def get_recent_campaigns(db: AsyncSession) -> List[RecentCampaign]:
             job_title=job.title,
             screened=screened,
             match_rate=85, 
-            status="active" if job.status == JobStatus.PUBLISHED else "completed"
+            status="active" if job.status in [JobStatus.PUBLISHED, JobStatus.PRIVATE] else "completed"
         ))
     return campaigns

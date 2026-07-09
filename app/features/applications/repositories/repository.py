@@ -181,6 +181,7 @@ async def list_applications(
         .join(Job)
         .where(
             Job.company_id == company_id,
+            Job.status != JobStatus.DRAFT,
             Application.deleted_at.is_(None),
         )
     )
